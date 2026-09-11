@@ -580,8 +580,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 12:43 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T12:43 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 13:03 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T13:03 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -809,10 +809,39 @@
       "id": "boxEdge",
       "label": "Marginea box-ului (fade)",
       "order": 7,
-      "status": "planned",
-      "description": "Comportamentul prețului la revenirea la marginea box-ului înainte de confirmare (respingere vs străpungere). Singurul edge out-of-sample după costuri găsit până acum (WTI +0.08 R/trade, Pas 9). Necesită targets noi calculate din traseul la nivel de bară — următorul pas al seriei 1.",
-      "targets": [],
-      "breakdowns": []
+      "description": "Ce face prețul la PRIMA atingere a unei margini DR înainte de confirmare (Pas 12, 11 sep 2026): a fost un test (close în box) sau o spargere directă; a ținut marginea până la final; câte teste au fost; și traseul unui FADE ipotetic executat la margine la primul test — cât a mers spre interior (TP), cât a depășit marginea (SL), rezultatul brut în R cu TP 0.65R / SL 1.5R și ieșire la close contra (= spargere). Cadru: marginile DR (nu IDR), R = mărimea box-ului, fără costuri (costurile și expectancy-ul pe medie intră în seria 4). Context: fade-ul marginii e singurul edge out-of-sample după costuri găsit până acum (WTI +0.08 R/trade, Pas 9; cripto ≈ 0). Breakdown-urile de la atingere (ora, marginea vs PreBO / trend, direcția barei, adâncimea în box înainte, volumul barei) sunt cunoscute ÎN momentul atingerii — fără look-ahead.",
+      "targets": [
+        "edgeTest",
+        "edgeHeldAfterTest",
+        "edgeHeld",
+        "fadeTp_0.5",
+        "fadeTp_0.65",
+        "fadeTp_1",
+        "fadeFavR",
+        "fadeMaeR",
+        "fadeR_065_15",
+        "fadeR_05_1",
+        "edgeTests",
+        "edgeBreakDelay",
+        "edgeTouched"
+      ],
+      "breakdowns": [
+        "edgeTouchBucket30",
+        "edgeVsPreBO",
+        "edgeVsTrend1d",
+        "edgeTouchBarDir",
+        "edgePreRetrQ",
+        "edgeTouchVolQ",
+        "edgeSide",
+        "edgeTouchType",
+        "session",
+        "dow",
+        "drRangeRelQ",
+        "preBO",
+        "momPre1dQ"
+      ],
+      "defaultTarget": "edgeHeldAfterTest",
+      "defaultBreakdown": "edgeTouchBucket30"
     }
   ]
 };
@@ -976,6 +1005,52 @@ function finishPath(p) {
 let __pathBarsEnabled = false;
 function setPathBarsEnabled(v) { __pathBarsEnabled = !!v; }
 
+// ============================================================
+// Pasul 12 (11 sep 2026) — MARGINEA BOX-ULUI (modulul boxEdge, seria 1). Pentru fiecare margine DR (top = DR high,
+// bot = DR low) urmărim, ÎNAINTE de orice confirmare, prima ATINGERE (fitilul ajunge la margine): momentul, dacă bara a
+// închis în interior („test") sau dincolo (spargere directă), volumul barei, cât coborâse prețul spre marginea opusă
+// înainte (preRetrR), apoi: numărul de teste, dacă marginea a fost SPARTĂ (confirmare prin ea) și când, și traseul unui
+// FADE ipotetic executat la margine la prima atingere (favorabil = spre interiorul box-ului, advers = dincolo de margine),
+// pe grile TP/SL, cu ieșire la „close contra" (= spargerea) sau la finalul sesiunii. Cadrul: R = drRange, marginile DR.
+// Nimic de aici nu depinde de barele viitoare la momentul atingerii (câmpul `edgeTouch`); rezultatele sunt în `edge`.
+const EDGE_TP_GRID = [0.25, 0.5, 0.65, 0.75, 1.0];   // în interiorul box-ului, de la margine (1.0 = marginea opusă)
+const EDGE_SL_GRID = [0.25, 0.5, 0.75, 1.0, 1.5];    // dincolo de margine
+function newEdgeTracker(side, edgePrice, drRange) {
+  return { side, edgePrice, drRange, touched: false, touchElapsed: null, touchClosedInside: null, touchVol: null, touchBarDir: null, touchPreRetrR: null,
+           tests: 0, inTouch: false, broken: false, breakElapsed: null, breakCloseR: null, favMaxR: 0, advMaxR: 0, advMaxPreBreakR: 0, lastCloseR: null,
+           tpElapsed: EDGE_TP_GRID.map(() => null), slElapsed: EDGE_SL_GRID.map(() => null), tpAdvBefore: EDGE_TP_GRID.map(() => null) };
+}
+// b = bara curentă; anyConfirmed = există deja o confirmare (oricare margine) ÎNAINTE de această bară; dispLow/dispHigh = extremele
+// fazei disp de dinainte de bară (pentru preRetrR). Întoarce nimic; mută starea.
+function edgeStep(t, b, elapsed, anyConfirmedBefore, dispLowBefore, dispHighBefore) {
+  const top = t.side === 'top', E_ = t.edgePrice, R = t.drRange;
+  const reach = top ? b.h >= E_ : b.l <= E_;                 // fitilul atinge marginea
+  const closeBeyond = top ? b.c > E_ : b.c < E_;
+  if (!t.touched) {
+    if (anyConfirmedBefore || !reach) return;                 // atingerea contează doar înainte de orice confirmare
+    t.touched = true; t.touchElapsed = elapsed; t.touchClosedInside = !closeBeyond; t.touchVol = b.v == null ? null : b.v;
+    t.touchBarDir = b.c > b.o ? 1 : (b.c < b.o ? -1 : 0);
+    // cât coborâse prețul (faza disp, înainte de această bară) spre marginea opusă, în R; 0 = a atins marginea „din prima"
+    t.touchPreRetrR = top ? (isFinite(dispLowBefore) ? Math.max(0, (E_ - dispLowBefore) / R) : 0) : (isFinite(dispHighBefore) ? Math.max(0, (dispHighBefore - E_) / R) : 0);
+    t.tests = closeBeyond ? 0 : 1; t.inTouch = true;
+  } else if (reach) { if (!t.inTouch && !closeBeyond && !t.broken) t.tests++; t.inTouch = true; } else t.inTouch = false;
+  // traseul fade-ului de la prima atingere (inclusiv bara atingerii): fav = spre interior, adv = dincolo de margine (pesimist pe aceeași bară)
+  const favR = Math.max(0, top ? (E_ - b.l) / R : (b.h - E_) / R), advR = Math.max(0, top ? (b.h - E_) / R : (E_ - b.l) / R);
+  const closeR = top ? (E_ - b.c) / R : (b.c - E_) / R;      // pozitiv = close în interior (profit pentru fade)
+  if (advR > t.advMaxR) t.advMaxR = advR;
+  if (!t.broken && advR > t.advMaxPreBreakR) t.advMaxPreBreakR = advR;
+  if (favR > t.favMaxR) t.favMaxR = favR;
+  for (let i = 0; i < EDGE_SL_GRID.length; i++) if (t.slElapsed[i] === null && t.advMaxR >= EDGE_SL_GRID[i] - PATH_EPS) t.slElapsed[i] = elapsed;
+  for (let i = 0; i < EDGE_TP_GRID.length; i++) if (t.tpElapsed[i] === null && favR >= EDGE_TP_GRID[i] - PATH_EPS) { t.tpElapsed[i] = elapsed; t.tpAdvBefore[i] = t.advMaxR; }
+  if (!t.broken && closeBeyond) { t.broken = true; t.breakElapsed = elapsed; t.breakCloseR = closeR; }
+  t.lastCloseR = closeR;
+}
+function finishEdge(t) {
+  if (!t || !t.touched) return null;
+  return { side: t.side, touchElapsed: t.touchElapsed, touchClosedInside: t.touchClosedInside, tests: t.tests, broken: t.broken, breakElapsed: t.breakElapsed, breakCloseR: t.breakCloseR,
+           favMaxR: t.favMaxR, advMaxR: t.advMaxR, advMaxPreBreakR: t.advMaxPreBreakR, endR: t.lastCloseR, tpElapsed: t.tpElapsed, slElapsed: t.slElapsed, tpAdvBefore: t.tpAdvBefore };
+}
+
 function computeSessionStats(rows, cfg, useIDR) {
   const defStart = timeToHM(cfg.defStart), defEnd = timeToHM(cfg.defEnd), dispEnd = timeToHM(cfg.dispEnd);
   const dispStart = defEnd;
@@ -1063,13 +1138,21 @@ function computeSessionStats(rows, cfg, useIDR) {
         const mom60Raw = (cycle.lastDefBarIdx != null && cycle.lastDefBarIdx >= 12)
           ? rows[cycle.lastDefBarIdx].c - rows[cycle.lastDefBarIdx - 12].c
           : null;
+        const __eT = cycle.edgeTop && cycle.edgeTop.touched ? cycle.edgeTop : null, __eB = cycle.edgeBot && cycle.edgeBot.touched ? cycle.edgeBot : null;
+        const __first = (__eT && __eB) ? (__eT.touchElapsed <= __eB.touchElapsed ? __eT : __eB) : (__eT || __eB);
+        const __other = __first ? (__first === __eT ? __eB : __eT) : null;
+        const edgeTouch = __first ? { side: __first.side, elapsed: __first.touchElapsed, closedInside: __first.touchClosedInside, vol: __first.touchVol, barDir: __first.touchBarDir, preRetrR: __first.touchPreRetrR, bothTouchedSameBar: !!(__eT && __eB && __eT.touchElapsed === __eB.touchElapsed) } : null;
+        const edge = finishEdge(__first), edgeOther = finishEdge(__other);
         cycles.push({ dateKey: cycle.startDateKey, dow: cycle.startDow, direction, ruleHold, invalidElapsed, extAmt, extElapsed, retrAmt, retrElapsed, retrBeforeAmt, retrSessionAmt, giveback, givebackElapsed, drRange, triggerElapsed, relIdx,
           trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
           path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined,
           volDef, volDefN: hasVol ? cycle.volDefN : null, volPre, volPreN, volConfirmBar, volDisp: hasVol ? cycle.volDisp : null, volDispN: hasVol ? cycle.volDispN : null, // volDisp = toată faza disp (Pas 11; post-hoc, doar pentru baze istorice)
           // Pasul 8: indexul barei de închidere a box-ului — permite features de context calculate din barele DINAINTEA
           // orei PreBO (trend independent: momentum 4h/1d, ASS 1H/4H/D), fără să depindă de mom60Raw.
-          lastDefBarIdx: cycle.lastDefBarIdx });
+          lastDefBarIdx: cycle.lastDefBarIdx,
+          // Pasul 12 — marginea box-ului: `edgeTouch` = ce se știe la PRIMA atingere a oricărei margini (fără viitor);
+          // `edge` = rezultatele pentru marginea atinsă prima (și cealaltă, în `edgeOther`), inclusiv traseul fade-ului.
+          edgeTouch, edge, edgeOther });
       }
     }
     cycle = null;
@@ -1126,6 +1209,10 @@ function computeSessionStats(rows, cfg, useIDR) {
         cycle.dispLow = Infinity;
         cycle.dispHigh = -Infinity;
         if (__pathBarsEnabled) cycle.bars = [];
+        // Pasul 12 — marginile DR (mereu DR, indiferent de toggle-ul IDR — fade-ul din Pas 8/9 e la DR)
+        const __R = cycle.drHigh - cycle.drLow;
+        cycle.edgeTop = __R > 0 ? newEdgeTracker('top', cycle.drHigh, __R) : null;
+        cycle.edgeBot = __R > 0 ? newEdgeTracker('bot', cycle.drLow, __R) : null;
       }
       if (cycle && cycle.phase === 'disp') {
         const trigHigh = useIDR ? cycle.idrHigh : cycle.drHigh;
@@ -1133,11 +1220,12 @@ function computeSessionStats(rows, cfg, useIDR) {
         if (b.v != null && cycle.tUp === null && cycle.tDn === null) { cycle.volPre += b.v; cycle.volPreN++; } // include bara de confirmare (se scade mai jos)
         if (b.v != null) { cycle.volDisp += b.v; cycle.volDispN++; }
         if (__pathBarsEnabled) cycle.bars.push([((hmToMin(b.hm) - dispStartMin) + 1440) % 1440, b.h, b.l, b.c, b.o, b.v]); // [elapsed,h,l,c,o,v] — o/v adăugate la Pas 11 (cercetare volum pe bare)
+        const elapsed = ((hmToMin(b.hm) - dispStartMin) + 1440) % 1440;
+        if (cycle.edgeTop) { const __anyConf = cycle.tUp !== null || cycle.tDn !== null; edgeStep(cycle.edgeTop, b, elapsed, __anyConf, cycle.dispLow, cycle.dispHigh); edgeStep(cycle.edgeBot, b, elapsed, __anyConf, cycle.dispLow, cycle.dispHigh); }
         if (b.l < cycle.sessLow) cycle.sessLow = b.l;
         if (b.h > cycle.sessHigh) cycle.sessHigh = b.h;
         if (b.l < cycle.dispLow) cycle.dispLow = b.l;
         if (b.h > cycle.dispHigh) cycle.dispHigh = b.h;
-        const elapsed = ((hmToMin(b.hm) - dispStartMin) + 1440) % 1440;
         // Task #152 — Regula 4 (revizuită cu utilizatorul): confirmarea = PRIMUL close dincolo de box (Long dacă
         // peste trigHigh, Short dacă sub trigLow); o singură direcție per sesiune — cine închide prima dată
         // câștigă, nu mai există 'both'/whipsaw. Invalidarea (False) = orice close ULTERIOR confirmării în
@@ -1402,7 +1490,7 @@ function computeAllSessions(rows, useIDR) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { setPathBarsEnabled, PATH_TP_GRID, PATH_SL_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
+  module.exports = { setPathBarsEnabled, PATH_TP_GRID, PATH_SL_GRID, EDGE_TP_GRID, EDGE_SL_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
 }
 
 });
@@ -1494,8 +1582,9 @@ __define("/features/index.js", function (module, exports, require) {
 //   label       nume afișabil
 //   type        'categorical' | 'ordinal' | 'continuous'   (ordinal ⇒ kernelul testează monotonia)
 //   levels      ordinea nivelurilor (categorical/ordinal); pentru ordinal ordinea E semnificația
-//   availableAt 'boxClose' | 'confirm' | 'sessionEnd'  — momentul REAL la care valoarea e cunoscută:
+//   availableAt 'boxClose' | 'edgeTouch' | 'confirm' | 'sessionEnd'  — momentul REAL la care valoarea e cunoscută:
 //                 boxClose   = la închiderea ferestrei DR/IDR (înainte de orice confirmare)
+//                 edgeTouch  = la prima atingere a unei margini DR (înainte de confirmare) — Pas 12
 //                 confirm    = la închiderea barei de confirmare
 //                 sessionEnd = doar post-hoc (NU poate fi folosit ca predictor pentru decizii în sesiune)
 //   fit(cycles) (opțional) parametri dependenți de date (ex. chintile per sesiune) — returnează `params`;
@@ -1507,7 +1596,7 @@ __define("/features/index.js", function (module, exports, require) {
 'use strict';
 const E = (typeof require === 'function') ? require('../engine.js') : (typeof window !== 'undefined' ? window : globalThis);
 
-const STAGES = ['boxClose', 'confirm', 'sessionEnd'];
+const STAGES = ['boxClose', 'edgeTouch', 'confirm', 'sessionEnd']; // edgeTouch (Pas 12) = prima atingere a unei margini DR, înainte de confirmare
 const STAGE_FIELDS = {
   boxClose: new Set(['dateKey', 'dow', 'srcSession', 'drHigh', 'drLow', 'idrHigh', 'idrLow', 'drRange', 'trigHigh', 'trigLow',
                      'preBO', 'mom60Raw', 'structure', 'refStructure', 'refPreBO', 'drRangeRel',
@@ -1517,7 +1606,8 @@ const STAGE_FIELDS = {
                      'volPre', 'volPreN', 'volConfirmBar']),
   sessionEnd: null, // orice
 };
-STAGE_FIELDS.confirm = new Set([...STAGE_FIELDS.boxClose, ...STAGE_FIELDS.confirm]);
+STAGE_FIELDS.edgeTouch = new Set([...STAGE_FIELDS.boxClose, 'edgeTouch']);
+STAGE_FIELDS.confirm = new Set([...STAGE_FIELDS.edgeTouch, ...STAGE_FIELDS.confirm]);
 
 // Identic cu percentileOf din HTML (index = floor(p*(n-1)), pe vector sortat).
 function percentileOf(sortedArr, p) {
@@ -1539,6 +1629,7 @@ const STRUCT_LEVELS = ['RX', 'Contraction', 'UXP', 'DXP', 'UX', 'DX', 'U', 'D', 
 function volConfirmRel(c) { if (c.volConfirmBar == null || c.volDef == null || !c.volDefN || c.volDef <= 0) return null; return c.volConfirmBar / (c.volDef / c.volDefN); }
 function volDefVsSim3(c) { if (c.volDef == null || !c.volDefN || !(c.volSim3Base > 0)) return null; return (c.volDef / c.volDefN) / c.volSim3Base; }
 function volConfirmVsSim3(c) { if (c.volConfirmBar == null || !(c.volSim3Base > 0)) return null; return c.volConfirmBar / c.volSim3Base; }
+function edgeTouchVolRel(c) { if (!c.edgeTouch || c.edgeTouch.vol == null || c.volDef == null || !c.volDefN || c.volDef <= 0) return null; return c.edgeTouch.vol / (c.volDef / c.volDefN); }
 function volPreConfirmRel(c) { if (c.volPre == null || !c.volPreN || c.volDef == null || !c.volDefN || c.volDef <= 0) return null; return (c.volPre / c.volPreN) / (c.volDef / c.volDefN); }
 
 const FEATURES = [
@@ -1688,6 +1779,27 @@ const FEATURES = [
     fit: cycles => { const v = cycles.map(volConfirmVsSim3).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
     value: (c, P) => { const r = volConfirmVsSim3(c); if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
 
+  // ---- Pasul 12: MARGINEA BOX-ULUI — cunoscute la prima atingere a unei margini DR (înainte de confirmare) ----
+  { name: 'edgeSide', label: 'Marginea atinsă prima (sus / jos)', type: 'categorical', levels: ['top', 'bot'], availableAt: 'edgeTouch',
+    value: c => c.edgeTouch ? c.edgeTouch.side : null },
+  { name: 'edgeTouchType', label: 'Prima atingere: test (close în box) sau spargere directă', type: 'categorical', levels: ['test', 'spargere directă'], availableAt: 'edgeTouch',
+    value: c => c.edgeTouch ? (c.edgeTouch.closedInside ? 'test' : 'spargere directă') : null },
+  { name: 'edgeTouchBucket30', label: 'Ora primei atingeri (30 min de la închiderea PreBO)', type: 'ordinal', availableAt: 'edgeTouch',
+    levels: Array.from({ length: 48 }, (_, i) => i * 30),
+    value: c => c.edgeTouch ? Math.floor(c.edgeTouch.elapsed / 30) * 30 : null },
+  { name: 'edgeVsPreBO', label: 'Marginea atinsă vs direcția PreBO', type: 'categorical', levels: ['în sensul PreBO', 'contra PreBO'], availableAt: 'edgeTouch',
+    value: c => { if (!c.edgeTouch || !c.preBO || c.preBO === 'Flat') return null; return ((c.edgeTouch.side === 'top') === (c.preBO === 'Long')) ? 'în sensul PreBO' : 'contra PreBO'; } },
+  { name: 'edgeVsTrend1d', label: 'Marginea atinsă vs trendul 24h pre-PreBO', type: 'categorical', levels: ['în sensul trendului', 'contra trendului'], availableAt: 'edgeTouch',
+    value: c => { if (!c.edgeTouch || c.momPre1d == null || c.momPre1d === 0) return null; return ((c.edgeTouch.side === 'top') === (c.momPre1d > 0)) ? 'în sensul trendului' : 'contra trendului'; } },
+  { name: 'edgeTouchBarDir', label: 'Direcția barei de atingere', type: 'categorical', levels: ['spre margine', 'dinspre margine', 'neutră'], availableAt: 'edgeTouch',
+    value: c => { if (!c.edgeTouch) return null; const d = c.edgeTouch.barDir; if (d === 0) return 'neutră'; return ((c.edgeTouch.side === 'top') === (d > 0)) ? 'spre margine' : 'dinspre margine'; } },
+  { name: 'edgePreRetrQ', label: 'Adâncimea în box înainte de atingere (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'edgeTouch',
+    fit: cycles => { const v = cycles.map(c => c.edgeTouch ? c.edgeTouch.preRetrR : null).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = c.edgeTouch ? c.edgeTouch.preRetrR : null; if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
+  { name: 'edgeTouchVolQ', requires: 'volume', label: 'Volumul barei de atingere / media pe bară PreBO (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'edgeTouch',
+    fit: cycles => { const v = cycles.map(edgeTouchVolRel).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = edgeTouchVolRel(c); if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
+
   // ---- disponibile abia la confirmare ----
   { name: 'confirmDir', label: 'Direcția confirmării', type: 'categorical', levels: ['up', 'down'], availableAt: 'confirm',
     value: c => (c.direction === 'up' || c.direction === 'down') ? c.direction : null },
@@ -1763,6 +1875,14 @@ const DESC = {
   volConfirmRel: 'VOLUM: raportul brut (continuu) volum bara de confirmare / medie pe bară PreBO, fără bucket-izare.',
   volDefVsSim3Q: 'VOLUM (Pas 11): volumul mediu pe bară al orei PreBO împărțit la volumul mediu pe bară al ÎNTREGII sesiuni pentru ultimele 3 sesiuni anterioare de același tip (RDR cu RDR etc.), în chintile. „Deschidere cu volum mare față de sesiunile recente". Pe cripto: Q5 ⇒ True +20–29pp, mai puține confirmări (−10pp), extensie și MAE mai mici în R — dar e în mare parte același semnal ca box-ul mare (range); nu prezice direcția, nici continuarea trendului 4h/24h; amplifică ușor PreBO (+5–7pp).',
   volConfirmVsSim3Q: 'VOLUM (Pas 11): volumul barei de confirmare împărțit la volumul mediu pe bară al ultimelor 3 sesiuni de același tip, în chintile. Cunoscut la confirmare. Pe cripto: Q5 ⇒ SL 1R atins −15…−20pp, MAE −0.3R, MAE-înainte-de-TP −0.1R, True +12–18pp, TP1 neschimbat; intrarea la confirmare rămâne negativă după costuri și în Q5 (−0.03…−0.09 R), doar mai puțin negativă decât în Q1.',
+  edgeSide: 'MARGINEA BOX-ULUI: care margine DR a fost atinsă prima (fitilul ajunge la DR high = top, la DR low = bot) după închiderea orei PreBO, înainte de orice confirmare. Cunoscut în momentul atingerii.',
+  edgeTouchType: 'MARGINEA: la prima atingere, bara a închis în interiorul box-ului („test" — marginea a ținut cel puțin o bară) sau direct dincolo („spargere directă" = chiar bara de confirmare). Doar „test"-ele sunt setup-uri de fade.',
+  edgeTouchBucket30: 'MARGINEA: ora primei atingeri, în intervale de 30 min de la închiderea orei PreBO. Atingerile târzii lasă mai puțin timp până la finalul sesiunii.',
+  edgeVsPreBO: 'MARGINEA: marginea atinsă e în direcția PreBO (top după PreBO Long / bot după PreBO Short) sau contra. Fade-ul unei margini „în sensul PreBO" pariază contra PreBO.',
+  edgeVsTrend1d: 'MARGINEA: marginea atinsă e în direcția trendului 24h de dinaintea PreBO (top în trend ascendent) sau contra lui — „zonă de continuation" vs „zonă de reverse".',
+  edgeTouchBarDir: 'MARGINEA: bara care atinge marginea a închis „spre margine" (impuls în direcția marginii — ex. bară verde la DR high), „dinspre margine" (respingere în aceeași bară) sau neutră.',
+  edgePreRetrQ: 'MARGINEA: cât de adânc coborâse prețul în box, spre marginea opusă, ÎNAINTE de prima atingere (în R, de la marginea atinsă; 0 = a mers direct la margine), în chintile. Măsură a „drumului parcurs" până la test.',
+  edgeTouchVolQ: 'MARGINEA + VOLUM (doar OHLCV): volumul barei care atinge prima marginea, împărțit la volumul mediu pe bară din ora PreBO, în chintile. Cunoscut la atingere.',
   confirmDir: 'Direcția confirmării: up = prima închidere de 5 min peste DR high, down = sub DR low. Cunoscută la confirmare.',
   preBOAligned: 'Dacă direcția confirmării coincide cu direcția PreBO (aligned: PreBO Long + confirmare up, sau Short + down) sau e opusă (contra). PreBO Flat e exclus. Cunoscut la confirmare.',
   triggerBucket30: 'Ora la care a venit confirmarea, în intervale de 30 de minute numărate de la ÎNCHIDEREA orei PreBO (0 = în primele 30 min după box). Confirmarea târzie lasă mai puțin timp până la finalul sesiunii ⇒ efect mecanic pe extensie/TP (buget de timp, nu semnal).',
@@ -1844,6 +1964,34 @@ E.PATH_SL_GRID.forEach((L, i) => {
     value: c => c.path ? c.path.slElapsed[i] !== null : null });
 });
 
+// ---- Pasul 12: MARGINEA BOX-ULUI (din c.edge — marginea atinsă prima, înainte de confirmare) ----
+const eg = c => c.edge || null;
+// fade-ul ipotetic: intrare la margine la prima atingere (doar dacă bara a închis în box), TP în interior la tp R, SL dincolo la sl R,
+// ieșire la „close contra" (= spargerea marginii, la close-ul acelei bare) sau la finalul sesiunii. Egalitate ⇒ SL (pesimist). Fără costuri.
+function fadeResult(c, tp, sl) {
+  const e = eg(c); if (!e || !e.touchClosedInside) return null;
+  const ti = E.EDGE_TP_GRID.indexOf(tp), si = E.EDGE_SL_GRID.indexOf(sl); if (ti < 0 || si < 0) throw new Error('nivel în afara grilei edge');
+  const ev = [['tp', e.tpElapsed[ti]], ['sl', e.slElapsed[si]], ['br', e.breakElapsed]].filter(x => x[1] != null).sort((a, b) => a[1] - b[1] || (a[0] === 'sl' ? -1 : b[0] === 'sl' ? 1 : 0));
+  if (!ev.length) return e.endR == null ? 0 : e.endR;
+  const f = ev[0]; return f[0] === 'tp' ? tp : (f[0] === 'sl' ? -sl : e.breakCloseR);
+}
+TARGETS.push(
+  { name: 'edgeTouched', label: 'O margine DR a fost atinsă înainte de confirmare', kind: 'binary', scope: 'all', decidedAt: 'sessionEnd', value: c => c.direction === undefined ? null : !!c.edgeTouch },
+  { name: 'edgeTest', label: 'Prima atingere a fost test (close în box), nu spargere directă', kind: 'binary', scope: 'all', decidedAt: 'sessionEnd', value: c => c.edgeTouch ? c.edgeTouch.closedInside : null },
+  { name: 'edgeHeld', label: 'Marginea atinsă prima a ȚINUT (nu a fost spartă până la final)', kind: 'binary', scope: 'all', decidedAt: 'sessionEnd', value: c => eg(c) ? !eg(c).broken : null },
+  { name: 'edgeHeldAfterTest', label: 'După un test (close în box), marginea a ținut până la final', kind: 'binary', scope: 'all', decidedAt: 'sessionEnd', value: c => (eg(c) && eg(c).touchClosedInside) ? !eg(c).broken : null },
+  { name: 'edgeTests', label: 'Număr de teste ale marginii (atingeri cu close în box)', kind: 'continuous', scope: 'all', decidedAt: 'sessionEnd', value: c => eg(c) ? eg(c).tests : null },
+  { name: 'edgeBreakDelay', label: 'Minute de la prima atingere până la spargere', kind: 'continuous', scope: 'all', decidedAt: 'sessionEnd', value: c => (eg(c) && eg(c).broken) ? eg(c).breakElapsed - eg(c).touchElapsed : null },
+  { name: 'fadeFavR', label: 'Fade: mișcarea maximă spre interiorul box-ului după atingere (R)', kind: 'continuous', scope: 'all', decidedAt: 'sessionEnd', value: c => (eg(c) && eg(c).touchClosedInside) ? eg(c).favMaxR : null },
+  { name: 'fadeMaeR', label: 'Fade: mișcarea maximă dincolo de margine până la spargere/final (R)', kind: 'continuous', scope: 'all', decidedAt: 'sessionEnd', value: c => (eg(c) && eg(c).touchClosedInside) ? eg(c).advMaxPreBreakR : null },
+  { name: 'fadeR_065_15', label: 'Fade R/trade: TP 0.65R în box, SL 1.5R, ieșire la close contra (brut)', kind: 'continuous', scope: 'all', decidedAt: 'sessionEnd', value: c => fadeResult(c, 0.65, 1.5) },
+  { name: 'fadeR_05_1', label: 'Fade R/trade: TP 0.5R în box, SL 1R, ieșire la close contra (brut)', kind: 'continuous', scope: 'all', decidedAt: 'sessionEnd', value: c => fadeResult(c, 0.5, 1) },
+);
+E.EDGE_TP_GRID.forEach((L, i) => {
+  TARGETS.push({ name: `fadeTp_${L}`, label: `Fade: TP ${L}R în box atins înainte de spargere`, kind: 'binary', scope: 'all', decidedAt: 'sessionEnd', level: L,
+    value: c => { const e = eg(c); if (!e || !e.touchClosedInside) return null; const t = e.tpElapsed[i]; return t !== null && (e.breakElapsed === null || t < e.breakElapsed); } });
+});
+
 // Rezultatul unei perechi TP×SL pe un ciclu: 'tp' | 'sl' | 'none' | null. Egalitate de timp = SL primul (pesimist).
 function tpSlOutcome(c, tpLevel, slLevel) {
   if (!c.path) return null;
@@ -1868,12 +2016,23 @@ const DESC = {
   maeR: 'Maximum Adverse Excursion pe fitil: cea mai mare mișcare contra poziției (intrare la marginea de trigger, la confirmare) până la finalul sesiunii, în R. Identic cu retragerea după confirmare.',
   maeCloseR: 'Maximum Adverse Excursion pe CLOSE: cea mai mare mișcare contra, măsurată doar pe închiderile de 5 min (ignoră fitilele), în R. Relevant pentru stop-uri pe close.',
   triggerElapsed: 'Minute scurse de la închiderea orei PreBO până la bara de confirmare.',
+  edgeTouched: 'MARGINEA: cel puțin o margine DR a fost atinsă (pe fitil) înainte de orice confirmare — adică sesiunea a oferit un moment de decizie la margine. Fals = prețul a stat departe de margini până la confirmare/final.',
+  edgeTest: 'MARGINEA: la prima atingere bara a închis ÎN box (marginea a ținut cel puțin acea bară) — un „test", singurul caz în care un fade e posibil. Fals = prima atingere a fost direct bara de confirmare.',
+  edgeHeld: 'MARGINEA: marginea atinsă prima nu a fost spartă (nicio închidere dincolo de ea) până la finalul sesiunii — indiferent dacă prima atingere a fost test sau spargere directă (spargerea directă contează ca „nu a ținut").',
+  edgeHeldAfterTest: 'MARGINEA: doar pentru ciclurile în care prima atingere a fost un test: marginea a ținut până la finalul sesiunii (confirmarea NU a venit prin ea). Rata = probabilitatea ca un test al marginii să NU fie urmat de spargere.',
+  edgeTests: 'MARGINEA: câte atingeri separate cu close în box a avut marginea atinsă prima (bare consecutive care ating = un singur test).',
+  edgeBreakDelay: 'MARGINEA: pentru marginile sparte, minutele scurse de la prima atingere până la închiderea dincolo de margine.',
+  fadeFavR: 'FADE: după un test, cât de departe a mers prețul spre interiorul box-ului (pe fitil), de la margine, în R — până la finalul sesiunii. Baza pentru TP-ul fade-ului (1.0 = marginea opusă).',
+  fadeMaeR: 'FADE: după un test, cea mai mare depășire a marginii pe fitil (mișcarea adversă pentru fade), în R, până la spargere (close contra) sau finalul sesiunii. Baza pentru SL-ul fade-ului.',
+  fadeR_065_15: 'FADE: rezultatul în R al unui fade ipotetic executat la margine la primul test — TP la 0.65R în interiorul box-ului (zona modală din Pas 8), SL la 1.5R dincolo, ieșire la close-ul primei bare care închide dincolo de margine (spargerea) sau la finalul sesiunii. Fără costuri; afișată mediana — media (expectancy) o vezi în seria 4. Pe WTI, brut ≈ +0.15R/trade (2022–26).',
+  fadeR_05_1: 'FADE: același fade cu TP 0.5R și SL 1R, ieșire la close contra sau la final. Fără costuri.',
 };
 for (const t of TARGETS) {
   if (t.desc) continue;
   if (DESC[t.name]) t.desc = DESC[t.name];
   else if (/^tpHit_/.test(t.name)) t.desc = `Take-profit la ${t.level} R a fost atins: prețul a ajuns (pe fitil) la ${t.level} × mărimea box-ului dincolo de marginea de trigger, în direcția confirmării, până la finalul sesiunii. Rata = probabilitatea de a atinge acest TP.` + R_NOTE;
   else if (/^tpMaeBefore_/.test(t.name)) t.desc = `Pentru ciclurile care AU atins TP ${t.level} R: cea mai mare mișcare contra (pe fitil, în R) suferită ÎNAINTE de a atinge TP-ul. Spune cât de larg trebuie să fie stop-ul ca să nu fii scos înainte de TP. Ciclurile care nu au atins TP sunt excluse.` + R_NOTE;
+  else if (/^fadeTp_/.test(t.name)) t.desc = `FADE: după un test al marginii, prețul a mers (pe fitil) cel puțin ${t.level} R spre interiorul box-ului ÎNAINTE ca marginea să fie spartă (close dincolo). Rata = probabilitatea ca un fade la margine să atingă acest TP fără să fie invalidat mai întâi. Stop-ul nu e luat în calcul aici (vezi fadeMaeR).`;
   else if (/^slHit_/.test(t.name)) t.desc = `Stop-loss la ${t.level} R a fost atins: prețul a mers (pe fitil) ${t.level} × mărimea box-ului contra direcției confirmării, până la finalul sesiunii.` + R_NOTE;
   else t.desc = null;
 }
@@ -1911,7 +2070,7 @@ const E = require('../engine.js');
 const F = require('../features/index.js');
 const T = require('../targets/index.js');
 
-const STAGE_RANK = { boxClose: 0, confirm: 1, sessionEnd: 2 };
+const STAGE_RANK = { boxClose: 0, edgeTouch: 1, confirm: 2, sessionEnd: 3 };
 const DEFAULT_OPTS = { nMin: 30, alpha: 0.05, ci: 0.95, halves: true, yearly: true };
 
 // ---------- utilitare numerice ----------
@@ -2299,6 +2458,7 @@ const UI = {
   'kpi.n': { title: 'n cicluri (după filtre)', text: 'Numărul de sesiuni (cicluri DR/IDR) care au intrat în calcul după filtrele curente (sesiune, zile, rezultat, interval) și după excluderea celor fără valoare pentru target sau breakdown (ex. Inside pentru direcție). Sub ~200 concluziile sunt fragile.' },
   'kpi.rate': { title: 'rată globală', text: 'Procentul de cicluri (din n) pentru care target-ul este adevărat, pe TOATE bucket-urile la un loc — nivelul de referință față de care citești barele. Ex. „True 79.6%" = 79.6% din sesiunile confirmate au fost True.' },
   'kpi.median': { title: 'mediană globală', text: 'Valoarea din mijloc a target-ului continuu (în R) pe toate ciclurile filtrate: jumătate din cicluri sunt sub, jumătate peste. Preferată mediei pentru că extremele (extensii uriașe) nu o trag.' },
+  'kpi.mean': { title: 'medie globală (expectancy)', text: 'Media aritmetică a target-ului pe toate ciclurile filtrate, în R, cu statistica t în paranteză (media împărțită la eroarea ei standard; |t| ≥ 2 ⇒ media diferă de 0 mai mult decât zgomotul). Pentru rezultate de tip R/trade (fade, intrări) MEDIA e expectancy-ul — mediana poate fi negativă și media pozitivă când câștigurile sunt rare și mari. Fără costuri aici.' },
   'kpi.iqr': { title: 'q25 – q75', text: 'Intervalul intercuartilic global: 25% din cicluri sunt sub q25 și 25% peste q75; jumătatea „tipică" a distribuției e între ele.' },
   'kpi.spread': { title: 'efect hi − lo', text: 'Mărimea efectului: diferența dintre bucket-ul cu cea mai mare valoare și cel cu cea mai mică (pentru rate în puncte procentuale — pp; pentru mărimi continue diferența de mediane, în R). Doar bucket-urile cu n ≥ 30 contează. Pragul gate-ului: ≥ 5 pp, respectiv |Cliff δ| ≥ 0.1.' },
   'kpi.test': { title: 'test statistic', text: 'chi² = testul de independență pentru rate (întrebarea: diferă rata între bucket-uri mai mult decât ar face-o din întâmplare?); kruskal = Kruskal-Wallis, echivalentul pentru mărimi continue (comparăm distribuțiile, nu mediile). p = probabilitatea de a vedea o diferență cel puțin atât de mare dacă bucket-ul NU ar conta; p < 0.05 = semnificativ; 3.1e-11 = 0.000000000031.' },
@@ -2313,6 +2473,7 @@ const UI = {
   'table.rate': { title: 'rată', text: 'Procentul de cicluri din bucket pentru care target-ul e adevărat.' },
   'table.ci': { title: 'CI 95%', text: 'Intervalul de încredere 95% (Wilson) al ratei din bucket.' },
   'table.median': { title: 'mediană', text: 'Valoarea din mijloc a target-ului în bucket (R).' },
+  'table.mean': { title: 'medie (t)', text: 'Media target-ului în bucket (expectancy pentru R/trade) și statistica t (|t| ≥ 2 ⇒ semnificativ diferită de 0). Fără costuri.' },
   'table.q25': { title: 'q25', text: 'Percentila 25: un sfert din ciclurile bucket-ului au valori sub ea.' },
   'table.q75': { title: 'q75', text: 'Percentila 75: trei sferturi din cicluri sunt sub ea.' },
   'table.p90': { title: 'p90', text: 'Percentila 90: doar 10% din cicluri depășesc această valoare — util pentru a dimensiona un stop „care rezistă în 90% din cazuri".' },
@@ -2363,7 +2524,7 @@ function describe(ref) {
   } catch (_) { return null; }
   return null;
 }
-function stageRO(s) { return s === 'boxClose' ? 'închiderea box-ului (înainte de confirmare)' : s === 'confirm' ? 'închiderea barei de confirmare' : 'finalul sesiunii (post-hoc)'; }
+function stageRO(s) { return s === 'boxClose' ? 'închiderea box-ului (înainte de confirmare)' : s === 'edgeTouch' ? 'prima atingere a unei margini DR (înainte de confirmare)' : s === 'confirm' ? 'închiderea barei de confirmare' : 'finalul sesiunii (post-hoc)'; }
 function typeRO(t) { return t === 'ordinal' ? 'ordinal (bucket-uri ordonate ⇒ se testează monotonia)' : t === 'categorical' ? 'categorial' : 'continuu'; }
 
 // ce nu are descriere — folosit de test
@@ -2508,7 +2669,9 @@ function selectModule(id) {
   render();
 }
 const SHORT = { triggerBucket30: 'Ora confirmării (30 min)', drRangeRelQ: 'Range relativ (chintilă)', drRangeQ: 'Range absolut (chintilă)', drRangeT: 'Range (tercilă)', momPre4hQ: 'Momentum 4h pre-PreBO', momPre1dQ: 'Momentum 24h pre-PreBO', trendBucket: 'mom60 (≡ mărimea PreBO)', preBOAligned: 'PreBO aliniat / contra', refStructure: 'Structura ref.', refPreBO: 'PreBO ref.', assAlign: 'ASS aliniere 1H/4H/D', 'tpMaeBefore_0.5': 'MAE înainte de TP 0.5R', tpMaeBefore_1: 'MAE înainte de TP 1R', 'tpMaeBefore_1.5': 'MAE înainte de TP 1.5R', tpMaeBefore_2: 'MAE înainte de TP 2R', retrBeforeR: 'Retragere ÎNAINTE de confirmare', retrR: 'Retragere DUPĂ confirmare (MAE fitil)', maeCloseR: 'MAE pe close',
-  volDefRelQ: 'Volum PreBO / ultimele 60', volDefVsPrevQ: 'Volum PreBO / ora anterioară', volConfirmRelQ: 'Volum confirmare / PreBO', volPreConfirmRelQ: 'Volum pre-confirmare / PreBO' };
+  volDefRelQ: 'Volum PreBO / ultimele 60', volDefVsPrevQ: 'Volum PreBO / ora anterioară', volConfirmRelQ: 'Volum confirmare / PreBO', volPreConfirmRelQ: 'Volum pre-confirmare / PreBO', volDefVsSim3Q: 'Volum PreBO / 3 sesiuni similare', volConfirmVsSim3Q: 'Volum confirmare / 3 sesiuni similare',
+  edgeTouchBucket30: 'Ora primei atingeri (30 min)', edgeVsPreBO: 'Marginea vs PreBO', edgeVsTrend1d: 'Marginea vs trend 24h', edgeTouchBarDir: 'Direcția barei de atingere', edgePreRetrQ: 'Adâncimea în box înainte', edgeTouchVolQ: 'Volum bara de atingere / PreBO', edgeSide: 'Marginea (sus/jos)', edgeTouchType: 'Test / spargere directă',
+  edgeHeldAfterTest: 'Marginea a ținut după test', edgeHeld: 'Marginea a ținut', edgeTest: 'Prima atingere = test', 'fadeTp_0.5': 'Fade TP 0.5R', 'fadeTp_0.65': 'Fade TP 0.65R', fadeTp_1: 'Fade TP 1R (marginea opusă)', fadeFavR: 'Fade: max spre interior (R)', fadeMaeR: 'Fade: max dincolo de margine (R)', fadeR_065_15: 'Fade R/trade TP0.65/SL1.5', fadeR_05_1: 'Fade R/trade TP0.5/SL1', edgeTests: 'Nr. teste', edgeBreakDelay: 'Minute până la spargere', edgeTouched: 'Margine atinsă' };
 function shortLabel(label, key) { return SHORT[key] || (label.length > 34 ? key : label); }
 
 // ---------- date ----------
@@ -2545,12 +2708,16 @@ function render() {
   try { res = S.analyze({ cycles: cyc, features: [state.breakdown], target: state.target, opts: { nMin: 30, yearly: false } }); }
   catch (e) { kp.innerHTML = `<div class="mod-empty">${esc(e.message)}</div>`; tb.innerHTML = ''; stamp.innerHTML = ''; destroyChart(); return; }
   const kind = res.meta.kind, tg = T.get(state.target), fb = F.get(state.breakdown);
+  // medii (expectancy) pentru target-uri continue — kernelul raportează mediane (robuste), dar pentru rezultate în R/trade
+  // media e cea care contează; o calculăm aici pe aceleași etichete (fit pe ciclurile filtrate, ca în analyze fără train)
+  const means = kind === 'binary' ? null : bucketMeans(cyc, state.breakdown, state.target);
   // KPI
   const base = res.baseline;
   kp.innerHTML = [
     ['n cicluri (după filtre)', String(res.meta.n), 'ui:kpi.n'],
     [kind === 'binary' ? 'rată globală' : 'mediană globală', kind === 'binary' ? pct(base.rate) : f3(base.median), kind === 'binary' ? 'ui:kpi.rate' : 'ui:kpi.median'],
     kind === 'binary' ? null : ['q25 – q75', `${f3(base.q25)} – ${f3(base.q75)}`, 'ui:kpi.iqr'],
+    kind === 'binary' ? null : ['medie globală', means.all ? `${f3(means.all.mean)} (t ${means.all.t == null ? '–' : means.all.t.toFixed(1)})` : '–', 'ui:kpi.mean'],
     ['efect hi − lo', kind === 'binary' ? (res.effect.spreadPP == null ? '–' : res.effect.spreadPP.toFixed(1) + ' pp') : (res.effect.spreadMedian == null ? '–' : f3(res.effect.spreadMedian) + ' R'), 'ui:kpi.spread'],
     ['test', res.test.p == null ? '–' : `${res.test.name === 'chi2' ? 'chi²' : res.test.name} ${fmtP(res.test.p)}`, 'ui:kpi.test', res.test.p == null ? '' : `Aici: ${res.test.name === 'chi2' ? 'chi²' : 'Kruskal-Wallis'} = ${res.test.stat == null ? '–' : res.test.stat.toFixed(2)}, df = ${res.test.df}, p exact = ${res.test.p.toExponential(2)} (= ${res.test.p < 1e-12 ? 'practic 0' : res.test.p.toFixed(Math.min(12, Math.max(4, -Math.floor(Math.log10(res.test.p)) + 1)))}). Notația 1.4e-7 înseamnă 1.4 × 10⁻⁷ = 0.00000014.`],
     res.monotonic ? ['monotonie', `ρ=${res.monotonic.spearman.toFixed(2)}`, 'ui:kpi.mono'] : null,
@@ -2566,8 +2733,8 @@ function render() {
   drawChart(res, kind, tg, fb);
   // tabel
   const th = (k, l) => `<th data-tip="ui:table.${k}">${l}</th>`;
-  const head = kind === 'binary' ? `<tr>${th('bucket', 'bucket')}${th('n', 'n')}${th('rate', 'rată')}${th('ci', 'CI 95%')}</tr>` : `<tr>${th('bucket', 'bucket')}${th('n', 'n')}${th('median', 'mediană')}${th('q25', 'q25')}${th('q75', 'q75')}${th('p90', 'p90')}</tr>`;
-  tb.innerHTML = head + res.buckets.map(b => `<tr class="${b.n < 30 ? 'small' : ''}"><td${G.describe('lvl:' + b.key) ? ` data-tip="lvl:${esc(b.key)}"` : ''}>${esc(labelOfBucket(b, fb))}</td><td>${b.n}</td>${kind === 'binary' ? `<td>${pct(b.rate)}</td><td>${pct(b.ci.lo)} – ${pct(b.ci.hi)}</td>` : `<td>${f3(b.median)}</td><td>${f3(b.q25)}</td><td>${f3(b.q75)}</td><td>${f3(b.p90)}</td>`}</tr>`).join('');
+  const head = kind === 'binary' ? `<tr>${th('bucket', 'bucket')}${th('n', 'n')}${th('rate', 'rată')}${th('ci', 'CI 95%')}</tr>` : `<tr>${th('bucket', 'bucket')}${th('n', 'n')}${th('median', 'mediană')}${th('mean', 'medie (t)')}${th('q25', 'q25')}${th('q75', 'q75')}${th('p90', 'p90')}</tr>`;
+  tb.innerHTML = head + res.buckets.map(b => `<tr class="${b.n < 30 ? 'small' : ''}"><td${G.describe('lvl:' + b.key) ? ` data-tip="lvl:${esc(b.key)}"` : ''}>${esc(labelOfBucket(b, fb))}</td><td>${b.n}</td>${kind === 'binary' ? `<td>${pct(b.rate)}</td><td>${pct(b.ci.lo)} – ${pct(b.ci.hi)}</td>` : `<td>${f3(b.median)}</td><td>${means && means.by[b.key] ? `${f3(means.by[b.key].mean)} (${means.by[b.key].t == null ? '–' : means.by[b.key].t.toFixed(1)})` : '–'}</td><td>${f3(b.q25)}</td><td>${f3(b.q75)}</td><td>${f3(b.p90)}</td>`}</tr>`).join('');
   // ștampila seriei 3 (live, pe datele încărcate)
   const g = S.gate(res, { nMin: 30 });
   const h = res.stability.halves;
@@ -2578,7 +2745,13 @@ function render() {
   prof.innerHTML = profileStatusHTML(state.breakdown, state.target);
   decorateTips($('toptab-modules') || document);
 }
-function labelOfBucket(b, fb) { if (fb.name === 'triggerBucket30') return E.elapsedLabel(Number(b.labels[0])) + ' – ' + E.elapsedLabel(Number(b.labels[0]) + 30); return b.key; }
+function bucketMeans(cycles, feat, tg) {
+  const P = F.fitAll([feat], cycles), tv = T.get(tg), by = {}, all = [];
+  for (const c of cycles) { const l = F.labelOf(feat, c, P), y = tv.value(c); if (l == null || y == null) continue; (by[l] = by[l] || []).push(y); all.push(y); }
+  const st = a => { if (!a.length) return null; const m = a.reduce((s, x) => s + x, 0) / a.length; const sd = Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / a.length); return { n: a.length, mean: m, t: sd ? m / (sd / Math.sqrt(a.length)) : null }; };
+  const out = { all: st(all), by: {} }; for (const k of Object.keys(by)) out.by[k] = st(by[k]); return out;
+}
+function labelOfBucket(b, fb) { if (fb.name === 'triggerBucket30' || fb.name === 'edgeTouchBucket30') return E.elapsedLabel(Number(b.labels[0])) + ' – ' + E.elapsedLabel(Number(b.labels[0]) + 30); return b.key; }
 function destroyChart() { if (state.chart) { state.chart.destroy(); state.chart = null; } }
 function drawChart(res, kind, tg, fb) {
   destroyChart();
@@ -2598,7 +2771,7 @@ function drawChart(res, kind, tg, fb) {
       plugins: {
         legend: { labels: { color: '#c9cdd6' } },
         tooltip: { callbacks: { afterBody: items => { const b = res.buckets[items[0].dataIndex]; const lv = G.LEVEL_TEXT[b.key]; return [`n = ${b.n}` + (b.n < 30 ? ' (sub 30 — orientativ)' : '')].concat(lv ? [lv] : []); } } } },
-      scales: { x: { ticks: { color: '#c9cdd6', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.06)' } }, y: { beginAtZero: true, max: kind === 'binary' ? 100 : undefined, ticks: { color: '#c9cdd6' }, grid: { color: 'rgba(255,255,255,0.08)' }, title: { display: true, text: kind === 'binary' ? tg.label + ' (%)' : tg.label + ' (R)', color: '#c9cdd6' } } } }
+      scales: { x: { ticks: { color: '#c9cdd6', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.06)' } }, y: { beginAtZero: true, min: kind === 'binary' ? 0 : undefined, max: kind === 'binary' ? 100 : undefined, ticks: { color: '#c9cdd6' }, grid: { color: 'rgba(255,255,255,0.08)' }, title: { display: true, text: kind === 'binary' ? tg.label + ' (%)' : tg.label + ' (R)', color: '#c9cdd6' } } } }
   });
 }
 
@@ -2641,7 +2814,7 @@ module.exports = { init, setData, setProfile, render, state, MODULES };
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, glossary: G, version: "0.12.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, glossary: G, version: "0.13.0" };
 })();
 
 </script>
