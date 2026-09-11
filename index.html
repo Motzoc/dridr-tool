@@ -586,8 +586,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 13:28 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T13:28 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 13:50 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T13:50 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -2727,6 +2727,8 @@ const UI = {
   'sim.sl': 'Stop-loss în R de la margine, pe fitil. Egalitate pe aceeași bară ⇒ SL primul.',
   'sim.exitContra': 'da = ieși la primul close dincolo de margine (spargere). Același R, drawdown de 3× mai mic (Pas 9).',
   'sim.cost': 'Cost dus-întors = ticks × tick + % × preț, în R (împărțit la box).\nWTI: 0.01 × 1.5. Cripto: 0 ticks + 0.05–0.1% ⇒ 0.2–0.3 R (box mic!).',
+  'sim.period': 'Luna de început și de sfârșit (inclusiv). Gol = tot istoricul. Se aplică și la manual și la top 3.',
+  'sim.auto': 'Caută toate combinațiile (strategie × TP × SL × ieșire × sesiune × un filtru) și le ordonează după Total R în perioadă, min. 100 trade-uri.\nDacă walk-forward-ul de pe card e ≈ 0 sau negativ ⇒ e potrivire pe istoric, nu edge.\nDacă e pozitiv cu n mare ⇒ merită verificat pe alt asset/perioadă.',
   'sim.preset': 'WTI: 0.01 × 1.5 ticks. Cripto: 0.10% din preț. Costul rezultat în R e în detaliile de la R/trade.',
   'sim.filter': 'Păstrează doar ciclurile cu nivelurile bifate ale unui parametru cunoscut la intrare.\nAici verifici dacă un ACTIV din seria 2–3 schimbă banii.',
   'sim.n': 'Câte trade-uri (cicluri cu setup) după filtre. Sub ~200 ⇒ fragil.',
@@ -2837,6 +2839,8 @@ const UI = {
   'sim.sl': { title: 'SL (R)', text: 'Nivelul de stop-loss, în R de la margine (fade: dincolo de margine; confirmare: contra direcției). Atins pe fitil; la egalitate pe aceeași bară SL primul (pesimist).' },
   'sim.exitContra': { title: 'Ieșire la close contra', text: 'Pentru fade: da = ieși la close-ul primei bare care închide dincolo de margine (spargerea box-ului), la prețul acelui close — invalidarea logică a fade-ului; nu = rămâi până la SL/TP/final. Pas 9: același R mediu, drawdown de 3× mai mic cu „da".' },
   'sim.cost': { title: 'Costuri', text: 'Cost dus-întors per trade = ticks × tick + procent × preț, împărțit la mărimea box-ului ⇒ în R. WTI: tick 0.01, ~1.5 ticks (spread + comision). Cripto spot: 0 ticks + 0.05–0.1%. Atenție: la cripto box-ul e mic (0.3–0.5% din preț) ⇒ 0.1% de cost = 0.2–0.3 R.' },
+  'sim.period': { title: 'Perioada simulării', text: 'De la luna/anul de început până la luna/anul de sfârșit (inclusiv). Gol = tot istoricul încărcat. Se aplică și simulării manuale și căutării automate; walk-forward-ul se face în interiorul perioadei (primele 70% / ultimele 30% din ciclurile ei).' },
+  'sim.auto': { title: 'Top 3 simulări automate', text: 'Caută exhaustiv: ambele strategii × toate nivelurile TP × SL × ieșire la contra (fade) × sesiune (ALL/RDR/ODR/ADR) × un filtru din seria 1 (un parametru, un singur nivel, cunoscut la momentul intrării) sau fără filtru. Criteriul: Total R cumulat după costuri în perioada aleasă, cu minimum 100 trade-uri. Rezultatele per ciclu se calculează o dată pe set de parametri, filtrele doar însumează — de aceea zeci de mii de combinații rulează în câteva secunde. ATENȚIE: e o selecție pe istoric — cea mai bună din zeci de mii de combinații va arăta bine și din întâmplare; de aceea fiecare card afișează și walk-forward-ul 70/30 pe același subset (parametrii sunt cei aleși, deci nici el nu e complet independent). „Aplică" încarcă parametrii în simularea manuală.' },
   'sim.preset': { title: 'Preset costuri', text: 'WTI futures: tick 0.01 × 1.5 ticks (spread + comision, per dus-întors). Cripto spot: 0.10% din preț (2 × 0.05%, taker). Ajustează la brokerul tău; costul rezultat în R e afișat în detaliile de la R/trade.' },
   'sim.filter': { title: 'Filtru din seria 1', text: 'Păstrează doar ciclurile în care parametrul ales are nivelurile bifate — ex. „Direcția barei de atingere = dinspre margine". Doar parametri cunoscuți la momentul intrării (anti-leakage). Aici se vede dacă o corelație ACTIVĂ din seria 2–3 chiar schimbă banii.' },
   'sim.n': { title: 'Trade-uri', text: 'Câte cicluri au avut setup (fade: test la margine; confirmare: sesiune confirmată) după filtre. Sub ~200 ⇒ rezultat fragil.' },
@@ -3375,8 +3379,9 @@ const E = require('../engine.js'), F = require('../features/index.js'), T = requ
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = v => v == null ? '–' : (100 * v).toFixed(1) + '%', f2 = v => v == null ? '–' : Number(v).toFixed(2), f3 = v => v == null ? '–' : Number(v).toFixed(3);
-const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null };
+const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null, from: '', to: '', auto: null, autoRunning: false };
 const STRATS = { fade: { label: 'Fade la margine (primul test)', tpGrid: E.EDGE_TP_GRID, slGrid: E.EDGE_SL_GRID, stage: 'edgeTouch' }, confirm: { label: 'Intrare la confirmare', tpGrid: E.PATH_TP_GRID, slGrid: E.PATH_SL_GRID, stage: 'confirm' } };
+const AUTO_MIN_N = 100;
 const DOW_RO = { Monday: 'Lu', Tuesday: 'Ma', Wednesday: 'Mi', Thursday: 'Jo', Friday: 'Vi' };
 
 function markup() {
@@ -3392,6 +3397,7 @@ function markup() {
     <div class="mod-filter"><label data-tip="ui:sim.sl">SL (R)</label><div id="simSl" class="mod-row">${st.slGrid.map(L => `<button type="button" class="expl-grid-btn${L === state.sl ? ' active' : ''}" data-v="${L}">${L}</button>`).join('')}</div></div>
     ${state.strat === 'fade' ? `<div class="mod-filter"><label data-tip="ui:sim.exitContra">Ieșire la close contra</label><div id="simExit" class="mod-row"><button type="button" class="expl-toggle-btn${state.exitContra ? ' active' : ''}" data-v="1">da</button><button type="button" class="expl-toggle-btn${state.exitContra ? '' : ' active'}" data-v="0">nu (până la final)</button></div></div>` : ''}
     <div class="mod-filter"><label data-tip="ui:sim.cost">Costuri (dus-întors)</label><div class="mod-row sim-cost">tick <input id="simTick" type="number" step="any" value="${state.tick}"> × <input id="simCostTicks" type="number" step="0.5" value="${state.costTicks}"> ticks + <input id="simCostPct" type="number" step="0.01" value="${(100 * state.costPct).toFixed(2)}">% din preț <span class="n">preset:</span> <button type="button" class="expl-grid-btn" data-preset="wti" data-tip="ui:sim.preset">WTI futures</button><button type="button" class="expl-grid-btn" data-preset="crypto" data-tip="ui:sim.preset">Cripto spot</button></div></div>
+    <div class="mod-filter"><label data-tip="ui:sim.period">Perioadă (de la – până la)</label><div class="mod-row sim-cost"><input id="simFrom" type="month" value="${state.from}"> – <input id="simTo" type="month" value="${state.to}"> <button type="button" class="expl-grid-btn" id="simAllPeriod">tot istoricul</button></div></div>
     <div class="mod-filter"><label data-tip="ui:filter.session">Sesiune</label><div id="simSession" class="mod-row">${['ALL', ...E.SESSIONS].map(s => `<button type="button" class="expl-toggle-btn${s === state.session ? ' active' : ''}" data-v="${s}">${s}</button>`).join('')}</div></div>
     <div class="mod-filter"><label data-tip="ui:filter.dow">Zile</label><div id="simDows" class="mod-row">${E.DOW.map(d => `<button type="button" class="expl-toggle-btn${state.dows.has(d) ? ' active' : ''}" data-v="${d}">${DOW_RO[d]}</button>`).join('')}</div></div>
     <div class="mod-filter mod-filter-wide"><label data-tip="ui:sim.filter">Filtru din seria 1 (parametru cunoscut la intrare) <span class="n">— alege parametrul, apoi nivelurile păstrate; niciunul = toate</span></label>
@@ -3399,6 +3405,12 @@ function markup() {
     <div class="mod-filter"><label>&nbsp;</label><div class="mod-row"><button type="button" class="expl-toggle-btn cor-run" id="simRun">▶ Rulează</button></div></div>
   </div>
   <div class="panel">
+    <h2 data-tip="ui:sim.auto">Top 3 simulări automate <span class="n">— criteriu: Total R cumulat (după costuri) în perioada aleasă; caută pe strategie × TP × SL × ieșire × sesiune × un filtru din seria 1 (un singur nivel), minimum ${AUTO_MIN_N} trade-uri</span></h2>
+    <div class="mod-row"><button type="button" class="expl-toggle-btn cor-run" id="simAuto">▶ Caută top 3</button><span class="n" id="simAutoStatus"></span></div>
+    <div id="simAutoCards" class="sim-cards"></div>
+  </div>
+  <div class="panel">
+    <h2>Simulare manuală <span class="n">— parametrii aleși mai sus</span></h2>
     <div id="simKpis" class="mod-kpis"></div>
     <div class="chart-box mod-chart"><canvas id="simChart"></canvas></div>
     <div id="simWF" class="mod-stamp"></div>
@@ -3408,6 +3420,8 @@ function markup() {
 }
 const CSS = `.sim-cost input{width:64px;background:var(--panel2);border:1px solid var(--border);color:inherit;border-radius:6px;padding:4px 6px;font:inherit}.sim-cost{align-items:center;gap:6px;color:var(--muted);font-size:12px}
 .sim-select{background:var(--panel2);border:1px solid var(--border);color:inherit;border-radius:6px;padding:5px 8px;font:inherit;max-width:420px}.sim-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0}@media(max-width:900px){.sim-grid2{grid-template-columns:1fr}}
+.sim-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}@media(max-width:1000px){.sim-cards{grid-template-columns:1fr}}
+.sim-card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.6}.sim-card h3{margin:0 0 6px;font-size:13px}.sim-card .big{font-size:22px;font-weight:700}.sim-card .rank{display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--up);color:#fff;text-align:center;font-weight:700;line-height:22px;margin-right:6px}.sim-card button{margin-top:8px}
 .sim-pos{color:var(--up)}.sim-neg{color:var(--down)}#simGrid td.best{background:rgba(63,140,255,.18);font-weight:700}`;
 function filterFeatures() { const rank = { boxClose: 0, edgeTouch: 1, confirm: 2, sessionEnd: 3 }, lim = rank[STRATS[state.strat].stage]; return F.FEATURES.filter(f => f.type !== 'continuous' && rank[f.availableAt] <= lim); }
 
@@ -3428,8 +3442,14 @@ function build() {
   root.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => { if (b.dataset.preset === 'wti') { $('simTick').value = 0.01; $('simCostTicks').value = 1.5; $('simCostPct').value = '0.00'; } else { $('simTick').value = 0; $('simCostTicks').value = 0; $('simCostPct').value = '0.10'; } }));
   $('simFiltFeat').onchange = ev => { state.filtFeat = ev.target.value; state.filtLevels = new Set(); renderLevels(); };
   $('simRun').onclick = () => run();
-  renderLevels(); render();
+  $('simFrom').onchange = ev => { state.from = ev.target.value; state.res = null; renderLevels(); render(); };
+  $('simTo').onchange = ev => { state.to = ev.target.value; state.res = null; renderLevels(); render(); };
+  $('simAllPeriod').onclick = () => { state.from = ''; state.to = ''; $('simFrom').value = ''; $('simTo').value = ''; state.res = null; renderLevels(); render(); };
+  $('simAuto').onclick = () => autoSearch();
+  renderLevels(); render(); renderAuto();
 }
+function periodLabel() { const all = state.getCycles ? (state.getCycles() || []) : []; if (!all.length) return ''; const ds = all.map(c => c.dateKey).sort(); return `${state.from || ds[0].slice(0, 7)} → ${state.to || ds[ds.length - 1].slice(0, 7)}`; }
+function inPeriod(c) { const m = c.dateKey.slice(0, 7); return (!state.from || m >= state.from) && (!state.to || m <= state.to); }
 function renderLevels() {
   const el = $('simFiltLevels'); if (!el) return;
   if (!state.filtFeat) { el.innerHTML = ''; return; }
@@ -3442,7 +3462,8 @@ function renderLevels() {
   if (window.DRIDR && window.DRIDR.ui) window.DRIDR.ui.decorateTips(el);
 }
 function setData() { state.res = null; renderLevels(); render(); }
-function baseCycles() { let cyc = state.getCycles ? (state.getCycles() || []) : []; if (state.session !== 'ALL') cyc = cyc.filter(c => c.srcSession === state.session); if (state.dows.size < E.DOW.length) cyc = cyc.filter(c => state.dows.has(c.dow)); return cyc; }
+function periodCycles() { return (state.getCycles ? (state.getCycles() || []) : []).filter(inPeriod); }
+function baseCycles() { let cyc = periodCycles(); if (state.session !== 'ALL') cyc = cyc.filter(c => c.srcSession === state.session); if (state.dows.size < E.DOW.length) cyc = cyc.filter(c => state.dows.has(c.dow)); return cyc; }
 function filteredCycles() {
   let cyc = baseCycles();
   if (state.filtFeat && state.filtLevels.size) { const P = F.fitAll([state.filtFeat], cyc); cyc = cyc.filter(c => state.filtLevels.has(F.labelOf(state.filtFeat, c, P))); }
@@ -3499,15 +3520,86 @@ function run() {
 }
 const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 
+// ---------- top 3 automat ----------
+// Spațiul de căutare: strategie × TP × SL × ieșire (fade) × sesiune × filtru din seria 1 (un feature, un nivel) sau fără filtru.
+// Rezultatele per ciclu se calculează O DATĂ pentru fiecare set de parametri; filtrele doar însumează ⇒ zeci de mii de
+// combinații în câteva secunde. Criteriu: Total R după costuri în perioadă; cerem ≥ AUTO_MIN_N trade-uri. Zilele = cele bifate.
+// ATENȚIE (scris și în UI): top-ul e selecție pe istoric (in-sample) — de aceea fiecare card arată și walk-forward-ul 70/30.
+async function autoSearch() {
+  if (state.autoRunning) return; readCosts();
+  const cyc = periodCycles().filter(c => state.dows.size === E.DOW.length || state.dows.has(c.dow)).slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
+  if (cyc.length < AUTO_MIN_N) { $('simAutoStatus').textContent = 'prea puține cicluri în perioadă'; return; }
+  state.autoRunning = true; $('simAuto').disabled = true; const status = t => { $('simAutoStatus').textContent = t; };
+  await new Promise(r => setTimeout(r, 10));
+  const t0 = Date.now(), n = cyc.length;
+  // 1. subset-uri (măști) : sesiune × (fără filtru | feature=nivel)
+  const subsets = [];
+  const sessMasks = { ALL: null }; for (const s of E.SESSIONS) sessMasks[s] = cyc.map(c => c.srcSession === s);
+  const featLabels = {}; // feature → etichete per ciclu
+  const rank = { boxClose: 0, edgeTouch: 1, confirm: 2, sessionEnd: 3 };
+  for (const f of F.FEATURES.filter(f => f.type !== 'continuous' && rank[f.availableAt] <= 2)) { const P = F.fitAll([f.name], cyc); featLabels[f.name] = { stage: rank[f.availableAt], labels: cyc.map(c => F.labelOf(f.name, c, P)) }; }
+  for (const ses of ['ALL', ...E.SESSIONS]) {
+    subsets.push({ ses, feat: null, level: null, mask: sessMasks[ses] });
+    for (const [fn, fl] of Object.entries(featLabels)) { const lv = [...new Set(fl.labels.filter(x => x != null))]; for (const l of lv) subsets.push({ ses, feat: fn, level: l, stage: fl.stage, mask: cyc.map((c, i) => (sessMasks[ses] ? sessMasks[ses][i] : true) && fl.labels[i] === l) }); }
+  }
+  // 2. seturi de parametri; rezultatele per ciclu o singură dată
+  const params = [];
+  for (const tp of E.EDGE_TP_GRID) for (const sl of E.EDGE_SL_GRID) for (const ex of [true, false]) params.push({ strat: 'fade', tp, sl, exitContra: ex, stage: 1 });
+  for (const tp of E.PATH_TP_GRID) for (const sl of E.PATH_SL_GRID) params.push({ strat: 'confirm', tp, sl, exitContra: false, stage: 2 });
+  const results = [];
+  for (let pi = 0; pi < params.length; pi++) {
+    const p = params[pi]; const rs = cyc.map(c => { const t = tradeOf(c, p.tp, p.sl, p.strat, p.exitContra); return t ? t.r : null; });
+    for (const sub of subsets) {
+      if (sub.feat && sub.stage > p.stage) continue; // filtrul trebuie cunoscut la momentul intrării
+      let sum = 0, k = 0; for (let i = 0; i < n; i++) { if (rs[i] == null) continue; if (sub.mask && !sub.mask[i]) continue; sum += rs[i]; k++; }
+      if (k >= AUTO_MIN_N) results.push({ p, sub, sum, k });
+    }
+    if (pi % 10 === 9) { status(`caut… ${pi + 1}/${params.length} seturi × ${subsets.length} subseturi`); await new Promise(r => setTimeout(r, 0)); }
+  }
+  results.sort((a, b) => b.sum - a.sum);
+  // 3. top 3 cu detalii + walk-forward 70/30 în perioadă (același subset)
+  // dedup: același set de parametri cu același total și același n = același set de trade-uri (ex. un filtru tautologic) — păstrăm o singură dată
+  const picked = []; for (const x of results) { if (picked.some(y => y.p === x.p && y.k === x.k && Math.abs(y.sum - x.sum) < 1e-9)) continue; picked.push(x); if (picked.length === 3) break; }
+  const top = picked.map(x => {
+    const sel = cyc.filter((c, i) => (x.sub.mask ? x.sub.mask[i] : true));
+    const trades = sel.map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean);
+    const cut = Math.floor(sel.length * 0.7), tr = summarize(sel.slice(0, cut).map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean)), te = summarize(sel.slice(cut).map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean));
+    return Object.assign({}, x, { all: summarize(trades), train: tr, test: te, testFrom: sel[cut] && sel[cut].dateKey });
+  });
+  state.auto = { top, combos: results.length, ms: Date.now() - t0, period: periodLabel(), nCycles: n };
+  state.autoRunning = false; $('simAuto').disabled = false; status(`${results.length} combinații valide (≥ ${AUTO_MIN_N} trade-uri) în ${((Date.now() - t0) / 1000).toFixed(1)} s · perioada ${periodLabel()}`);
+  renderAuto();
+}
+function renderAuto() {
+  const el = $('simAutoCards'); if (!el) return; const A = state.auto;
+  if (!A) { el.innerHTML = '<div class="mod-empty">Apasă „Caută top 3" — caută automat cea mai bună combinație strategie × TP × SL × ieșire × sesiune × filtru, după Total R în perioada aleasă.</div>'; return; }
+  const cls = v => v > 0 ? 'sim-pos' : v < 0 ? 'sim-neg' : '';
+  el.innerHTML = A.top.map((x, i) => { const p = x.p, s = x.sub, a = x.all;
+    const filt = s.feat ? `${esc(F.get(s.feat).label)} = <b>${esc(s.feat === 'triggerBucket30' || s.feat === 'edgeTouchBucket30' ? E.elapsedLabel(Number(s.level)) : s.level)}</b>` : 'fără filtru';
+    return `<div class="sim-card"><h3><span class="rank">${i + 1}</span>${esc(STRATS[p.strat].label)}</h3>
+      TP <b>${p.tp}</b> · SL <b>${p.sl}</b>${p.strat === 'fade' ? ` · ieșire la contra: <b>${p.exitContra ? 'da' : 'nu'}</b>` : ''} · sesiune <b>${s.ses}</b><br>filtru: ${filt}<br>
+      <div class="big ${cls(a.sum)}">${f2(a.sum)} R</div><span class="n">total după costuri, ${a.n} trade-uri</span><br>
+      R/trade <b class="${cls(a.mean)}">${f3(a.mean)}</b> (t ${a.t == null ? '–' : a.t.toFixed(1)}) · win ${pct(a.win)} · PF ${f2(a.pf)} · max DD ${f2(a.maxDD)}<br>
+      <span class="n" data-tip="ui:sim.wf">walk-forward 70/30 pe acest subset:</span> train ${f3(x.train.mean)} → test <b class="${cls(x.test.mean)}">${x.test.n ? f3(x.test.mean) : '–'}</b> R/trade (n ${x.test.n}${x.testFrom ? ', de la ' + x.testFrom : ''})<br>
+      <button type="button" class="expl-toggle-btn" data-apply="${i}">Aplică în simularea manuală</button></div>`; }).join('') || '<div class="mod-empty">Nicio combinație cu suficiente trade-uri.</div>';
+  el.querySelectorAll('[data-apply]').forEach(b => b.addEventListener('click', () => applyAuto(A.top[Number(b.dataset.apply)])));
+  if (window.DRIDR && window.DRIDR.ui) window.DRIDR.ui.decorateTips(el);
+}
+function applyAuto(x) {
+  state.strat = x.p.strat; state.tp = x.p.tp; state.sl = x.p.sl; state.exitContra = x.p.exitContra; state.session = x.sub.ses;
+  state.filtFeat = x.sub.feat || ''; state.filtLevels = new Set(x.sub.feat ? [x.sub.level] : []); state.res = null;
+  build(); run(); $('simKpis').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 // ---------- render ----------
 function render() {
   const kp = $('simKpis'); if (!kp) return;
   const R = state.res;
   if (!state.getCycles || !(state.getCycles() || []).length) { kp.innerHTML = '<div class="mod-empty">Încarcă un CSV (panoul Sursă), apoi rulează.</div>'; destroyChart(); return; }
-  if (!R) { kp.innerHTML = `<div class="mod-empty">${filteredCycles().length} cicluri după filtre. Setează parametrii și apasă „Rulează".</div>`; $('simWF').innerHTML = ''; $('simYears').innerHTML = ''; $('simSessions').innerHTML = ''; $('simGrid').innerHTML = ''; destroyChart(); return; }
+  if (!R) { kp.innerHTML = `<div class="mod-empty">${filteredCycles().length} cicluri după filtre, perioada ${esc(periodLabel())}. Setează parametrii și apasă „Rulează".</div>`; $('simWF').innerHTML = ''; $('simYears').innerHTML = ''; $('simSessions').innerHTML = ''; $('simGrid').innerHTML = ''; destroyChart(); return; }
   const a = R.all, cls = v => v > 0 ? 'sim-pos' : v < 0 ? 'sim-neg' : '';
   kp.innerHTML = [
-    ['trade-uri', String(a.n), 'ui:sim.n', `${R.nCycles} cicluri după filtre; ${a.n} au avut setup.`],
+    ['trade-uri', String(a.n), 'ui:sim.n', `${R.nCycles} cicluri după filtre în perioada ${periodLabel()}; ${a.n} au avut setup.`],
     ['R/trade (după costuri)', a.n ? f3(a.mean) : '–', 'ui:sim.mean', a.n ? `t = ${a.t == null ? '–' : a.t.toFixed(1)}; brut (fără costuri) ${f3(a.gross)} R; cost median ${f3(R.medCost)} R/trade.` : ''],
     ['t-stat', a.n && a.t != null ? a.t.toFixed(1) : '–', 'ui:sim.t'],
     ['win rate', a.n ? pct(a.win) : '–', 'ui:sim.win', a.n ? 'Ieșiri: ' + Object.entries(a.how).map(([k, v]) => `${k} ${v}`).join(', ') : ''],
