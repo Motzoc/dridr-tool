@@ -586,8 +586,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 14:19 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T14:19 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 14:51 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T14:51 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -2740,6 +2740,7 @@ const UI = {
   'sim.fillPad': '„la atingere" = fill imediat ce fitilul atinge marginea (optimist).\n„penetrare ≥ x" = doar trade-urile în care bara a trecut dincolo cu ≥ x (realist).',
   'sim.wfset': 'Al doilea CSV (ex. din ian 2025) pe care se APLICĂ configurația aleasă, fără să intre în căutare.\nDacă „WF extern" e pozitiv ⇒ configurația rezistă pe date nevăzute; dacă ≈ 0 ⇒ potrivire pe istoric.',
   'sim.bySession': 'Rezultatul pe RDR / ODR / ADR. Dacă una e negativă ⇒ exclude-o și verifică din nou.',
+  'sim.dataset': 'principal = CSV-ul din „Sursă” (statistică); walk-forward = CSV-ul încărcat aici (verificare).\nAlege parametrii pe principal, apoi comută pe walk-forward și apasă Rulează ⇒ vezi cum se comportă pe date nevăzute.',
   'sim.preset': 'WTI: 0.01 × 1.5 ticks. Cripto: 0.10% din preț. Costul rezultat în R e în detaliile de la R/trade.',
   'sim.filter': 'Păstrează doar ciclurile cu nivelurile bifate ale unui parametru cunoscut la intrare.\nAici verifici dacă un ACTIV din seria 2–3 schimbă banii.',
   'sim.n': 'Câte trade-uri (cicluri cu setup) după filtre. Sub ~200 ⇒ fragil.',
@@ -2855,6 +2856,7 @@ const UI = {
   'sim.fillPad': { title: 'Fill (execuția intrării la fade)', text: '„la atingere" = considerăm ordinul limit executat de îndată ce fitilul atinge marginea (optimist: în realitate la nivelul exact al limitei nu ești mereu executat). „penetrare ≥ 0.02R / 0.05R" = cerem ca bara de atingere să fi trecut dincolo de margine cu cel puțin atât (fill realist, ca în backtest-ul Pas 9 cu fillPad 0.02); trade-urile fără penetrare suficientă sunt sărite. Intrarea rămâne la prețul marginii (conservator).' },
   'sim.wfset': { title: 'Set walk-forward extern', text: 'Un al doilea CSV (ex. datele din ianuarie 2025 încoace, din Data-Split/wf_2025+), procesat cu același motor, fus orar și toggle IDR. Nu intră în căutarea top 3 și nici în grila TP×SL — e folosit doar pentru a aplica configurația aleasă pe date pe care nu le-a văzut: rezultatul apare ca „WF extern" pe fiecare card și sub simularea manuală. Filtrele cu praguri (chintile) se calculează pe setul extern. Regula coerentă: statistica și alegerea parametrilor pe setul principal (până în dec 2024), verificarea pe setul extern (din ian 2025).' },
   'sim.bySession': { title: 'Pe sesiuni', text: 'Rezultatul defalcat pe RDR / ODR / ADR pentru configurația curentă. Dacă o sesiune e negativă sau are t mic ⇒ exclude-o (filtrul Sesiune) și vezi dacă walk-forward-ul se ține.' },
+  'sim.dataset': { title: 'Pe ce set rulează simularea manuală', text: '„Setul principal” = CSV-ul încărcat în „⚙ Sursă și parametri” (statistica, ex. până în dec 2024) — pe el se aleg parametrii. „Setul walk-forward” = CSV-ul încărcat cu „📂 Încarcă CSV walk-forward” (ex. din ian 2025) — pe el se VERIFICĂ parametrii aleși: KPI-urile, curba de equity, anii, sesiunile și grila TP×SL se calculează atunci exclusiv pe el. Căutarea top 3 rămâne mereu pe setul principal (cardurile arată WF extern). Perioada lună–lună se aplică setului activ.' },
   'sim.preset': { title: 'Preset costuri', text: 'WTI futures: tick 0.01 × 1.5 ticks (spread + comision, per dus-întors). Cripto spot: 0.10% din preț (2 × 0.05%, taker). Ajustează la brokerul tău; costul rezultat în R e afișat în detaliile de la R/trade.' },
   'sim.filter': { title: 'Filtru din seria 1', text: 'Păstrează doar ciclurile în care parametrul ales are nivelurile bifate — ex. „Direcția barei de atingere = dinspre margine". Doar parametri cunoscuți la momentul intrării (anti-leakage). Aici se vede dacă o corelație ACTIVĂ din seria 2–3 chiar schimbă banii.' },
   'sim.n': { title: 'Trade-uri', text: 'Câte cicluri au avut setup (fade: test la margine; confirmare: sesiune confirmată) după filtre. Sub ~200 ⇒ rezultat fragil.' },
@@ -3393,7 +3395,7 @@ const E = require('../engine.js'), F = require('../features/index.js'), T = requ
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = v => v == null ? '–' : (100 * v).toFixed(1) + '%', f2 = v => v == null ? '–' : Number(v).toFixed(2), f3 = v => v == null ? '–' : Number(v).toFixed(3);
-const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null, from: '', to: '', auto: null, autoRunning: false, fillPad: 0, wf: null };
+const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null, from: '', to: '', auto: null, autoRunning: false, fillPad: 0, wf: null, dataset: 'main' };
 const STRATS = { fade: { label: 'Fade la margine (primul test)', tpGrid: E.EDGE_TP_GRID, slGrid: E.EDGE_SL_GRID, stage: 'edgeTouch' }, confirm: { label: 'Intrare la confirmare', tpGrid: E.PATH_TP_GRID, slGrid: E.PATH_SL_GRID, stage: 'confirm' } };
 const AUTO_MIN_N = 100;
 const DOW_RO = { Monday: 'Lu', Tuesday: 'Ma', Wednesday: 'Mi', Thursday: 'Jo', Friday: 'Vi' };
@@ -3418,6 +3420,7 @@ function markup() {
       <div class="mod-row"><select id="simFiltFeat" class="sim-select"><option value="">— fără filtru —</option>${filterFeatures().map(f => `<option value="${f.name}"${f.name === state.filtFeat ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select><div id="simFiltLevels" class="mod-row"></div></div></div>
     <div class="mod-filter mod-filter-wide"><label data-tip="ui:sim.wfset">Set walk-forward extern (CSV separat, ex. Data-Split/wf_2025+) <span class="n">— rezultatele de pe setul încărcat aici apar lângă fiecare simulare ca „WF extern"; nu intră în căutare</span></label>
       <div class="mod-row sim-cost"><button type="button" class="expl-toggle-btn" id="simWfLoad">📂 Încarcă CSV walk-forward</button><span class="n" id="simWfInfo">${state.wf ? esc(state.wf.label) : 'niciun set încărcat'}</span>${state.wf ? '<button type="button" class="expl-grid-btn" id="simWfClear">✕</button>' : ''}</div></div>
+    <div class="mod-filter"><label data-tip="ui:sim.dataset">Simularea manuală rulează pe</label><div id="simDataset" class="mod-row"><button type="button" class="expl-toggle-btn${state.dataset === 'main' ? ' active' : ''}" data-v="main">setul principal (statistică)</button><button type="button" class="expl-toggle-btn${state.dataset === 'wf' ? ' active' : ''}" data-v="wf"${state.wf ? '' : ' disabled'}>setul walk-forward</button></div></div>
     <div class="mod-filter"><label>&nbsp;</label><div class="mod-row"><button type="button" class="expl-toggle-btn cor-run" id="simRun">▶ Rulează</button></div></div>
   </div>
   <div class="panel">
@@ -3426,7 +3429,7 @@ function markup() {
     <div id="simAutoCards" class="sim-cards"></div>
   </div>
   <div class="panel">
-    <h2>Simulare manuală <span class="n">— parametrii aleși mai sus</span></h2>
+    <h2>Simulare manuală <span class="n">— parametrii aleși mai sus · rulează pe <b id="simDsLabel">${state.dataset === 'wf' ? 'setul walk-forward' : 'setul principal'}</b></span></h2>
     <div id="simKpis" class="mod-kpis"></div>
     <div class="chart-box mod-chart"><canvas id="simChart"></canvas></div>
     <div id="simWF" class="mod-stamp"></div>
@@ -3452,9 +3455,10 @@ function build() {
   grp('simStrat', b => { state.strat = b.dataset.v; const g = STRATS[state.strat]; if (!g.tpGrid.includes(state.tp)) state.tp = state.strat === 'fade' ? 0.65 : 1; if (!g.slGrid.includes(state.sl)) state.sl = state.strat === 'fade' ? 1.5 : 1; state.filtFeat = ''; state.filtLevels = new Set(); state.res = null; build(); });
   grp('simTp', b => { state.tp = Number(b.dataset.v); $('simTp').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simSl', b => { state.sl = Number(b.dataset.v); $('simSl').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
+  grp('simDataset', b => { if (b.disabled) return; state.dataset = b.dataset.v; $('simDataset').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); state.res = null; renderLevels(); render(); });
   grp('simFill', b => { state.fillPad = Number(b.dataset.v); $('simFill').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   $('simWfLoad').onclick = () => loadWfSet();
-  if ($('simWfClear')) $('simWfClear').onclick = () => { state.wf = null; state.res = null; build(); };
+  if ($('simWfClear')) $('simWfClear').onclick = () => { state.wf = null; state.dataset = 'main'; state.res = null; build(); };
   grp('simExit', b => { state.exitContra = b.dataset.v === '1'; $('simExit').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simSession', b => { state.session = b.dataset.v; $('simSession').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simDows', b => { b.classList.toggle('active'); state.dows = new Set([...$('simDows').querySelectorAll('button.active')].map(x => x.dataset.v)); });
@@ -3467,7 +3471,7 @@ function build() {
   $('simAuto').onclick = () => autoSearch();
   renderLevels(); render(); renderAuto();
 }
-function periodLabel() { const all = state.getCycles ? (state.getCycles() || []) : []; if (!all.length) return ''; const ds = all.map(c => c.dateKey).sort(); return `${state.from || ds[0].slice(0, 7)} → ${state.to || ds[ds.length - 1].slice(0, 7)}`; }
+function periodLabel() { const all = state.dataset === 'wf' && state.wf ? state.wf.cycles : mainCycles(); if (!all.length) return ''; const ds = all.map(c => c.dateKey).sort(); return `${state.from || ds[0].slice(0, 7)} → ${state.to || ds[ds.length - 1].slice(0, 7)}`; }
 function inPeriod(c) { const m = c.dateKey.slice(0, 7); return (!state.from || m >= state.from) && (!state.to || m <= state.to); }
 function renderLevels() {
   const el = $('simFiltLevels'); if (!el) return;
@@ -3481,7 +3485,8 @@ function renderLevels() {
   if (window.DRIDR && window.DRIDR.ui) window.DRIDR.ui.decorateTips(el);
 }
 function setData() { state.res = null; renderLevels(); render(); }
-function periodCycles() { return (state.getCycles ? (state.getCycles() || []) : []).filter(inPeriod); }
+function mainCycles() { return state.getCycles ? (state.getCycles() || []) : []; }
+function periodCycles(which) { const src = (which || state.dataset) === 'wf' && state.wf ? state.wf.cycles : mainCycles(); return src.filter(inPeriod); }
 function baseCycles() { let cyc = periodCycles(); if (state.session !== 'ALL') cyc = cyc.filter(c => c.srcSession === state.session); if (state.dows.size < E.DOW.length) cyc = cyc.filter(c => state.dows.has(c.dow)); return cyc; }
 function filteredCycles() {
   let cyc = baseCycles();
@@ -3546,7 +3551,7 @@ function run() {
   const wf = best ? { tp: best.tp, sl: best.sl, train: best.train, test: summarize(test.map(c => tradeOf(c, best.tp, best.sl, strat, state.exitContra)).filter(Boolean)), testFrom: test[0] && test[0].dateKey } : null;
   // pe ani și pe sesiuni (parametrii aleși)
   const byYear = {}, bySes = {}; for (const t of trades) { (byYear[t.dateKey.slice(0, 4)] = byYear[t.dateKey.slice(0, 4)] || []).push(t); (bySes[t.ses] = bySes[t.ses] || []).push(t); }
-  const ext = state.wf ? wfExternResult({ tp: state.tp, sl: state.sl, strat, exitContra: state.exitContra }, state.session, state.filtFeat && state.filtLevels.size === 1 ? state.filtFeat : null, state.filtFeat && state.filtLevels.size === 1 ? [...state.filtLevels][0] : null, state.dows) : null;
+  const ext = (state.wf && state.dataset === 'main') ? wfExternResult({ tp: state.tp, sl: state.sl, strat, exitContra: state.exitContra }, state.session, state.filtFeat && state.filtLevels.size === 1 ? state.filtFeat : null, state.filtFeat && state.filtLevels.size === 1 ? [...state.filtLevels][0] : null, state.dows) : null;
   state.res = { all, grid, wf, ext, byYear: Object.fromEntries(Object.entries(byYear).map(([k, v]) => [k, summarize(v)])), bySes: Object.fromEntries(Object.entries(bySes).map(([k, v]) => [k, summarize(v)])), nCycles: cyc.length, medCost: median(cyc.map(c => costR(c, strat === 'fade' ? c.drHigh : (c.confirmClose || c.drHigh))).filter(x => isFinite(x))) };
   render();
 }
@@ -3584,7 +3589,7 @@ function wfExternResult(p, ses, feat, level, dows) {
 // ATENȚIE (scris și în UI): top-ul e selecție pe istoric (in-sample) — de aceea fiecare card arată și walk-forward-ul 70/30.
 async function autoSearch() {
   if (state.autoRunning) return; readCosts();
-  const cyc = periodCycles().filter(c => state.dows.size === E.DOW.length || state.dows.has(c.dow)).slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
+  const cyc = periodCycles('main').filter(c => state.dows.size === E.DOW.length || state.dows.has(c.dow)).slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1); // top 3 = MEREU pe setul principal
   if (cyc.length < AUTO_MIN_N) { $('simAutoStatus').textContent = 'prea puține cicluri în perioadă'; return; }
   state.autoRunning = true; $('simAuto').disabled = true; const status = t => { $('simAutoStatus').textContent = t; };
   await new Promise(r => setTimeout(r, 10));
@@ -3621,7 +3626,7 @@ async function autoSearch() {
     const sel = cyc.filter((c, i) => (x.sub.mask ? x.sub.mask[i] : true));
     const trades = sel.map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean);
     const cut = Math.floor(sel.length * 0.7), tr = summarize(sel.slice(0, cut).map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean)), te = summarize(sel.slice(cut).map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean));
-    const ext = state.wf ? wfExternResult(x.p, x.sub.ses, x.sub.feat, x.sub.level, state.dows) : null;
+    const ext = (state.wf && state.dataset === 'main') ? wfExternResult(x.p, x.sub.ses, x.sub.feat, x.sub.level, state.dows) : null;
     return Object.assign({}, x, { all: summarize(trades), train: tr, test: te, testFrom: sel[cut] && sel[cut].dateKey, ext });
   });
   state.auto = { top, combos: results.length, ms: Date.now() - t0, period: periodLabel(), nCycles: n };
@@ -3653,8 +3658,9 @@ function applyAuto(x) {
 // ---------- render ----------
 function render() {
   const kp = $('simKpis'); if (!kp) return;
+  const dl = $('simDsLabel'); if (dl) dl.textContent = state.dataset === 'wf' ? 'setul walk-forward' + (state.wf ? ' (' + state.wf.from + ' → ' + state.wf.to + ')' : '') : 'setul principal';
   const R = state.res;
-  if (!state.getCycles || !(state.getCycles() || []).length) { kp.innerHTML = '<div class="mod-empty">Încarcă un CSV (panoul Sursă), apoi rulează.</div>'; destroyChart(); return; }
+  if (!mainCycles().length) { kp.innerHTML = '<div class="mod-empty">Încarcă un CSV în „⚙ Sursă și parametri" (dreapta-sus) — de preferat fișierul din Data-Split/stats_to_2024-12 — apoi rulează.</div>'; destroyChart(); return; }
   if (!R) { kp.innerHTML = `<div class="mod-empty">${filteredCycles().length} cicluri după filtre, perioada ${esc(periodLabel())}. Setează parametrii și apasă „Rulează".</div>`; $('simWF').innerHTML = ''; $('simYears').innerHTML = ''; $('simSessions').innerHTML = ''; $('simGrid').innerHTML = ''; destroyChart(); return; }
   const a = R.all, cls = v => v > 0 ? 'sim-pos' : v < 0 ? 'sim-neg' : '';
   kp.innerHTML = [
