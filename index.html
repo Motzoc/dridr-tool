@@ -580,8 +580,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 10:28 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T10:28 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 12:43 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T12:43 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -2395,6 +2395,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = v => v == null ? '–' : (100 * v).toFixed(1) + '%';
 const f3 = v => v == null ? '–' : Number(v).toFixed(3);
+// p-value lizibil: sub 0.0001 afișăm „p < 0.0001" (valoarea exactă e în tooltip-ul „?"), altfel 4 decimale
+const fmtP = p => p == null ? '–' : (p < 1e-4 ? 'p < 0.0001' : 'p = ' + p.toFixed(4));
 
 // ---------- markup ----------
 function markup() {
@@ -2435,8 +2437,9 @@ const CSS = `
 .mod-profile{margin-top:12px;font-size:12px;color:var(--muted)}.mod-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;margin-right:6px}
 .mod-badge.activ{background:var(--up);color:#fff}.mod-badge.inactiv{background:var(--down);color:#fff}.mod-badge.netestat{background:var(--inside);color:#fff}
 .mod-empty{color:var(--muted);padding:20px;text-align:center}
-[data-tip]{cursor:help}.mod-filter label[data-tip],.mod-kpi[data-tip],.mod-table th[data-tip]{text-decoration:underline dotted rgba(255,255,255,.35);text-underline-offset:3px}
-.mod-tip{position:fixed;z-index:9999;max-width:360px;padding:10px 12px;border-radius:8px;background:rgba(20,24,32,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.18);color:#e6e9ef;font-size:12px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:none;opacity:0;transition:opacity .12s;white-space:pre-line}
+[data-tip]{position:relative}.mod-q{position:absolute;top:-5px;right:-5px;width:13px;height:13px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#c9cdd6;font:700 9px/11px system-ui,sans-serif;text-align:center;cursor:help;opacity:.55;transition:opacity .12s;z-index:2;user-select:none}
+[data-tip]:hover .mod-q,.mod-q:hover{opacity:1}.mod-q:hover{background:rgba(63,140,255,.55);color:#fff}
+.mod-tip{position:fixed;z-index:2147483000;max-width:360px;padding:10px 12px;border-radius:8px;background:rgba(20,24,32,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.18);color:#e6e9ef;font-size:12px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:none;opacity:0;transition:opacity .12s;white-space:pre-line;isolation:isolate}
 .mod-tip.show{opacity:1}.mod-tip b{display:block;margin-bottom:4px;font-size:12.5px;color:#fff}
 .mod-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin:-4px 0 8px;font-size:11px;color:var(--muted)}.mod-legend span{display:inline-flex;align-items:center;gap:5px}.mod-legend i{display:inline-block;width:12px;height:12px;border-radius:2px}`;
 
@@ -2454,29 +2457,31 @@ function init(containerId) {
   initTips();
   tryLoadProfile();
 }
-// ---------- tooltip-uri (regula generală UI): un singur div translucid, delegat pe document; text din glossary.js ----------
+// ---------- tooltip-uri (regula generală UI, revizuită 11 sep 2026): fiecare parametru poartă un „?" mic în colțul din
+// dreapta-sus; textul explicativ (din glossary.js) apare DOAR la hover/tap pe „?", într-un div translucid, poziționat sub „?"
+// (niciodată peste parametru), deasupra oricărui alt element. `data-tip-extra` = text dinamic adăugat (ex. valoarea exactă a lui p).
 let tipEl = null;
+function decorateTips(root) { // adaugă badge-ul „?" pe orice [data-tip] care nu îl are încă (apelat după fiecare render)
+  (root || document).querySelectorAll('[data-tip]').forEach(el => { if (!el.querySelector(':scope > .mod-q')) { const q = document.createElement('i'); q.className = 'mod-q'; q.textContent = '?'; q.setAttribute('aria-label', 'explicație'); el.appendChild(q); } });
+}
 function initTips() {
   if (tipEl) return;
   tipEl = document.createElement('div'); tipEl.className = 'mod-tip'; document.body.appendChild(tipEl);
-  const show = (target, x, y) => {
-    const d = G.describe(target.getAttribute('data-tip')); if (!d) return;
-    tipEl.innerHTML = `<b>${esc(d.title)}</b>${esc(d.text)}`; tipEl.classList.add('show'); moveTip(x, y);
-  };
-  document.addEventListener('mouseover', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t) show(t, ev.clientX, ev.clientY); });
-  document.addEventListener('mousemove', ev => { if (tipEl.classList.contains('show')) moveTip(ev.clientX, ev.clientY); });
-  document.addEventListener('mouseout', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t && !(ev.relatedTarget && t.contains(ev.relatedTarget))) tipEl.classList.remove('show'); });
-  document.addEventListener('focusin', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); show(t, r.left, r.bottom); } });
-  document.addEventListener('focusout', () => tipEl.classList.remove('show'));
-  // touch: tap pe un element cu data-tip îl arată 3 s
-  document.addEventListener('touchstart', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); show(t, r.left, r.bottom); setTimeout(() => tipEl.classList.remove('show'), 3000); } }, { passive: true });
+  const show = q => { const t = q.closest('[data-tip]'); if (!t) return; const d = G.describe(t.getAttribute('data-tip')); if (!d) return;
+    const extra = t.getAttribute('data-tip-extra'); tipEl.innerHTML = `<b>${esc(d.title)}</b>${esc(d.text)}${extra ? '\n\n' + esc(extra) : ''}`; tipEl.classList.add('show'); placeTip(q.getBoundingClientRect()); };
+  document.addEventListener('mouseover', ev => { const q = ev.target.closest && ev.target.closest('.mod-q'); if (q) show(q); });
+  document.addEventListener('mouseout', ev => { const q = ev.target.closest && ev.target.closest('.mod-q'); if (q) hideTip(); });
+  document.addEventListener('touchstart', ev => { const q = ev.target.closest && ev.target.closest('.mod-q'); if (q) { show(q); setTimeout(hideTip, 3500); } }, { passive: true });
+  document.addEventListener('scroll', hideTip, true);
+  decorateTips();
 }
-function moveTip(x, y) {
-  const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight, W = window.innerWidth, H = window.innerHeight;
-  let left = x + pad, top = y + pad; if (left + w > W - 8) left = Math.max(8, x - w - pad); if (top + h > H - 8) top = Math.max(8, y - h - pad);
+function placeTip(r) { // sub și la dreapta badge-ului; dacă nu încape, la stânga / deasupra
+  const pad = 6, w = tipEl.offsetWidth, h = tipEl.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+  let left = r.right + pad, top = r.bottom + pad;
+  if (left + w > W - 8) left = Math.max(8, r.left - w - pad);
+  if (top + h > H - 8) top = Math.max(8, r.top - h - pad);
   tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
 }
-function showTipAt(ref, x, y) { if (!tipEl) return; const d = G.describe(ref); if (!d) return; tipEl.innerHTML = `<b>${esc(d.title)}</b>${esc(d.text)}`; tipEl.classList.add('show'); moveTip(x, y); }
 function hideTip() { if (tipEl) tipEl.classList.remove('show'); }
 function bindGroup(id, onChange, multi) {
   const el = $(id);
@@ -2498,6 +2503,7 @@ function selectModule(id) {
   $('modTargets').innerHTML = targets.map(t => `<button type="button" class="expl-toggle-btn${t === state.target ? ' active' : ''}" data-v="${t}" data-tip="t:${t}">${esc(shortLabel(T.get(t).label, t))}</button>`).join('') || '<span class="n">—</span>';
   $('modBreakdowns').innerHTML = bds.map(n => `<button type="button" class="expl-toggle-btn${n === state.breakdown ? ' active' : ''}" data-v="${n}" data-tip="f:${n}">${esc(shortLabel(F.get(n).label, n))}</button>`).join('') || '<span class="n">—</span>';
   $('modTargets').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.target = b.dataset.v; $('modTargets').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); render(); };
+  decorateTips($('modFilters'));
   $('modBreakdowns').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.breakdown = b.dataset.v; $('modBreakdowns').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); render(); };
   render();
 }
@@ -2546,9 +2552,9 @@ function render() {
     [kind === 'binary' ? 'rată globală' : 'mediană globală', kind === 'binary' ? pct(base.rate) : f3(base.median), kind === 'binary' ? 'ui:kpi.rate' : 'ui:kpi.median'],
     kind === 'binary' ? null : ['q25 – q75', `${f3(base.q25)} – ${f3(base.q75)}`, 'ui:kpi.iqr'],
     ['efect hi − lo', kind === 'binary' ? (res.effect.spreadPP == null ? '–' : res.effect.spreadPP.toFixed(1) + ' pp') : (res.effect.spreadMedian == null ? '–' : f3(res.effect.spreadMedian) + ' R'), 'ui:kpi.spread'],
-    ['test', res.test.p == null ? '–' : `${res.test.name} p=${res.test.p < 1e-4 ? res.test.p.toExponential(1) : res.test.p.toFixed(4)}`, 'ui:kpi.test'],
+    ['test', res.test.p == null ? '–' : `${res.test.name === 'chi2' ? 'chi²' : res.test.name} ${fmtP(res.test.p)}`, 'ui:kpi.test', res.test.p == null ? '' : `Aici: ${res.test.name === 'chi2' ? 'chi²' : 'Kruskal-Wallis'} = ${res.test.stat == null ? '–' : res.test.stat.toFixed(2)}, df = ${res.test.df}, p exact = ${res.test.p.toExponential(2)} (= ${res.test.p < 1e-12 ? 'practic 0' : res.test.p.toFixed(Math.min(12, Math.max(4, -Math.floor(Math.log10(res.test.p)) + 1)))}). Notația 1.4e-7 înseamnă 1.4 × 10⁻⁷ = 0.00000014.`],
     res.monotonic ? ['monotonie', `ρ=${res.monotonic.spearman.toFixed(2)}`, 'ui:kpi.mono'] : null,
-  ].filter(Boolean).map(([l, v, tip]) => `<div class="mod-kpi" data-tip="${tip}"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+  ].filter(Boolean).map(([l, v, tip, extra]) => `<div class="mod-kpi" data-tip="${tip}"${extra ? ` data-tip-extra="${esc(extra)}"` : ''}><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
   // legendă explicativă sub KPI-uri (cu tooltip-uri pe fiecare element al graficului)
   const lg = $('modLegend'); if (lg) lg.innerHTML =
     `<span data-tip="t:${esc(state.target)}"><b>Y:</b> ${esc(tg.label)}</span>` +
@@ -2570,6 +2576,7 @@ function render() {
     `<br><span class="n">Gate-ul de aici e informativ — ștampila oficială vine din Asset Profile (train/test, walk-forward, corecție de multiplicitate). Filtrele reduc n; sub 30 pe bucket celula e gri.</span>`;
   // status din profil
   prof.innerHTML = profileStatusHTML(state.breakdown, state.target);
+  decorateTips($('toptab-modules') || document);
 }
 function labelOfBucket(b, fb) { if (fb.name === 'triggerBucket30') return E.elapsedLabel(Number(b.labels[0])) + ' – ' + E.elapsedLabel(Number(b.labels[0]) + 30); return b.key; }
 function destroyChart() { if (state.chart) { state.chart.destroy(); state.chart = null; } }
@@ -2589,9 +2596,7 @@ function drawChart(res, kind, tg, fb) {
     ] },
     options: { responsive: true, maintainAspectRatio: false, animation: false, grouped: false,
       plugins: {
-        legend: { labels: { color: '#c9cdd6' },
-          onHover: (ev, item) => { const ref = item.datasetIndex === 0 ? (kind === 'binary' ? 'ui:chart.rate' : 'ui:chart.median') : (kind === 'binary' ? 'ui:chart.ci' : 'ui:chart.iqr'); const ne = ev.native || ev; showTipAt(ref, ne.clientX || 0, ne.clientY || 0); },
-          onLeave: () => hideTip() },
+        legend: { labels: { color: '#c9cdd6' } },
         tooltip: { callbacks: { afterBody: items => { const b = res.buckets[items[0].dataIndex]; const lv = G.LEVEL_TEXT[b.key]; return [`n = ${b.n}` + (b.n < 30 ? ' (sub 30 — orientativ)' : '')].concat(lv ? [lv] : []); } } } },
       scales: { x: { ticks: { color: '#c9cdd6', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.06)' } }, y: { beginAtZero: true, max: kind === 'binary' ? 100 : undefined, ticks: { color: '#c9cdd6' }, grid: { color: 'rgba(255,255,255,0.08)' }, title: { display: true, text: kind === 'binary' ? tg.label + ' (%)' : tg.label + ' (R)', color: '#c9cdd6' } } } }
   });
