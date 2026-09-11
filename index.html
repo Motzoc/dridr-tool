@@ -227,53 +227,7 @@
 </style>
 </head>
 <body>
-<div id="gate">
-  <div class="box">
-    <h2>DR/IDR Strategy</h2>
-    <p>Acces privat. Introdu parola pentru a deschide tool-ul.</p>
-    <input type="password" id="gatePw" autocomplete="current-password" placeholder="parola" autofocus>
-    <button type="button" id="gateBtn">Intră</button>
-    <div class="err" id="gateErr"></div>
-  </div>
-</div>
-<script>
-// Gate client-side: se verifică doar SHA-256(salt + parolă) față de hash-ul de mai jos, deci parola nu apare
-// în sursa paginii. NU e securitate criptografică (oricine poate citi codul și încerca parole offline) — e doar
-// un filtru ca tool-ul să nu fie deschis de cine nimerește URL-ul. Ca să schimbi parola, înlocuiește GATE_HASH
-// cu SHA-256 al șirului 'dridr::v1::' + parola nouă (ex. în consolă: await gateHash('parola-nouă')).
-(function () {
-  const GATE_HASH = '10a9ba54f42a5a19c74343b7bd5288d7ff1f2c5649fdab7fd7ee9719d6c95490';
-  const SALT = 'dridr::v1::';
-  const KEY = 'dridrGateV1';
-  const gate = document.getElementById('gate');
-  const inp = document.getElementById('gatePw');
-  const btn = document.getElementById('gateBtn');
-  const err = document.getElementById('gateErr');
-  async function hash(pw) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(SALT + pw));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  window.gateHash = hash;
-  function unlock() { gate.classList.add('hidden'); document.body.style.overflow = ''; }
-  try { if (localStorage.getItem(KEY) === GATE_HASH) unlock(); } catch (e) {}
-  async function submit() {
-    err.textContent = '';
-    let h;
-    try { h = await hash(inp.value); }
-    catch (e) { err.textContent = 'Browserul nu permite verificarea (necesită https).'; return; }
-    if (h === GATE_HASH) {
-      try { localStorage.setItem(KEY, GATE_HASH); } catch (e) {}
-      unlock();
-    } else {
-      err.textContent = 'Parolă greșită.';
-      inp.value = '';
-      inp.focus();
-    }
-  }
-  btn.addEventListener('click', submit);
-  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-})();
-</script>
+<!-- gate-ul de parolă a fost eliminat la 11 sep 2026 (cerere utilizator); accesul se controlează prin vizibilitatea repo-ului -->
 <div class="wrap">
   <div class="title-row">
     <h1>DR/IDR Strategy</h1>
@@ -626,8 +580,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 09:09 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T09:09 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 09:29 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T09:29 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -2238,7 +2192,7 @@ module.exports = { init, setData, setProfile, render, state, MODULES };
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, version: "0.9.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, version: "0.10.0" };
 })();
 
 </script>
