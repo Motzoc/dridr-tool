@@ -586,8 +586,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 13:50 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T13:50 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 14:19 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T14:19 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -974,7 +974,7 @@ const PATH_TP_GRID = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
 const PATH_SL_GRID = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.25, 1.5];
 function newPathTracker(drRange) {
   return { drRange, advMax: 0, advCloseMax: 0, advMaxPost: 0, bars: 0, lastFavClose: null,
-           tpElapsed: PATH_TP_GRID.map(() => null), tpMaeBefore: PATH_TP_GRID.map(() => null),
+           tpElapsed: PATH_TP_GRID.map(() => null), tpMaeBefore: PATH_TP_GRID.map(() => null), tpElapsedPost: PATH_TP_GRID.map(() => null),
            slElapsed: PATH_SL_GRID.map(() => null), slElapsedPost: PATH_SL_GRID.map(() => null) };
 }
 // fav/adv/advClose în PREȚ (>= 0), elapsed în minute de la dispStart. Se apelează pentru fiecare bară de la
@@ -1003,6 +1003,11 @@ function pathStep(p, fav, adv, advClose, elapsed, favClose) {
     for (let i = 0; i < PATH_SL_GRID.length; i++) {
       if (p.slElapsedPost[i] === null && advPostR >= PATH_SL_GRID[i] - PATH_EPS) p.slElapsedPost[i] = elapsed;
     }
+    // Pas 14 — tpElapsedPost: TP-ul contează doar din bara URMĂTOARE confirmării (intrarea e la close-ul barei de confirmare;
+    // fitilul ei favorabil a existat înainte de intrare). Pentru simulările de intrare la confirmare se folosește DOAR acesta.
+    for (let i = 0; i < PATH_TP_GRID.length; i++) {
+      if (p.tpElapsedPost[i] === null && favR >= PATH_TP_GRID[i] - PATH_EPS) p.tpElapsedPost[i] = elapsed;
+    }
   }
 }
 function finishPath(p) {
@@ -1010,7 +1015,7 @@ function finishPath(p) {
   // endR = close-ul ULTIMEI bare a sesiunii față de marginea de trigger, în R, semnat în direcția confirmării
   // (pozitiv = sesiunea s-a închis în profit față de margine). Necesar pentru ieșirea „la finalul sesiunii" în backtest.
   return { bars: p.bars, maeR: p.advMax / p.drRange, maeCloseR: p.advCloseMax / p.drRange, endR: p.lastFavClose == null ? null : p.lastFavClose / p.drRange,
-           tpElapsed: p.tpElapsed, tpMaeBefore: p.tpMaeBefore, slElapsed: p.slElapsed, slElapsedPost: p.slElapsedPost, maePostR: p.advMaxPost / p.drRange };
+           tpElapsed: p.tpElapsed, tpMaeBefore: p.tpMaeBefore, tpElapsedPost: p.tpElapsedPost, slElapsed: p.slElapsed, slElapsedPost: p.slElapsedPost, maePostR: p.advMaxPost / p.drRange };
 }
 
 // Pasul 7 (10 sep 2026) — capturarea traseului la nivel de BARĂ pentru toată faza disp (de la închiderea box-ului la finalul
@@ -1047,6 +1052,7 @@ function edgeStep(t, b, elapsed, anyConfirmedBefore, dispLowBefore, dispHighBefo
     // cât coborâse prețul (faza disp, înainte de această bară) spre marginea opusă, în R; 0 = a atins marginea „din prima"
     t.touchPreRetrR = top ? (isFinite(dispLowBefore) ? Math.max(0, (E_ - dispLowBefore) / R) : 0) : (isFinite(dispHighBefore) ? Math.max(0, (dispHighBefore - E_) / R) : 0);
     t.tests = closeBeyond ? 0 : 1; t.inTouch = true;
+    t.touchAdvR = Math.max(0, top ? (b.h - E_) / R : (E_ - b.l) / R); // cât a penetrat bara de atingere dincolo de margine (pentru fill realist)
   } else if (reach) { if (!t.inTouch && !closeBeyond && !t.broken) t.tests++; t.inTouch = true; } else t.inTouch = false;
   // traseul fade-ului de la prima atingere (inclusiv bara atingerii): fav = spre interior, adv = dincolo de margine (pesimist pe aceeași bară)
   const favR = Math.max(0, top ? (E_ - b.l) / R : (b.h - E_) / R), advR = Math.max(0, top ? (b.h - E_) / R : (E_ - b.l) / R);
@@ -1055,13 +1061,15 @@ function edgeStep(t, b, elapsed, anyConfirmedBefore, dispLowBefore, dispHighBefo
   if (!t.broken && advR > t.advMaxPreBreakR) t.advMaxPreBreakR = advR;
   if (favR > t.favMaxR) t.favMaxR = favR;
   for (let i = 0; i < EDGE_SL_GRID.length; i++) if (t.slElapsed[i] === null && t.advMaxR >= EDGE_SL_GRID[i] - PATH_EPS) t.slElapsed[i] = elapsed;
-  for (let i = 0; i < EDGE_TP_GRID.length; i++) if (t.tpElapsed[i] === null && favR >= EDGE_TP_GRID[i] - PATH_EPS) { t.tpElapsed[i] = elapsed; t.tpAdvBefore[i] = t.advMaxR; }
+  // TP-ul NU se creditează pe bara atingerii (fill-ul e undeva în bară, ordinea intra-bar e necunoscută ⇒ pesimist: doar din bara următoare);
+  // adversul de pe bara atingerii SE contează (Pas 14, regulă de trading verificată de test/verify_sim_rules.js).
+  if (elapsed !== t.touchElapsed) for (let i = 0; i < EDGE_TP_GRID.length; i++) if (t.tpElapsed[i] === null && favR >= EDGE_TP_GRID[i] - PATH_EPS) { t.tpElapsed[i] = elapsed; t.tpAdvBefore[i] = t.advMaxR; }
   if (!t.broken && closeBeyond) { t.broken = true; t.breakElapsed = elapsed; t.breakCloseR = closeR; }
   t.lastCloseR = closeR;
 }
 function finishEdge(t) {
   if (!t || !t.touched) return null;
-  return { side: t.side, touchElapsed: t.touchElapsed, touchClosedInside: t.touchClosedInside, tests: t.tests, broken: t.broken, breakElapsed: t.breakElapsed, breakCloseR: t.breakCloseR,
+  return { side: t.side, touchElapsed: t.touchElapsed, touchClosedInside: t.touchClosedInside, touchAdvR: t.touchAdvR == null ? 0 : t.touchAdvR, tests: t.tests, broken: t.broken, breakElapsed: t.breakElapsed, breakCloseR: t.breakCloseR,
            favMaxR: t.favMaxR, advMaxR: t.advMaxR, advMaxPreBreakR: t.advMaxPreBreakR, endR: t.lastCloseR, tpElapsed: t.tpElapsed, slElapsed: t.slElapsed, tpAdvBefore: t.tpAdvBefore };
 }
 
@@ -2729,6 +2737,9 @@ const UI = {
   'sim.cost': 'Cost dus-întors = ticks × tick + % × preț, în R (împărțit la box).\nWTI: 0.01 × 1.5. Cripto: 0 ticks + 0.05–0.1% ⇒ 0.2–0.3 R (box mic!).',
   'sim.period': 'Luna de început și de sfârșit (inclusiv). Gol = tot istoricul. Se aplică și la manual și la top 3.',
   'sim.auto': 'Caută toate combinațiile (strategie × TP × SL × ieșire × sesiune × un filtru) și le ordonează după Total R în perioadă, min. 100 trade-uri.\nDacă walk-forward-ul de pe card e ≈ 0 sau negativ ⇒ e potrivire pe istoric, nu edge.\nDacă e pozitiv cu n mare ⇒ merită verificat pe alt asset/perioadă.',
+  'sim.fillPad': '„la atingere" = fill imediat ce fitilul atinge marginea (optimist).\n„penetrare ≥ x" = doar trade-urile în care bara a trecut dincolo cu ≥ x (realist).',
+  'sim.wfset': 'Al doilea CSV (ex. din ian 2025) pe care se APLICĂ configurația aleasă, fără să intre în căutare.\nDacă „WF extern" e pozitiv ⇒ configurația rezistă pe date nevăzute; dacă ≈ 0 ⇒ potrivire pe istoric.',
+  'sim.bySession': 'Rezultatul pe RDR / ODR / ADR. Dacă una e negativă ⇒ exclude-o și verifică din nou.',
   'sim.preset': 'WTI: 0.01 × 1.5 ticks. Cripto: 0.10% din preț. Costul rezultat în R e în detaliile de la R/trade.',
   'sim.filter': 'Păstrează doar ciclurile cu nivelurile bifate ale unui parametru cunoscut la intrare.\nAici verifici dacă un ACTIV din seria 2–3 schimbă banii.',
   'sim.n': 'Câte trade-uri (cicluri cu setup) după filtre. Sub ~200 ⇒ fragil.',
@@ -2841,6 +2852,9 @@ const UI = {
   'sim.cost': { title: 'Costuri', text: 'Cost dus-întors per trade = ticks × tick + procent × preț, împărțit la mărimea box-ului ⇒ în R. WTI: tick 0.01, ~1.5 ticks (spread + comision). Cripto spot: 0 ticks + 0.05–0.1%. Atenție: la cripto box-ul e mic (0.3–0.5% din preț) ⇒ 0.1% de cost = 0.2–0.3 R.' },
   'sim.period': { title: 'Perioada simulării', text: 'De la luna/anul de început până la luna/anul de sfârșit (inclusiv). Gol = tot istoricul încărcat. Se aplică și simulării manuale și căutării automate; walk-forward-ul se face în interiorul perioadei (primele 70% / ultimele 30% din ciclurile ei).' },
   'sim.auto': { title: 'Top 3 simulări automate', text: 'Caută exhaustiv: ambele strategii × toate nivelurile TP × SL × ieșire la contra (fade) × sesiune (ALL/RDR/ODR/ADR) × un filtru din seria 1 (un parametru, un singur nivel, cunoscut la momentul intrării) sau fără filtru. Criteriul: Total R cumulat după costuri în perioada aleasă, cu minimum 100 trade-uri. Rezultatele per ciclu se calculează o dată pe set de parametri, filtrele doar însumează — de aceea zeci de mii de combinații rulează în câteva secunde. ATENȚIE: e o selecție pe istoric — cea mai bună din zeci de mii de combinații va arăta bine și din întâmplare; de aceea fiecare card afișează și walk-forward-ul 70/30 pe același subset (parametrii sunt cei aleși, deci nici el nu e complet independent). „Aplică" încarcă parametrii în simularea manuală.' },
+  'sim.fillPad': { title: 'Fill (execuția intrării la fade)', text: '„la atingere" = considerăm ordinul limit executat de îndată ce fitilul atinge marginea (optimist: în realitate la nivelul exact al limitei nu ești mereu executat). „penetrare ≥ 0.02R / 0.05R" = cerem ca bara de atingere să fi trecut dincolo de margine cu cel puțin atât (fill realist, ca în backtest-ul Pas 9 cu fillPad 0.02); trade-urile fără penetrare suficientă sunt sărite. Intrarea rămâne la prețul marginii (conservator).' },
+  'sim.wfset': { title: 'Set walk-forward extern', text: 'Un al doilea CSV (ex. datele din ianuarie 2025 încoace, din Data-Split/wf_2025+), procesat cu același motor, fus orar și toggle IDR. Nu intră în căutarea top 3 și nici în grila TP×SL — e folosit doar pentru a aplica configurația aleasă pe date pe care nu le-a văzut: rezultatul apare ca „WF extern" pe fiecare card și sub simularea manuală. Filtrele cu praguri (chintile) se calculează pe setul extern. Regula coerentă: statistica și alegerea parametrilor pe setul principal (până în dec 2024), verificarea pe setul extern (din ian 2025).' },
+  'sim.bySession': { title: 'Pe sesiuni', text: 'Rezultatul defalcat pe RDR / ODR / ADR pentru configurația curentă. Dacă o sesiune e negativă sau are t mic ⇒ exclude-o (filtrul Sesiune) și vezi dacă walk-forward-ul se ține.' },
   'sim.preset': { title: 'Preset costuri', text: 'WTI futures: tick 0.01 × 1.5 ticks (spread + comision, per dus-întors). Cripto spot: 0.10% din preț (2 × 0.05%, taker). Ajustează la brokerul tău; costul rezultat în R e afișat în detaliile de la R/trade.' },
   'sim.filter': { title: 'Filtru din seria 1', text: 'Păstrează doar ciclurile în care parametrul ales are nivelurile bifate — ex. „Direcția barei de atingere = dinspre margine". Doar parametri cunoscuți la momentul intrării (anti-leakage). Aici se vede dacă o corelație ACTIVĂ din seria 2–3 chiar schimbă banii.' },
   'sim.n': { title: 'Trade-uri', text: 'Câte cicluri au avut setup (fade: test la margine; confirmare: sesiune confirmată) după filtre. Sub ~200 ⇒ rezultat fragil.' },
@@ -3379,7 +3393,7 @@ const E = require('../engine.js'), F = require('../features/index.js'), T = requ
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = v => v == null ? '–' : (100 * v).toFixed(1) + '%', f2 = v => v == null ? '–' : Number(v).toFixed(2), f3 = v => v == null ? '–' : Number(v).toFixed(3);
-const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null, from: '', to: '', auto: null, autoRunning: false };
+const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null, from: '', to: '', auto: null, autoRunning: false, fillPad: 0, wf: null };
 const STRATS = { fade: { label: 'Fade la margine (primul test)', tpGrid: E.EDGE_TP_GRID, slGrid: E.EDGE_SL_GRID, stage: 'edgeTouch' }, confirm: { label: 'Intrare la confirmare', tpGrid: E.PATH_TP_GRID, slGrid: E.PATH_SL_GRID, stage: 'confirm' } };
 const AUTO_MIN_N = 100;
 const DOW_RO = { Monday: 'Lu', Tuesday: 'Ma', Wednesday: 'Mi', Thursday: 'Jo', Friday: 'Vi' };
@@ -3395,13 +3409,15 @@ function markup() {
     <div class="mod-filter"><label data-tip="ui:sim.strat">Strategie</label><div id="simStrat" class="mod-row">${Object.entries(STRATS).map(([k, v]) => `<button type="button" class="expl-toggle-btn${k === state.strat ? ' active' : ''}" data-v="${k}" data-tip="ui:sim.strat.${k}">${esc(v.label)}</button>`).join('')}</div></div>
     <div class="mod-filter"><label data-tip="ui:sim.tp">TP (R)</label><div id="simTp" class="mod-row">${st.tpGrid.map(L => `<button type="button" class="expl-grid-btn${L === state.tp ? ' active' : ''}" data-v="${L}">${L}</button>`).join('')}</div></div>
     <div class="mod-filter"><label data-tip="ui:sim.sl">SL (R)</label><div id="simSl" class="mod-row">${st.slGrid.map(L => `<button type="button" class="expl-grid-btn${L === state.sl ? ' active' : ''}" data-v="${L}">${L}</button>`).join('')}</div></div>
-    ${state.strat === 'fade' ? `<div class="mod-filter"><label data-tip="ui:sim.exitContra">Ieșire la close contra</label><div id="simExit" class="mod-row"><button type="button" class="expl-toggle-btn${state.exitContra ? ' active' : ''}" data-v="1">da</button><button type="button" class="expl-toggle-btn${state.exitContra ? '' : ' active'}" data-v="0">nu (până la final)</button></div></div>` : ''}
+    ${state.strat === 'fade' ? `<div class="mod-filter"><label data-tip="ui:sim.fillPad">Fill</label><div id="simFill" class="mod-row">${[[0, 'la atingere'], [0.02, 'penetrare ≥ 0.02R'], [0.05, '≥ 0.05R']].map(([v, l]) => `<button type="button" class="expl-toggle-btn${state.fillPad === v ? ' active' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div><div class="mod-filter"><label data-tip="ui:sim.exitContra">Ieșire la close contra</label><div id="simExit" class="mod-row"><button type="button" class="expl-toggle-btn${state.exitContra ? ' active' : ''}" data-v="1">da</button><button type="button" class="expl-toggle-btn${state.exitContra ? '' : ' active'}" data-v="0">nu (până la final)</button></div></div>` : ''}
     <div class="mod-filter"><label data-tip="ui:sim.cost">Costuri (dus-întors)</label><div class="mod-row sim-cost">tick <input id="simTick" type="number" step="any" value="${state.tick}"> × <input id="simCostTicks" type="number" step="0.5" value="${state.costTicks}"> ticks + <input id="simCostPct" type="number" step="0.01" value="${(100 * state.costPct).toFixed(2)}">% din preț <span class="n">preset:</span> <button type="button" class="expl-grid-btn" data-preset="wti" data-tip="ui:sim.preset">WTI futures</button><button type="button" class="expl-grid-btn" data-preset="crypto" data-tip="ui:sim.preset">Cripto spot</button></div></div>
     <div class="mod-filter"><label data-tip="ui:sim.period">Perioadă (de la – până la)</label><div class="mod-row sim-cost"><input id="simFrom" type="month" value="${state.from}"> – <input id="simTo" type="month" value="${state.to}"> <button type="button" class="expl-grid-btn" id="simAllPeriod">tot istoricul</button></div></div>
     <div class="mod-filter"><label data-tip="ui:filter.session">Sesiune</label><div id="simSession" class="mod-row">${['ALL', ...E.SESSIONS].map(s => `<button type="button" class="expl-toggle-btn${s === state.session ? ' active' : ''}" data-v="${s}">${s}</button>`).join('')}</div></div>
     <div class="mod-filter"><label data-tip="ui:filter.dow">Zile</label><div id="simDows" class="mod-row">${E.DOW.map(d => `<button type="button" class="expl-toggle-btn${state.dows.has(d) ? ' active' : ''}" data-v="${d}">${DOW_RO[d]}</button>`).join('')}</div></div>
     <div class="mod-filter mod-filter-wide"><label data-tip="ui:sim.filter">Filtru din seria 1 (parametru cunoscut la intrare) <span class="n">— alege parametrul, apoi nivelurile păstrate; niciunul = toate</span></label>
       <div class="mod-row"><select id="simFiltFeat" class="sim-select"><option value="">— fără filtru —</option>${filterFeatures().map(f => `<option value="${f.name}"${f.name === state.filtFeat ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select><div id="simFiltLevels" class="mod-row"></div></div></div>
+    <div class="mod-filter mod-filter-wide"><label data-tip="ui:sim.wfset">Set walk-forward extern (CSV separat, ex. Data-Split/wf_2025+) <span class="n">— rezultatele de pe setul încărcat aici apar lângă fiecare simulare ca „WF extern"; nu intră în căutare</span></label>
+      <div class="mod-row sim-cost"><button type="button" class="expl-toggle-btn" id="simWfLoad">📂 Încarcă CSV walk-forward</button><span class="n" id="simWfInfo">${state.wf ? esc(state.wf.label) : 'niciun set încărcat'}</span>${state.wf ? '<button type="button" class="expl-grid-btn" id="simWfClear">✕</button>' : ''}</div></div>
     <div class="mod-filter"><label>&nbsp;</label><div class="mod-row"><button type="button" class="expl-toggle-btn cor-run" id="simRun">▶ Rulează</button></div></div>
   </div>
   <div class="panel">
@@ -3436,6 +3452,9 @@ function build() {
   grp('simStrat', b => { state.strat = b.dataset.v; const g = STRATS[state.strat]; if (!g.tpGrid.includes(state.tp)) state.tp = state.strat === 'fade' ? 0.65 : 1; if (!g.slGrid.includes(state.sl)) state.sl = state.strat === 'fade' ? 1.5 : 1; state.filtFeat = ''; state.filtLevels = new Set(); state.res = null; build(); });
   grp('simTp', b => { state.tp = Number(b.dataset.v); $('simTp').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simSl', b => { state.sl = Number(b.dataset.v); $('simSl').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
+  grp('simFill', b => { state.fillPad = Number(b.dataset.v); $('simFill').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
+  $('simWfLoad').onclick = () => loadWfSet();
+  if ($('simWfClear')) $('simWfClear').onclick = () => { state.wf = null; state.res = null; build(); };
   grp('simExit', b => { state.exitContra = b.dataset.v === '1'; $('simExit').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simSession', b => { state.session = b.dataset.v; $('simSession').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simDows', b => { b.classList.toggle('active'); state.dows = new Set([...$('simDows').querySelectorAll('button.active')].map(x => x.dataset.v)); });
@@ -3472,21 +3491,33 @@ function filteredCycles() {
 
 // ---------- simulare pe un ciclu ----------
 function costR(c, price) { return (state.costTicks * state.tick + state.costPct * price) / c.drRange; }
-function tradeOf(c, tp, sl, strat, exitContra) {
+// REGULI (Pas 14, verificate de test/verify_sim_rules.js):
+//  • fade: intrarea există doar dacă prima atingere e DUPĂ închiderea PreBO și ÎNAINTE de orice confirmare (garantat de motor:
+//    edgeTouch se setează doar în faza disp și doar cât nu există confirmare) și bara de atingere a închis în box; opțional
+//    penetrarea barei ≥ fillPad (fill realist). Ieșirea = PRIMUL eveniment după intrare dintre SL / close contra / TP;
+//    la egalitate pe aceeași bară ordinea pesimistă e SL → contra → TP ⇒ un trade are exact un rezultat (nu și TP, și SL).
+//  • confirmare: intrarea la close-ul barei de confirmare; TP și SL contează DOAR din bara următoare (tpElapsedPost/slElapsedPost —
+//    fitilele barei de confirmare au existat înainte de intrare); dacă close-ul confirmării a depășit deja nivelul TP (slip ≥ TP)
+//    nu există setup. Egalitate pe aceeași bară ⇒ SL.
+function tradeOf(c, tp, sl, strat, exitContra, fillPad) {
+  if (fillPad == null) fillPad = state.fillPad || 0;
   if (strat === 'fade') {
     const e = c.edge; if (!e || !e.touchClosedInside) return null;
+    if (fillPad > 0 && !((e.touchAdvR || 0) >= fillPad - 1e-9)) return null;
     const ti = E.EDGE_TP_GRID.indexOf(tp), si = E.EDGE_SL_GRID.indexOf(sl);
+    const PRI = { sl: 0, br: 1, tp: 2 };
     const ev = [['tp', e.tpElapsed[ti]], ['sl', e.slElapsed[si]]]; if (exitContra) ev.push(['br', e.breakElapsed]);
-    const first = ev.filter(x => x[1] != null).sort((a, b) => a[1] - b[1] || (a[0] === 'sl' ? -1 : b[0] === 'sl' ? 1 : 0))[0];
+    const first = ev.filter(x => x[1] != null).sort((a, b) => a[1] - b[1] || PRI[a[0]] - PRI[b[0]])[0];
     let r, how; if (!first) { r = e.endR == null ? 0 : e.endR; how = 'final'; } else if (first[0] === 'tp') { r = tp; how = 'tp'; } else if (first[0] === 'sl') { r = -sl; how = 'sl'; } else { r = e.breakCloseR; how = 'contra'; }
     const price = e.side === 'top' ? c.drHigh : c.drLow;
-    return { r: r - costR(c, price), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: e.touchElapsed };
+    return { r: r - costR(c, price), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: e.touchElapsed, exitT: first ? first[1] : null };
   }
   if (!(c.direction === 'up' || c.direction === 'down') || !c.path || c.confirmClose == null) return null;
   const p = c.path, ti = E.PATH_TP_GRID.indexOf(tp), si = E.PATH_SL_GRID.indexOf(sl), slip = Math.max(0, c.confirmSlipR || 0);
-  const t = p.tpElapsed[ti], s = (p.slElapsedPost || p.slElapsed)[si];
-  let r, how; if (t === null && s === null) { r = (p.endR == null ? 0 : p.endR) - slip; how = 'final'; } else if (s === null) { r = tp - slip; how = 'tp'; } else if (t === null) { r = -sl - slip; how = 'sl'; } else if (t < s) { r = tp - slip; how = 'tp'; } else { r = -sl - slip; how = 'sl'; }
-  return { r: r - costR(c, c.confirmClose), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: c.triggerElapsed };
+  if (slip >= tp - 1e-9) return null; // close-ul confirmării e deja la/peste TP ⇒ nu există setup
+  const t = (p.tpElapsedPost || p.tpElapsed)[ti], s = (p.slElapsedPost || p.slElapsed)[si];
+  let r, how, exitT = null; if (t === null && s === null) { r = (p.endR == null ? 0 : p.endR) - slip; how = 'final'; } else if (s === null) { r = tp - slip; how = 'tp'; exitT = t; } else if (t === null) { r = -sl - slip; how = 'sl'; exitT = s; } else if (t < s) { r = tp - slip; how = 'tp'; exitT = t; } else { r = -sl - slip; how = 'sl'; exitT = s; }
+  return { r: r - costR(c, c.confirmClose), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: c.triggerElapsed, exitT };
 }
 function summarize(trades) {
   const n = trades.length; if (!n) return { n: 0 };
@@ -3515,11 +3546,37 @@ function run() {
   const wf = best ? { tp: best.tp, sl: best.sl, train: best.train, test: summarize(test.map(c => tradeOf(c, best.tp, best.sl, strat, state.exitContra)).filter(Boolean)), testFrom: test[0] && test[0].dateKey } : null;
   // pe ani și pe sesiuni (parametrii aleși)
   const byYear = {}, bySes = {}; for (const t of trades) { (byYear[t.dateKey.slice(0, 4)] = byYear[t.dateKey.slice(0, 4)] || []).push(t); (bySes[t.ses] = bySes[t.ses] || []).push(t); }
-  state.res = { all, grid, wf, byYear: Object.fromEntries(Object.entries(byYear).map(([k, v]) => [k, summarize(v)])), bySes: Object.fromEntries(Object.entries(bySes).map(([k, v]) => [k, summarize(v)])), nCycles: cyc.length, medCost: median(cyc.map(c => costR(c, strat === 'fade' ? c.drHigh : (c.confirmClose || c.drHigh))).filter(x => isFinite(x))) };
+  const ext = state.wf ? wfExternResult({ tp: state.tp, sl: state.sl, strat, exitContra: state.exitContra }, state.session, state.filtFeat && state.filtLevels.size === 1 ? state.filtFeat : null, state.filtFeat && state.filtLevels.size === 1 ? [...state.filtLevels][0] : null, state.dows) : null;
+  state.res = { all, grid, wf, ext, byYear: Object.fromEntries(Object.entries(byYear).map(([k, v]) => [k, summarize(v)])), bySes: Object.fromEntries(Object.entries(bySes).map(([k, v]) => [k, summarize(v)])), nCycles: cyc.length, medCost: median(cyc.map(c => costR(c, strat === 'fade' ? c.drHigh : (c.confirmClose || c.drHigh))).filter(x => isFinite(x))) };
   render();
 }
 const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 
+// ---------- set walk-forward EXTERN (Pas 14): un al doilea CSV, procesat cu același motor / fus / IDR ca setul principal ----------
+function loadWfSet() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.csv,text/csv';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return; $('simWfInfo').textContent = 'procesez ' + f.name + '…';
+    try {
+      const text = await f.text(); let rows = E.parseCSV(text);
+      const tzEl = document.getElementById('tz'), idrEl = document.getElementById('useIDR');
+      rows = E.enrich(rows, tzEl ? tzEl.value : 'America/New_York');
+      const stats = E.computeAllSessions(rows, !!(idrEl && idrEl.checked));
+      const cyc = S.fromStats(stats, rows); if (!cyc.length) throw new Error('niciun ciclu');
+      const ds = cyc.map(c => c.dateKey).sort();
+      state.wf = { cycles: cyc, label: `${f.name}: ${cyc.length} cicluri, ${ds[0]} → ${ds[ds.length - 1]}`, from: ds[0], to: ds[ds.length - 1] };
+      state.res = null; build();
+    } catch (e) { $('simWfInfo').textContent = 'eroare: ' + e.message; }
+  };
+  inp.click();
+}
+// aplică o configurație (parametri + sesiune + filtru) pe ciclurile setului extern; filtrul cu praguri (chintile) se fit-ează pe setul extern
+function wfExternResult(p, ses, feat, level, dows) {
+  if (!state.wf) return null;
+  let cyc = state.wf.cycles; if (ses !== 'ALL') cyc = cyc.filter(c => c.srcSession === ses); if (dows && dows.size < E.DOW.length) cyc = cyc.filter(c => dows.has(c.dow));
+  if (feat) { const P = F.fitAll([feat], cyc); cyc = cyc.filter(c => F.labelOf(feat, c, P) === level); }
+  return summarize(cyc.slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1).map(c => tradeOf(c, p.tp, p.sl, p.strat, p.exitContra)).filter(Boolean));
+}
 // ---------- top 3 automat ----------
 // Spațiul de căutare: strategie × TP × SL × ieșire (fade) × sesiune × filtru din seria 1 (un feature, un nivel) sau fără filtru.
 // Rezultatele per ciclu se calculează O DATĂ pentru fiecare set de parametri; filtrele doar însumează ⇒ zeci de mii de
@@ -3564,7 +3621,8 @@ async function autoSearch() {
     const sel = cyc.filter((c, i) => (x.sub.mask ? x.sub.mask[i] : true));
     const trades = sel.map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean);
     const cut = Math.floor(sel.length * 0.7), tr = summarize(sel.slice(0, cut).map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean)), te = summarize(sel.slice(cut).map(c => tradeOf(c, x.p.tp, x.p.sl, x.p.strat, x.p.exitContra)).filter(Boolean));
-    return Object.assign({}, x, { all: summarize(trades), train: tr, test: te, testFrom: sel[cut] && sel[cut].dateKey });
+    const ext = state.wf ? wfExternResult(x.p, x.sub.ses, x.sub.feat, x.sub.level, state.dows) : null;
+    return Object.assign({}, x, { all: summarize(trades), train: tr, test: te, testFrom: sel[cut] && sel[cut].dateKey, ext });
   });
   state.auto = { top, combos: results.length, ms: Date.now() - t0, period: periodLabel(), nCycles: n };
   state.autoRunning = false; $('simAuto').disabled = false; status(`${results.length} combinații valide (≥ ${AUTO_MIN_N} trade-uri) în ${((Date.now() - t0) / 1000).toFixed(1)} s · perioada ${periodLabel()}`);
@@ -3581,6 +3639,7 @@ function renderAuto() {
       <div class="big ${cls(a.sum)}">${f2(a.sum)} R</div><span class="n">total după costuri, ${a.n} trade-uri</span><br>
       R/trade <b class="${cls(a.mean)}">${f3(a.mean)}</b> (t ${a.t == null ? '–' : a.t.toFixed(1)}) · win ${pct(a.win)} · PF ${f2(a.pf)} · max DD ${f2(a.maxDD)}<br>
       <span class="n" data-tip="ui:sim.wf">walk-forward 70/30 pe acest subset:</span> train ${f3(x.train.mean)} → test <b class="${cls(x.test.mean)}">${x.test.n ? f3(x.test.mean) : '–'}</b> R/trade (n ${x.test.n}${x.testFrom ? ', de la ' + x.testFrom : ''})<br>
+      ${x.ext ? `<span class="n" data-tip="ui:sim.wfset">WF extern:</span> <b class="${cls(x.ext.mean)}">${x.ext.n ? f3(x.ext.mean) : '–'}</b> R/trade · total <b class="${cls(x.ext.sum)}">${x.ext.n ? f2(x.ext.sum) : '–'} R</b> (n ${x.ext.n}, t ${x.ext.t == null ? '–' : x.ext.t.toFixed(1)})<br>` : ''}
       <button type="button" class="expl-toggle-btn" data-apply="${i}">Aplică în simularea manuală</button></div>`; }).join('') || '<div class="mod-empty">Nicio combinație cu suficiente trade-uri.</div>';
   el.querySelectorAll('[data-apply]').forEach(b => b.addEventListener('click', () => applyAuto(A.top[Number(b.dataset.apply)])));
   if (window.DRIDR && window.DRIDR.ui) window.DRIDR.ui.decorateTips(el);
@@ -3610,12 +3669,13 @@ function render() {
   ].map(([l, v, tip, extra]) => `<div class="mod-kpi" data-tip="${tip}"${extra ? ` data-tip-extra="${esc(extra)}"` : ''}><div class="v ${cls(l.startsWith('R/trade') || l === 'total R' ? a.mean : 0)}">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
   drawChart(a.curve);
   const w = R.wf;
-  $('simWF').innerHTML = w ? `<b data-tip="ui:sim.wf">Walk-forward 70/30:</b> pe train cel mai bun TP/SL = <b>${w.tp} / ${w.sl}</b> (${w.train.n} trade-uri, ${f3(w.train.mean)} R/trade); aplicat pe test (de la ${w.testFrom}): <b class="${cls(w.test.mean)}">${w.test.n ? f3(w.test.mean) : '–'} R/trade</b> (n=${w.test.n}, t ${w.test.t == null ? '–' : w.test.t.toFixed(1)}, DD ${f2(w.test.maxDD)}).<br><span class="n">Dacă cifra de test e pozitivă cu t ≥ 2 și parametrii aleși pe train sunt rezonabili (nu un colț al grilei) ⇒ strategia a trecut seria 4 pe acest asset. Dacă e ≈ 0 sau negativă ⇒ ce vezi pe tot setul e potrivire pe istoric.</span>` : '<span class="n">Prea puține trade-uri pe train pentru walk-forward (cerem ≥ 100).</span>';
+  const extLine = R.ext ? `<br><b data-tip="ui:sim.wfset">WF extern (${esc(state.wf.label)}):</b> <b class="${cls(R.ext.mean)}">${R.ext.n ? f3(R.ext.mean) : '–'} R/trade</b>, total <b class="${cls(R.ext.sum)}">${R.ext.n ? f2(R.ext.sum) : '–'} R</b>, n ${R.ext.n}, t ${R.ext.t == null ? '–' : R.ext.t.toFixed(1)}, win ${pct(R.ext.win)}, DD ${f2(R.ext.maxDD)}${state.filtFeat && state.filtLevels.size > 1 ? ' <span class="n">(filtrul cu mai multe niveluri nu e aplicat pe setul extern — alege un singur nivel)</span>' : ''}` : '';
+  $('simWF').innerHTML = (w ? `<b data-tip="ui:sim.wf">Walk-forward 70/30:</b> pe train cel mai bun TP/SL = <b>${w.tp} / ${w.sl}</b> (${w.train.n} trade-uri, ${f3(w.train.mean)} R/trade); aplicat pe test (de la ${w.testFrom}): <b class="${cls(w.test.mean)}">${w.test.n ? f3(w.test.mean) : '–'} R/trade</b> (n=${w.test.n}, t ${w.test.t == null ? '–' : w.test.t.toFixed(1)}, DD ${f2(w.test.maxDD)}).<br><span class="n">Dacă cifra de test e pozitivă cu t ≥ 2 și parametrii aleși pe train sunt rezonabili (nu un colț al grilei) ⇒ strategia a trecut seria 4 pe acest asset. Dacă e ≈ 0 sau negativă ⇒ ce vezi pe tot setul e potrivire pe istoric.</span>` : '<span class="n">Prea puține trade-uri pe train pentru walk-forward (cerem ≥ 100).</span>') + extLine;
   const yrs = Object.keys(R.byYear).sort();
-  $('simYears').innerHTML = `<tr><th data-tip="ui:sim.years">an</th><th>n</th><th>R/trade</th><th>total R</th><th>win</th></tr>` + yrs.map(y => { const s = R.byYear[y]; return `<tr><td>${y}</td><td>${s.n}</td><td class="${cls(s.mean)}">${f3(s.mean)}</td><td class="${cls(s.sum)}">${f2(s.sum)}</td><td>${pct(s.win)}</td></tr>`; }).join('') + `<tr><td colspan="5" class="n">ani cu R/trade &gt; 0: ${yrs.filter(y => R.byYear[y].mean > 0).length}/${yrs.length}</td></tr>`;
-  $('simSessions').innerHTML = `<tr><th data-tip="ui:filter.session">sesiune</th><th>n</th><th>R/trade</th><th>t</th><th>total R</th><th>DD</th></tr>` + E.SESSIONS.filter(s => R.bySes[s]).map(s => { const x = R.bySes[s]; return `<tr><td>${s}</td><td>${x.n}</td><td class="${cls(x.mean)}">${f3(x.mean)}</td><td>${x.t == null ? '–' : x.t.toFixed(1)}</td><td class="${cls(x.sum)}">${f2(x.sum)}</td><td>${f2(x.maxDD)}</td></tr>`; }).join('');
+  $('simYears').innerHTML = `<tr><th data-tip="ui:sim.years">an</th><th data-tip="ui:sim.n">n</th><th data-tip="ui:sim.mean">R/trade</th><th data-tip="ui:sim.sum">total R</th><th data-tip="ui:sim.win">win</th></tr>` + yrs.map(y => { const s = R.byYear[y]; return `<tr><td>${y}</td><td>${s.n}</td><td class="${cls(s.mean)}">${f3(s.mean)}</td><td class="${cls(s.sum)}">${f2(s.sum)}</td><td>${pct(s.win)}</td></tr>`; }).join('') + `<tr><td colspan="5" class="n">ani cu R/trade &gt; 0: ${yrs.filter(y => R.byYear[y].mean > 0).length}/${yrs.length}</td></tr>`;
+  $('simSessions').innerHTML = `<tr><th data-tip="ui:sim.bySession">sesiune</th><th data-tip="ui:sim.n">n</th><th data-tip="ui:sim.mean">R/trade</th><th data-tip="ui:sim.t">t</th><th data-tip="ui:sim.sum">total R</th><th data-tip="ui:sim.dd">DD</th></tr>` + E.SESSIONS.filter(s => R.bySes[s]).map(s => { const x = R.bySes[s]; return `<tr><td>${s}</td><td>${x.n}</td><td class="${cls(x.mean)}">${f3(x.mean)}</td><td>${x.t == null ? '–' : x.t.toFixed(1)}</td><td class="${cls(x.sum)}">${f2(x.sum)}</td><td>${f2(x.maxDD)}</td></tr>`; }).join('');
   const g = STRATS[state.strat];
-  $('simGrid').innerHTML = `<tr><th data-tip="ui:sim.grid">TP \\ SL (R/trade după costuri, tot setul)</th>${g.slGrid.map(s => `<th>SL ${s}</th>`).join('')}</tr>` + g.tpGrid.map(tp => `<tr><td>TP ${tp}</td>${g.slGrid.map(sl => { const c = R.grid.find(x => x.tp === tp && x.sl === sl); const v = c && c.full.n ? c.full.mean : null; return `<td class="${cls(v)}${w && w.tp === tp && w.sl === sl ? ' best' : ''}">${v == null ? '–' : f3(v)}</td>`; }).join('')}</tr>`).join('');
+  $('simGrid').innerHTML = `<tr><th data-tip="ui:sim.grid">TP \\ SL (R/trade după costuri, perioada)</th>${g.slGrid.map(s => `<th data-tip="ui:sim.sl">SL ${s}</th>`).join('')}</tr>` + g.tpGrid.map(tp => `<tr><td data-tip="ui:sim.tp">TP ${tp}</td>${g.slGrid.map(sl => { const c = R.grid.find(x => x.tp === tp && x.sl === sl); const v = c && c.full.n ? c.full.mean : null; return `<td class="${cls(v)}${w && w.tp === tp && w.sl === sl ? ' best' : ''}">${v == null ? '–' : f3(v)}</td>`; }).join('')}</tr>`).join('');
   if (window.DRIDR && window.DRIDR.ui) window.DRIDR.ui.decorateTips($('toptab-sim'));
 }
 function destroyChart() { if (state.chart) { state.chart.destroy(); state.chart = null; } }
@@ -3632,7 +3692,7 @@ module.exports = { init, setData, render, state, tradeOf, summarize };
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, glossary: G, version: "0.14.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, glossary: G, version: "0.15.0" };
 })();
 
 </script>
