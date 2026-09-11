@@ -580,8 +580,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 09:29 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T09:29 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 09:53 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T09:53 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -605,48 +605,207 @@
   const __MODULES = {
   "schema": "dridr-modules/1",
   "note": "Seria 1 — module de analiză și statistică. Fiecare modul = target(s) + filtre + breakdown-uri permise. Modulele sunt VIEW-uri peste stats.analyze(); nu calculează nimic singure. Un modul nou = o intrare aici; un parametru nou = un feature în features/index.js (apare automat în listele de breakdown dacă e adăugat la `breakdowns`).",
-  "commonFilters": ["session", "dow", "outcome", "interval30"],
+  "commonFilters": [
+    "session",
+    "dow",
+    "outcome",
+    "interval30"
+  ],
   "modules": [
     {
-      "id": "dr", "label": "DR — True / False", "order": 1,
-      "description": "Probabilitatea ca după confirmare sesiunea să fie True (nicio închidere dincolo de marginea DR opusă) sau False. Filtrabil pe zile, sesiune, intervalul de 30 min al confirmării (de la închiderea PreBO), True/False/All.",
-      "targets": ["isTrue", "confirmed", "dirUp"], "defaultTarget": "isTrue",
-      "breakdowns": ["triggerBucket30", "dow", "session", "drRangeRelQ", "drRangeQ", "preBO", "structure", "refStructure"], "defaultBreakdown": "triggerBucket30"
+      "id": "dr",
+      "label": "DR — True / False",
+      "order": 1,
+      "description": "Probabilitatea ca după confirmare sesiunea să fie True (nicio închidere dincolo de marginea DR opusă) sau False. Filtrabil pe zile, sesiune, intervalul de 30 min al confirmării (de la închiderea PreBO), True/False/All. Include VOLUMUL (doar surse OHLCV): volumul orei PreBO relativ la ultimele 60 sesiuni / la ora anterioară, volumul barei de confirmare și cel mediu pre-confirmare (față de media pe bară din PreBO).",
+      "targets": [
+        "isTrue",
+        "confirmed",
+        "dirUp"
+      ],
+      "defaultTarget": "isTrue",
+      "breakdowns": [
+        "triggerBucket30",
+        "dow",
+        "session",
+        "drRangeRelQ",
+        "drRangeQ",
+        "preBO",
+        "structure",
+        "refStructure",
+        "volDefRelQ",
+        "volDefVsPrevQ",
+        "volConfirmRelQ",
+        "volPreConfirmRelQ"
+      ],
+      "defaultBreakdown": "triggerBucket30"
     },
     {
-      "id": "trend", "label": "Trend", "order": 2,
+      "id": "volume",
+      "label": "Volum",
+      "order": 1.5,
+      "description": "Parametru nou (11 sep 2026), disponibil doar pe surse OHLCV. Patru măsuri, toate RELATIVE: volumul orei PreBO vs ultimele 60 de sesiuni de același tip (boxClose), vs ora imediat anterioară (boxClose), volumul barei de confirmare vs media pe bară din PreBO (confirm), volumul mediu între închiderea box-ului și confirmare vs media PreBO (confirm). Întrebarea: prezice volumul direcția, True/False, extensia, MAE-ul?",
+      "targets": [
+        "isTrue",
+        "dirUp",
+        "confirmed",
+        "extR",
+        "tpHit_1",
+        "tpMaeBefore_1",
+        "retrR",
+        "maeCloseR"
+      ],
+      "defaultTarget": "isTrue",
+      "breakdowns": [
+        "volDefRelQ",
+        "volDefVsPrevQ",
+        "volConfirmRelQ",
+        "volPreConfirmRelQ",
+        "triggerBucket30",
+        "session",
+        "dow"
+      ],
+      "defaultBreakdown": "volConfirmRelQ"
+    },
+    {
+      "id": "trend",
+      "label": "Trend",
+      "order": 2,
       "description": "Cum definim trendul și dacă prezice ceva. ATENȚIE: `trendBucket` (mom60 la închiderea box-ului) ≡ mărimea PreBO (fereastra de 60 min e chiar ora PreBO). Trendul INDEPENDENT (momentum 4h/24h și ASS 1H/4H/D din barele dinaintea PreBO) nu a prezis direcția/True pe WTI (Pas 8); momPre1dQ arată mean-reversion. Semnale noi de inversare/continuare intră aici ca features.",
-      "targets": ["dirUp", "isTrue", "extR", "confirmed"], "defaultTarget": "dirUp",
-      "breakdowns": ["trendBucket", "momPre4hQ", "momPre1dQ", "ass1H", "ass4H", "assD", "assAlign"], "defaultBreakdown": "momPre1dQ"
+      "targets": [
+        "dirUp",
+        "isTrue",
+        "extR",
+        "confirmed"
+      ],
+      "defaultTarget": "dirUp",
+      "breakdowns": [
+        "trendBucket",
+        "momPre4hQ",
+        "momPre1dQ",
+        "ass1H",
+        "ass4H",
+        "assD",
+        "assAlign"
+      ],
+      "defaultBreakdown": "momPre1dQ"
     },
     {
-      "id": "prebo", "label": "PreBO", "order": 3,
+      "id": "prebo",
+      "label": "PreBO",
+      "order": 3,
       "description": "Direcția orei de definire (close vs open) — cel mai bun predictor de direcție cunoscut (~67%), amplificat de range; NU prezice True/False. Aliniat/contra e disponibil abia la confirmare.",
-      "targets": ["dirUp", "isTrue", "extR", "retrBeforeR", "tpHit_1"], "defaultTarget": "dirUp",
-      "breakdowns": ["preBO", "preBOAligned", "refPreBO", "triggerBucket30", "dow", "session"], "defaultBreakdown": "preBO"
+      "targets": [
+        "dirUp",
+        "isTrue",
+        "extR",
+        "retrBeforeR",
+        "tpHit_1"
+      ],
+      "defaultTarget": "dirUp",
+      "breakdowns": [
+        "preBO",
+        "preBOAligned",
+        "refPreBO",
+        "triggerBucket30",
+        "dow",
+        "session",
+        "volDefRelQ",
+        "volConfirmRelQ",
+        "volDefVsPrevQ"
+      ],
+      "defaultBreakdown": "preBO"
     },
     {
-      "id": "range", "label": "DR Range", "order": 4,
+      "id": "range",
+      "label": "DR Range",
+      "order": 4,
       "description": "Mărimea box-ului: absolută (chintile per sesiune) și RELATIVĂ la ultimele 60 de box-uri (staționară — recomandată). Range mare ⇒ P(True) mai mare și MAE-înainte-de-TP mai mic; nu prezice direcția, dar amplifică PreBO. Atenție: targets în R au drRange la numitor (efect mecanic pe extR/maeR).",
-      "targets": ["isTrue", "confirmed", "dirUp", "tpHit_1", "tpMaeBefore_1", "extR"], "defaultTarget": "isTrue",
-      "breakdowns": ["drRangeRelQ", "drRangeQ", "drRangeT", "triggerBucket30", "dow", "session"], "defaultBreakdown": "drRangeRelQ"
+      "targets": [
+        "isTrue",
+        "confirmed",
+        "dirUp",
+        "tpHit_1",
+        "tpMaeBefore_1",
+        "extR"
+      ],
+      "defaultTarget": "isTrue",
+      "breakdowns": [
+        "drRangeRelQ",
+        "drRangeQ",
+        "drRangeT",
+        "triggerBucket30",
+        "dow",
+        "session",
+        "volDefRelQ",
+        "volConfirmRelQ"
+      ],
+      "defaultBreakdown": "drRangeRelQ"
     },
     {
-      "id": "retracement", "label": "Price Retracement", "order": 5,
+      "id": "retracement",
+      "label": "Price Retracement",
+      "order": 5,
       "description": "Retrageri: ÎNAINTE de candela de confirmare (retrBeforeR — de la închiderea PreBO până la confirmare inclusiv) și DUPĂ (retrR = MAE pe fitil de la marginea de trigger; maeCloseR pe close; tpMaeBefore_L = MAE acumulat înainte de a atinge TP L — baza stop loss-ului). Toate în R = drRange.",
-      "targets": ["retrBeforeR", "retrR", "maeCloseR", "tpMaeBefore_0.5", "tpMaeBefore_1", "tpMaeBefore_1.5", "tpMaeBefore_2"], "defaultTarget": "retrR",
-      "breakdowns": ["triggerBucket30", "dow", "session", "drRangeRelQ", "preBOAligned", "structure", "momPre1dQ"], "defaultBreakdown": "session"
+      "targets": [
+        "retrBeforeR",
+        "retrR",
+        "maeCloseR",
+        "tpMaeBefore_0.5",
+        "tpMaeBefore_1",
+        "tpMaeBefore_1.5",
+        "tpMaeBefore_2"
+      ],
+      "defaultTarget": "retrR",
+      "breakdowns": [
+        "triggerBucket30",
+        "dow",
+        "session",
+        "drRangeRelQ",
+        "preBOAligned",
+        "structure",
+        "momPre1dQ",
+        "volDefRelQ",
+        "volConfirmRelQ",
+        "volPreConfirmRelQ"
+      ],
+      "defaultBreakdown": "session"
     },
     {
-      "id": "extension", "label": "Price Extensions", "order": 6,
+      "id": "extension",
+      "label": "Price Extensions",
+      "order": 6,
       "description": "Extensia maximă după confirmare (extR, în R de la marginea de trigger) și probabilitatea de a atinge fiecare nivel TP (0.5…3 R). Ora confirmării domină mecanic (buget de timp până la finalul sesiunii).",
-      "targets": ["extR", "tpHit_0.5", "tpHit_1", "tpHit_1.5", "tpHit_2", "tpHit_3"], "defaultTarget": "tpHit_1",
-      "breakdowns": ["triggerBucket30", "dow", "session", "drRangeRelQ", "preBOAligned", "structure", "momPre1dQ"], "defaultBreakdown": "session"
+      "targets": [
+        "extR",
+        "tpHit_0.5",
+        "tpHit_1",
+        "tpHit_1.5",
+        "tpHit_2",
+        "tpHit_3"
+      ],
+      "defaultTarget": "tpHit_1",
+      "breakdowns": [
+        "triggerBucket30",
+        "dow",
+        "session",
+        "drRangeRelQ",
+        "preBOAligned",
+        "structure",
+        "momPre1dQ",
+        "volDefRelQ",
+        "volConfirmRelQ",
+        "volPreConfirmRelQ"
+      ],
+      "defaultBreakdown": "session"
     },
     {
-      "id": "boxEdge", "label": "Marginea box-ului (fade)", "order": 7, "status": "planned",
+      "id": "boxEdge",
+      "label": "Marginea box-ului (fade)",
+      "order": 7,
+      "status": "planned",
       "description": "Comportamentul prețului la revenirea la marginea box-ului înainte de confirmare (respingere vs străpungere). Singurul edge out-of-sample după costuri găsit până acum (WTI +0.08 R/trade, Pas 9). Necesită targets noi calculate din traseul la nivel de bară — următorul pas al seriei 1.",
-      "targets": [], "breakdowns": []
+      "targets": [],
+      "breakdowns": []
     }
   ]
 };
@@ -705,7 +864,9 @@ function parseCSV(text) {
     open: header.findIndex(h => h === 'open'),
     high: header.findIndex(h => h === 'high'),
     low: header.findIndex(h => h === 'low'),
-    close: header.findIndex(h => h === 'close')
+    close: header.findIndex(h => h === 'close'),
+    // Pasul 10 (11 sep 2026): volum OPȚIONAL — coloane 'volume' | 'vol' | 'v'. Lipsă ⇒ r.v = null (features de volum dau null).
+    volume: header.findIndex(h => ['volume', 'vol', 'v'].includes(h))
   };
   if (idx.time < 0 || idx.open < 0 || idx.high < 0 || idx.low < 0 || idx.close < 0) {
     throw new Error('Nu găsesc coloanele necesare (time, open, high, low, close) în header: ' + header.join(', '));
@@ -719,7 +880,8 @@ function parseCSV(text) {
     const t = p[idx.time];
     const o = parseFloat(p[idx.open]), h = parseFloat(p[idx.high]), l = parseFloat(p[idx.low]), c = parseFloat(p[idx.close]);
     if (!t || isNaN(o) || isNaN(h) || isNaN(l) || isNaN(c)) continue;
-    rows.push({ t: new Date(t), o, h, l, c });
+    const v = idx.volume >= 0 ? parseFloat(p[idx.volume]) : NaN;
+    rows.push({ t: new Date(t), o, h, l, c, v: isNaN(v) ? null : v });
   }
   return rows;
 }
@@ -879,6 +1041,12 @@ function computeSessionStats(rows, cfg, useIDR) {
         const confirmSlipR = __t ? (direction === 'up' ? (confirmClose - trigHigh) : (trigLow - confirmClose)) / drRange : null;
         const relIdx = triggerElapsed != null ? Math.min(9, Math.floor((triggerElapsed / dispDurMin) * 10)) : null;
         const triggerBarIdx = direction === 'up' ? cycle.tUp.triggerBarIdx : (direction === 'down' ? cycle.tDn.triggerBarIdx : null);
+        // Pasul 10 — volum (null când CSV-ul nu are coloană de volum). volDef = suma orei PreBO; volPre = suma barelor din
+        // faza disp STRICT înainte de bara de confirmare (sau toată faza, la Inside); volConfirmBar = bara de confirmare.
+        const hasVol = cycle.volDefN > 0;
+        const volConfirmBar = __t ? (__t.volBar != null ? __t.volBar : null) : null;
+        const volDef = hasVol ? cycle.volDef : null;
+        const volPre = hasVol ? (cycle.volPre - (volConfirmBar || 0)) : null, volPreN = hasVol ? Math.max(0, cycle.volPreN - (__t ? 1 : 0)) : null;
         // PreBO ("PreDefined BO"): direction of the defining-range hour itself, Close vs Open, independent of
         // breakout/confirmation — fixed for the whole session. 'Flat' is the rare defClose === defOpen edge case.
         const preBO = cycle.defClose > cycle.defOpen ? 'Long' : (cycle.defClose < cycle.defOpen ? 'Short' : 'Flat');
@@ -891,6 +1059,7 @@ function computeSessionStats(rows, cfg, useIDR) {
         cycles.push({ dateKey: cycle.startDateKey, dow: cycle.startDow, direction, ruleHold, invalidElapsed, extAmt, extElapsed, retrAmt, retrElapsed, retrBeforeAmt, retrSessionAmt, giveback, givebackElapsed, drRange, triggerElapsed, relIdx,
           trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
           path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined,
+          volDef, volDefN: hasVol ? cycle.volDefN : null, volPre, volPreN, volConfirmBar,
           // Pasul 8: indexul barei de închidere a box-ului — permite features de context calculate din barele DINAINTEA
           // orei PreBO (trend independent: momentum 4h/1d, ASS 1H/4H/D), fără să depindă de mom60Raw.
           lastDefBarIdx: cycle.lastDefBarIdx });
@@ -918,6 +1087,8 @@ function computeSessionStats(rows, cfg, useIDR) {
                 // Together they give the direction of the defining-range "hour candle" itself — PreBO — fixed
                 // for the whole session regardless of what breaks out later or whether it ends True/False.
                 defOpen: b.o, defClose: b.c,
+                // Pasul 10 — volum: suma pe ora de definire (PreBO) și pe faza disp înainte de confirmare (bare + sumă)
+                volDef: 0, volDefN: 0, volPre: 0, volPreN: 0,
                 // lastDefBarIdx tracks the raw-row index of the LAST bar of the defining window (updated every
                 // bar while inDef below) — the "box-close" moment. Used post-hoc (in closeCycle) to compute the
                 // 60-min trailing momentum AT that moment (rows[lastDefBarIdx].c - rows[lastDefBarIdx-12].c),
@@ -929,6 +1100,7 @@ function computeSessionStats(rows, cfg, useIDR) {
     }
     if (inDef && cycle) {
       cycle.defClose = b.c;
+      if (b.v != null) { cycle.volDef += b.v; cycle.volDefN++; }
       cycle.lastDefBarIdx = __rowIdx;
       if (b.h > cycle.drHigh) cycle.drHigh = b.h;
       if (b.l < cycle.drLow) cycle.drLow = b.l;
@@ -951,6 +1123,7 @@ function computeSessionStats(rows, cfg, useIDR) {
       if (cycle && cycle.phase === 'disp') {
         const trigHigh = useIDR ? cycle.idrHigh : cycle.drHigh;
         const trigLow = useIDR ? cycle.idrLow : cycle.drLow;
+        if (b.v != null && cycle.tUp === null && cycle.tDn === null) { cycle.volPre += b.v; cycle.volPreN++; } // include bara de confirmare (se scade mai jos)
         if (__pathBarsEnabled) cycle.bars.push([((hmToMin(b.hm) - dispStartMin) + 1440) % 1440, b.h, b.l, b.c]);
         if (b.l < cycle.sessLow) cycle.sessLow = b.l;
         if (b.h > cycle.sessHigh) cycle.sessHigh = b.h;
@@ -969,7 +1142,7 @@ function computeSessionStats(rows, cfg, useIDR) {
           // minLowElapsed (task #146) tracks the elapsed time of the RUNNING minLowAfter itself (the level that
           // directly defines retrAmt below) — distinct from peakMinLowElapsed, which only tracks the pullback
           // that follows the session's OWN peak (giveback's own reference frame).
-          cycle.tUp = { elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, minLowAfter: b.l, minLowElapsed: elapsed, peakMinLowAfter: b.l, peakMinLowElapsed: elapsed, triggerBarIdx: __rowIdx, preLowAtTrigger: cycle.dispLow, invalidated: false, invalidElapsed: null,
+          cycle.tUp = { elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, minLowAfter: b.l, minLowElapsed: elapsed, peakMinLowAfter: b.l, peakMinLowElapsed: elapsed, triggerBarIdx: __rowIdx, preLowAtTrigger: cycle.dispLow, invalidated: false, invalidElapsed: null, volBar: b.v,
                         path: newPathTracker(cycle.drHigh - cycle.drLow) };
           pathStep(cycle.tUp.path, b.h - trigHigh, Math.max(0, trigHigh - b.l), Math.max(0, trigHigh - b.c), elapsed, b.c - trigHigh);
         } else if (cycle.tUp !== null) {
@@ -983,7 +1156,7 @@ function computeSessionStats(rows, cfg, useIDR) {
           // maxHighElapsed (task #146) tracks the elapsed time of the RUNNING maxHighAfter itself (the level
           // that directly defines retrAmt for a down-direction cycle) — symmetric addition to minLowElapsed
           // above; maxHighAfter's own VALUE is unchanged.
-          cycle.tDn = { elapsed, minLowAfter: b.l, minLowElapsed: elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, peakMaxHighAfter: b.h, peakMaxHighElapsed: elapsed, triggerBarIdx: __rowIdx, preHighAtTrigger: cycle.dispHigh, invalidated: false, invalidElapsed: null,
+          cycle.tDn = { elapsed, minLowAfter: b.l, minLowElapsed: elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, peakMaxHighAfter: b.h, peakMaxHighElapsed: elapsed, triggerBarIdx: __rowIdx, preHighAtTrigger: cycle.dispHigh, invalidated: false, invalidElapsed: null, volBar: b.v,
                         path: newPathTracker(cycle.drHigh - cycle.drLow) };
           pathStep(cycle.tDn.path, trigLow - b.l, Math.max(0, b.h - trigLow), Math.max(0, b.c - trigLow), elapsed, trigLow - b.c);
         } else if (cycle.tDn !== null) {
@@ -1290,11 +1463,14 @@ function attachTrendContext(cycles, rows) {
   for (const cfg of ASS_CFG) snaps[cfg.key] = computeASSStructure(resampleBars(rows, cfg.tf), cfg.n);
   for (const c of cycles) {
     const i0 = c.lastDefBarIdx != null ? c.lastDefBarIdx - 12 : null;
-    if (i0 == null || i0 < 0 || !(c.drRange > 0)) { c.momPre4h = c.momPre1d = null; for (const cfg of ASS_CFG) c[cfg.key] = null; continue; }
+    if (i0 == null || i0 < 0 || !(c.drRange > 0)) { c.momPre4h = c.momPre1d = null; c.volDefVsPrev = null; for (const cfg of ASS_CFG) c[cfg.key] = null; continue; }
     const ref = rows[i0].c;
     c.momPre4h = i0 >= 48 ? (ref - rows[i0 - 48].c) / c.drRange : null;
     c.momPre1d = i0 >= 288 ? (ref - rows[i0 - 288].c) / c.drRange : null;
     for (const cfg of ASS_CFG) { const s = snapshotAt(snaps[cfg.key], i0); c[cfg.key] = s ? s.trend : null; }
+    // Pasul 10 — volumul orei PreBO / volumul celor 12 bare imediat anterioare (i0-11..i0); null fără coloană de volum
+    if (c.volDef != null && i0 >= 11) { let vp = 0, ok = true; for (let k = i0 - 11; k <= i0; k++) { if (rows[k].v == null) { ok = false; break; } vp += rows[k].v; } c.volDefVsPrev = ok && vp > 0 ? c.volDef / vp : null; }
+    else c.volDefVsPrev = null;
   }
   return cycles;
 }
@@ -1327,8 +1503,10 @@ const STAGES = ['boxClose', 'confirm', 'sessionEnd'];
 const STAGE_FIELDS = {
   boxClose: new Set(['dateKey', 'dow', 'srcSession', 'drHigh', 'drLow', 'idrHigh', 'idrLow', 'drRange', 'trigHigh', 'trigLow',
                      'preBO', 'mom60Raw', 'structure', 'refStructure', 'refPreBO', 'drRangeRel',
-                     'momPre4h', 'momPre1d', 'ass1H', 'ass4H', 'assD']),
-  confirm:  new Set(['direction', 'triggerElapsed', 'triggerBarIdx', 'relIdx', 'retrBeforeAmt', 'confirmClose', 'confirmT', 'confirmSlipR']),
+                     'momPre4h', 'momPre1d', 'ass1H', 'ass4H', 'assD',
+                     'volDef', 'volDefN', 'volDefRel', 'volDefVsPrev']),
+  confirm:  new Set(['direction', 'triggerElapsed', 'triggerBarIdx', 'relIdx', 'retrBeforeAmt', 'confirmClose', 'confirmT', 'confirmSlipR',
+                     'volPre', 'volPreN', 'volConfirmBar']),
   sessionEnd: null, // orice
 };
 STAGE_FIELDS.confirm = new Set([...STAGE_FIELDS.boxClose, ...STAGE_FIELDS.confirm]);
@@ -1348,6 +1526,10 @@ function bySession(cycles) {
 const DR_RANGE_LEVELS = ['Foarte mic', 'Mic', 'Mediu', 'Mare', 'Foarte mare'];
 const TREND_LEVELS = ['Strong Down', 'Down', 'Sideways', 'Up', 'Strong Up'];
 const STRUCT_LEVELS = ['RX', 'Contraction', 'UXP', 'DXP', 'UX', 'DX', 'U', 'D', 'None'];
+
+// helpers volum (raport față de volumul mediu pe bară din ora PreBO)
+function volConfirmRel(c) { if (c.volConfirmBar == null || c.volDef == null || !c.volDefN || c.volDef <= 0) return null; return c.volConfirmBar / (c.volDef / c.volDefN); }
+function volPreConfirmRel(c) { if (c.volPre == null || !c.volPreN || c.volDef == null || !c.volDefN || c.volDef <= 0) return null; return (c.volPre / c.volPreN) / (c.volDef / c.volDefN); }
 
 const FEATURES = [
   { name: 'session', label: 'Sesiune', type: 'categorical', levels: ['RDR', 'ODR', 'ADR'], availableAt: 'boxClose',
@@ -1470,6 +1652,25 @@ const FEATURES = [
     value: c => { const v = [c.ass1H, c.ass4H, c.assD]; if (v.some(x => x == null)) return null; const up = v.filter(x => x > 0).length, dn = v.filter(x => x < 0).length;
       return up === 3 ? 'Up3' : dn === 3 ? 'Down3' : up === 2 && dn === 0 ? 'Up2' : dn === 2 && up === 0 ? 'Down2' : 'Mixed'; } },
 
+  // ---- Pasul 10 (11 sep 2026): VOLUM — doar pe surse OHLCV (altfel null). Toate relative, ca să nu depindă de unitate/regim.
+  // volDefRelQ: volumul orei PreBO / mediana ultimelor 60 de sesiuni de același tip (context, doar trecut) — „PreBO cu volum".
+  { name: 'volDefRelQ', requires: 'volume', label: 'Volum PreBO relativ la ultimele 60 (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'boxClose',
+    fit: cycles => { const v = cycles.map(c => c.volDefRel).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = c.volDefRel; if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
+  // volDefVsPrevQ: volumul orei PreBO / volumul orei imediat anterioare (context din trend_context.js) — surge intraday la deschidere.
+  { name: 'volDefVsPrevQ', requires: 'volume', label: 'Volum PreBO vs ora anterioară (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'boxClose',
+    fit: cycles => { const v = cycles.map(c => c.volDefVsPrev).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = c.volDefVsPrev; if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
+  // volConfirmRelQ: volumul barei de confirmare / volumul mediu pe bară din ora PreBO — „breakout cu volum" (disponibil la confirmare).
+  { name: 'volConfirmRelQ', requires: 'volume', label: 'Volum bara de confirmare / medie PreBO (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'confirm',
+    fit: cycles => { const v = cycles.map(volConfirmRel).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = volConfirmRel(c); if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
+  // volPreConfirmRelQ: volumul mediu pe bară între închiderea box-ului și confirmare / medie PreBO — „acumulare" înainte de breakout.
+  { name: 'volPreConfirmRelQ', requires: 'volume', label: 'Volum mediu pre-confirmare / medie PreBO (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'confirm',
+    fit: cycles => { const v = cycles.map(volPreConfirmRel).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = volPreConfirmRel(c); if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
+  { name: 'volConfirmRel', requires: 'volume', label: 'Volum bara de confirmare / medie PreBO (brut)', type: 'continuous', availableAt: 'confirm', value: c => volConfirmRel(c) },
+
   // ---- disponibile abia la confirmare ----
   { name: 'confirmDir', label: 'Direcția confirmării', type: 'categorical', levels: ['up', 'down'], availableAt: 'confirm',
     value: c => (c.direction === 'up' || c.direction === 'down') ? c.direction : null },
@@ -1497,11 +1698,15 @@ const CONTEXT_WINDOW = 60, CONTEXT_MIN = 20;
 function attachContext(cycles) {
   for (const [s, arr] of Object.entries(bySession(cycles))) {
     const sorted = arr.slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : (a.dateKey > b.dateKey ? 1 : 0));
-    const win = [];
+    const win = [], winV = [];
     for (const c of sorted) {
       if (win.length >= CONTEXT_MIN) { const m = win.slice().sort((a, b) => a - b); c.drRangeRel = c.drRange > 0 ? c.drRange / m[Math.floor(m.length / 2)] : null; }
       else c.drRangeRel = null;
       if (c.drRange > 0) { win.push(c.drRange); if (win.length > CONTEXT_WINDOW) win.shift(); }
+      // Pasul 10 — volumul orei PreBO relativ la mediana ultimelor 60 de sesiuni de același tip (doar trecut)
+      if (c.volDef != null && winV.length >= CONTEXT_MIN) { const m = winV.slice().sort((a, b) => a - b); const med = m[Math.floor(m.length / 2)]; c.volDefRel = med > 0 ? c.volDef / med : null; }
+      else c.volDefRel = null;
+      if (c.volDef != null && c.volDef > 0) { winV.push(c.volDef); if (winV.length > CONTEXT_WINDOW) winV.shift(); }
     }
   }
   return cycles;
