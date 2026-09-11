@@ -580,8 +580,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 09:53 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T09:53 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 10:28 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T10:28 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -635,7 +635,8 @@
         "volDefRelQ",
         "volDefVsPrevQ",
         "volConfirmRelQ",
-        "volPreConfirmRelQ"
+        "volPreConfirmRelQ",
+        "volConfirmVsSim3Q"
       ],
       "defaultBreakdown": "triggerBucket30"
     },
@@ -643,7 +644,7 @@
       "id": "volume",
       "label": "Volum",
       "order": 1.5,
-      "description": "Parametru nou (11 sep 2026), disponibil doar pe surse OHLCV. Patru măsuri, toate RELATIVE: volumul orei PreBO vs ultimele 60 de sesiuni de același tip (boxClose), vs ora imediat anterioară (boxClose), volumul barei de confirmare vs media pe bară din PreBO (confirm), volumul mediu între închiderea box-ului și confirmare vs media PreBO (confirm). Întrebarea: prezice volumul direcția, True/False, extensia, MAE-ul?",
+      "description": "Parametru nou (11 sep 2026), disponibil doar pe surse OHLCV. Măsuri RELATIVE: volumul orei PreBO vs ultimele 60 de sesiuni de același tip / vs ora anterioară / vs media pe bară a ultimelor 3 sesiuni similare (boxClose); volumul barei de confirmare vs media pe bară din PreBO / vs ultimele 3 sesiuni similare și volumul mediu pre-confirmare (confirm). CONSTATĂRI (5 perechi Binance, Pas 10–11): volumul PreBO mare ≈ box mare (ρ 0.72 cu range-ul) ⇒ True +17–29pp, extensie și MAE mai mici în R, NU prezice direcția și NU face trendul 4h/24h predictiv (continuare ≈ 50% în toate chintilele); amplifică ușor PreBO (+5–7pp). Volumul barei de confirmare vs PreBO ⇒ extensie +0.5R / TP1 +22pp (robust în intervalele de confirmare și chintilele de range); vs sesiunile anterioare ⇒ SL 1R −15…−20pp, MAE −0.3R. Intrarea la confirmare rămâne negativă după costuri în TOATE chintilele (−0.03…−0.26 R). Spike-uri pe bare (≥3× media/bară a ultimelor 3 sesiuni similare): un spike ÎN direcția confirmării anunță MAI MULTĂ extensie (+0.3R față de o bară obișnuită în aceeași direcție), nu epuizare; un spike CONTRA nu adaugă nimic față de orice bară contra; bara cu volum maxim e la ±2 bare de extrema extensiei în 31–35% din cazuri (așteptat 11%) pentru că spike-urile SUNT extremele locale, dar fracția din extensie atinsă la spike = control ⇒ spike-ul nu spune că mișcarea s-a terminat. În box, înainte de confirmare: direcția barei-spike prezice confirmarea în 59–62%; aliniat cu PreBO ⇒ 69–76% (PreBO singur ~65%), contra PreBO ⇒ 49–54% (monedă). Detalii: profiles/volume_trend_report.md.",
       "targets": [
         "isTrue",
         "dirUp",
@@ -651,6 +652,7 @@
         "extR",
         "tpHit_1",
         "tpMaeBefore_1",
+        "slHit_1",
         "retrR",
         "maeCloseR"
       ],
@@ -658,7 +660,9 @@
       "breakdowns": [
         "volDefRelQ",
         "volDefVsPrevQ",
+        "volDefVsSim3Q",
         "volConfirmRelQ",
+        "volConfirmVsSim3Q",
         "volPreConfirmRelQ",
         "triggerBucket30",
         "session",
@@ -737,7 +741,8 @@
         "dow",
         "session",
         "volDefRelQ",
-        "volConfirmRelQ"
+        "volConfirmRelQ",
+        "volConfirmVsSim3Q"
       ],
       "defaultBreakdown": "drRangeRelQ"
     },
@@ -766,7 +771,8 @@
         "momPre1dQ",
         "volDefRelQ",
         "volConfirmRelQ",
-        "volPreConfirmRelQ"
+        "volPreConfirmRelQ",
+        "volConfirmVsSim3Q"
       ],
       "defaultBreakdown": "session"
     },
@@ -794,7 +800,8 @@
         "momPre1dQ",
         "volDefRelQ",
         "volConfirmRelQ",
-        "volPreConfirmRelQ"
+        "volPreConfirmRelQ",
+        "volConfirmVsSim3Q"
       ],
       "defaultBreakdown": "session"
     },
@@ -965,7 +972,7 @@ function finishPath(p) {
 
 // Pasul 7 (10 sep 2026) — capturarea traseului la nivel de BARĂ pentru toată faza disp (de la închiderea box-ului la finalul
 // sesiunii), opțional (implicit OFF — ar încărca browserul inutil). Când e ON, fiecare rawCycle primește
-// `bars: [[elapsed, h, l, c], ...]`. Folosit de cercetarea/backtest-ul intrărilor pre-confirmare (research/sd_entry.js).
+// `bars: [[elapsed, h, l, c, o, v], ...]` (o, v din Pas 11; v null fără coloană de volum). Folosit de cercetarea/backtest-ul intrărilor pre-confirmare (research/sd_entry.js).
 let __pathBarsEnabled = false;
 function setPathBarsEnabled(v) { __pathBarsEnabled = !!v; }
 
@@ -1059,7 +1066,7 @@ function computeSessionStats(rows, cfg, useIDR) {
         cycles.push({ dateKey: cycle.startDateKey, dow: cycle.startDow, direction, ruleHold, invalidElapsed, extAmt, extElapsed, retrAmt, retrElapsed, retrBeforeAmt, retrSessionAmt, giveback, givebackElapsed, drRange, triggerElapsed, relIdx,
           trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
           path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined,
-          volDef, volDefN: hasVol ? cycle.volDefN : null, volPre, volPreN, volConfirmBar,
+          volDef, volDefN: hasVol ? cycle.volDefN : null, volPre, volPreN, volConfirmBar, volDisp: hasVol ? cycle.volDisp : null, volDispN: hasVol ? cycle.volDispN : null, // volDisp = toată faza disp (Pas 11; post-hoc, doar pentru baze istorice)
           // Pasul 8: indexul barei de închidere a box-ului — permite features de context calculate din barele DINAINTEA
           // orei PreBO (trend independent: momentum 4h/1d, ASS 1H/4H/D), fără să depindă de mom60Raw.
           lastDefBarIdx: cycle.lastDefBarIdx });
@@ -1088,7 +1095,7 @@ function computeSessionStats(rows, cfg, useIDR) {
                 // for the whole session regardless of what breaks out later or whether it ends True/False.
                 defOpen: b.o, defClose: b.c,
                 // Pasul 10 — volum: suma pe ora de definire (PreBO) și pe faza disp înainte de confirmare (bare + sumă)
-                volDef: 0, volDefN: 0, volPre: 0, volPreN: 0,
+                volDef: 0, volDefN: 0, volPre: 0, volPreN: 0, volDisp: 0, volDispN: 0,
                 // lastDefBarIdx tracks the raw-row index of the LAST bar of the defining window (updated every
                 // bar while inDef below) — the "box-close" moment. Used post-hoc (in closeCycle) to compute the
                 // 60-min trailing momentum AT that moment (rows[lastDefBarIdx].c - rows[lastDefBarIdx-12].c),
@@ -1124,7 +1131,8 @@ function computeSessionStats(rows, cfg, useIDR) {
         const trigHigh = useIDR ? cycle.idrHigh : cycle.drHigh;
         const trigLow = useIDR ? cycle.idrLow : cycle.drLow;
         if (b.v != null && cycle.tUp === null && cycle.tDn === null) { cycle.volPre += b.v; cycle.volPreN++; } // include bara de confirmare (se scade mai jos)
-        if (__pathBarsEnabled) cycle.bars.push([((hmToMin(b.hm) - dispStartMin) + 1440) % 1440, b.h, b.l, b.c]);
+        if (b.v != null) { cycle.volDisp += b.v; cycle.volDispN++; }
+        if (__pathBarsEnabled) cycle.bars.push([((hmToMin(b.hm) - dispStartMin) + 1440) % 1440, b.h, b.l, b.c, b.o, b.v]); // [elapsed,h,l,c,o,v] — o/v adăugate la Pas 11 (cercetare volum pe bare)
         if (b.l < cycle.sessLow) cycle.sessLow = b.l;
         if (b.h > cycle.sessHigh) cycle.sessHigh = b.h;
         if (b.l < cycle.dispLow) cycle.dispLow = b.l;
@@ -1504,7 +1512,7 @@ const STAGE_FIELDS = {
   boxClose: new Set(['dateKey', 'dow', 'srcSession', 'drHigh', 'drLow', 'idrHigh', 'idrLow', 'drRange', 'trigHigh', 'trigLow',
                      'preBO', 'mom60Raw', 'structure', 'refStructure', 'refPreBO', 'drRangeRel',
                      'momPre4h', 'momPre1d', 'ass1H', 'ass4H', 'assD',
-                     'volDef', 'volDefN', 'volDefRel', 'volDefVsPrev']),
+                     'volDef', 'volDefN', 'volDefRel', 'volDefVsPrev', 'volSim3Base']),
   confirm:  new Set(['direction', 'triggerElapsed', 'triggerBarIdx', 'relIdx', 'retrBeforeAmt', 'confirmClose', 'confirmT', 'confirmSlipR',
                      'volPre', 'volPreN', 'volConfirmBar']),
   sessionEnd: null, // orice
@@ -1529,6 +1537,8 @@ const STRUCT_LEVELS = ['RX', 'Contraction', 'UXP', 'DXP', 'UX', 'DX', 'U', 'D', 
 
 // helpers volum (raport față de volumul mediu pe bară din ora PreBO)
 function volConfirmRel(c) { if (c.volConfirmBar == null || c.volDef == null || !c.volDefN || c.volDef <= 0) return null; return c.volConfirmBar / (c.volDef / c.volDefN); }
+function volDefVsSim3(c) { if (c.volDef == null || !c.volDefN || !(c.volSim3Base > 0)) return null; return (c.volDef / c.volDefN) / c.volSim3Base; }
+function volConfirmVsSim3(c) { if (c.volConfirmBar == null || !(c.volSim3Base > 0)) return null; return c.volConfirmBar / c.volSim3Base; }
 function volPreConfirmRel(c) { if (c.volPre == null || !c.volPreN || c.volDef == null || !c.volDefN || c.volDef <= 0) return null; return (c.volPre / c.volPreN) / (c.volDef / c.volDefN); }
 
 const FEATURES = [
@@ -1670,6 +1680,13 @@ const FEATURES = [
     fit: cycles => { const v = cycles.map(volPreConfirmRel).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
     value: (c, P) => { const r = volPreConfirmRel(c); if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
   { name: 'volConfirmRel', requires: 'volume', label: 'Volum bara de confirmare / medie PreBO (brut)', type: 'continuous', availableAt: 'confirm', value: c => volConfirmRel(c) },
+  // ---- Pasul 11: baze ISTORICE (media/bară a ultimelor 3 sesiuni de același tip) — cerere utilizator ----
+  { name: 'volDefVsSim3Q', requires: 'volume', label: 'Volum/bară PreBO / media ultimelor 3 sesiuni similare (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'boxClose',
+    fit: cycles => { const v = cycles.map(volDefVsSim3).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = volDefVsSim3(c); if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
+  { name: 'volConfirmVsSim3Q', requires: 'volume', label: 'Volum bara de confirmare / media ultimelor 3 sesiuni similare (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'confirm',
+    fit: cycles => { const v = cycles.map(volConfirmVsSim3).filter(x => x != null).sort((a, b) => a - b); return { edges: v.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(v, p)) : null }; },
+    value: (c, P) => { const r = volConfirmVsSim3(c); if (r == null || !P || !P.edges) return null; for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i]; return DR_RANGE_LEVELS[4]; } },
 
   // ---- disponibile abia la confirmare ----
   { name: 'confirmDir', label: 'Direcția confirmării', type: 'categorical', levels: ['up', 'down'], availableAt: 'confirm',
@@ -1698,7 +1715,7 @@ const CONTEXT_WINDOW = 60, CONTEXT_MIN = 20;
 function attachContext(cycles) {
   for (const [s, arr] of Object.entries(bySession(cycles))) {
     const sorted = arr.slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : (a.dateKey > b.dateKey ? 1 : 0));
-    const win = [], winV = [];
+    const win = [], winV = [], win3 = [];
     for (const c of sorted) {
       if (win.length >= CONTEXT_MIN) { const m = win.slice().sort((a, b) => a - b); c.drRangeRel = c.drRange > 0 ? c.drRange / m[Math.floor(m.length / 2)] : null; }
       else c.drRangeRel = null;
@@ -1707,13 +1724,62 @@ function attachContext(cycles) {
       if (c.volDef != null && winV.length >= CONTEXT_MIN) { const m = winV.slice().sort((a, b) => a - b); const med = m[Math.floor(m.length / 2)]; c.volDefRel = med > 0 ? c.volDef / med : null; }
       else c.volDefRel = null;
       if (c.volDef != null && c.volDef > 0) { winV.push(c.volDef); if (winV.length > CONTEXT_WINDOW) winV.shift(); }
+      // Pas 11 — baza „ultimele 3 sesiuni de același tip": media pe bară a ÎNTREGII sesiuni (PreBO + disp) a celor 3 sesiuni
+      // anterioare de același tip (doar trecut). Relativ la ea: volumul/bară al orei PreBO (boxClose) și bara de confirmare (confirm).
+      const perBar = (c.volDef != null && c.volDisp != null && (c.volDefN + c.volDispN) > 0) ? (c.volDef + c.volDisp) / (c.volDefN + c.volDispN) : null;
+      c.volSim3Base = win3.length >= 3 ? (win3[0] + win3[1] + win3[2]) / 3 : null;
+      if (perBar != null && perBar > 0) { win3.push(perBar); if (win3.length > 3) win3.shift(); }
     }
   }
   return cycles;
 }
 
+// ---------- DESCRIERI EXPLICITE (regula UI din 11 sep 2026: orice parametru afișat are un text „ce reprezintă") ----------
+// Sursa de adevăr pentru tooltip-urile din UI (ui/glossary.js le citește de aici). Un feature NOU fără descriere pică
+// testul verify_glossary.js — așa rămân etichetele sincronizate cu evoluția modulelor.
+const DESC = {
+  session: 'Sesiunea DR/IDR din care provine ciclul: RDR = New York 09:30–16:00, ODR = Londra 03:00–08:30, ADR = Asia 19:30–02:00 (ore New York). Ora PreBO = prima oră a fiecărei sesiuni.',
+  dow: 'Ziua săptămânii (după calendarul New York) în care începe sesiunea.',
+  preBO: 'Direcția orei de definire (PreBO): Long dacă închiderea orei e peste deschidere, Short dacă e sub, Flat dacă |close−open| e neglijabil. Cunoscut la închiderea box-ului. Cel mai bun predictor de direcție găsit (~67%).',
+  drRangeQ: 'Mărimea box-ului DR (high−low al orei PreBO) în PREȚ ABSOLUT, împărțită în chintile calculate separat pentru fiecare sesiune (Foarte mic = cele mai mici 20%, Foarte mare = cele mai mari 20%). Atenție: nestaționar — un box „Mare" din 2017 poate fi „Mic" în 2025. Preferă range-ul relativ.',
+  drRangeT: 'Mărimea box-ului DR în preț absolut, în tercile (Mic/Mediu/Mare, câte o treime) calculate per sesiune pe sesiunile confirmate. Varianta veche din tab-ul PreBO.',
+  drRangeR: 'Mărimea box-ului DR brută, în unități de preț (high−low al orei PreBO). Valoare continuă, fără bucket-izare.',
+  drRangeRelQ: 'Mărimea box-ului DR RELATIV la mediana ultimelor 60 de box-uri ANTERIOARE ale aceleiași sesiuni (raport, ex. 1.3 = cu 30% mai mare decât normalul recent), în chintile. Staționar — se transferă între regimuri și ani. Recomandat în locul range-ului absolut.',
+  structure: 'Modelul zilei: poziția box-ului IDR al sesiunii curente față de box-ul IDR al sesiunii de referință (RDR ← ODR din aceeași zi, ADR ← RDR, ODR ← ADR anterior): RX = îl înghite, Contraction = în interior, UXP/DXP = complet deasupra/dedesubt, UX/DX = expansiune în sus/jos peste mijloc, U/D = depășire în sus/jos cu cealaltă margine în interior. Cunoscut la închiderea box-ului.',
+  refStructure: 'Structura sesiunii de referință (sesiunea imediat anterioară celei analizate).',
+  refPreBO: 'Direcția PreBO a sesiunii de referință (anterioare): Long / Short / Flat.',
+  trendScore: 'Momentum-ul ultimelor 60 de minute la închiderea box-ului, împărțit la range-ul box-ului (valoare continuă). ATENȚIE: fereastra de 60 min este chiar ora PreBO, deci măsoară de fapt mărimea și direcția PreBO, nu un trend independent.',
+  trendBucket: 'Același momentum 60 min / range, în 5 clase (Strong Down … Strong Up) cu praguri p20/p80 ale |scor| per sesiune. ≡ mărimea PreBO — nu e un trend independent (vezi Momentum 4h/24h și ASS).',
+  momPre4hQ: 'Momentum INDEPENDENT: variația prețului în ultimele 4 ore dinaintea orei PreBO (bare închise înainte de PreBO), în R, în 5 clase (p20/p80 pe |valoare| per sesiune). Nu conține informația din PreBO.',
+  momPre1dQ: 'Momentum INDEPENDENT: variația prețului în ultimele 24 de ore dinaintea orei PreBO, în R, în 5 clase. Pe WTI arată mean-reversion slabă (Strong Up ⇒ ușor mai des Short), nu continuare.',
+  ass1H: 'Trendul structural ASS (BOS/CHoCH, indicatorul ASS portat) pe 1H, calculat doar din barele închise înainte de PreBO: Up / Down / None.',
+  ass4H: 'Trendul structural ASS pe 4H, doar din barele închise înainte de PreBO: Up / Down / None.',
+  assD: 'Trendul structural ASS pe Daily, doar din barele închise înainte de PreBO: Up / Down / None.',
+  assAlign: 'Câte dintre cele 3 timeframe-uri ASS (1H, 4H, D) sunt de acord: Up3/Down3 = toate trei, Up2/Down2 = două și niciunul contra, Mixed = restul.',
+  volDefRelQ: 'VOLUM (doar surse OHLCV): volumul total al orei PreBO împărțit la mediana volumului orei PreBO din ultimele 60 de sesiuni ANTERIOARE de același tip (RDR cu RDR etc.), în chintile. „PreBO cu volum mare/mic față de normalul recent". Corelează 0.72 cu range-ul relativ — în mare parte același semnal.',
+  volDefVsPrevQ: 'VOLUM: volumul orei PreBO împărțit la volumul orei imediat anterioare, în chintile. Măsoară „surge"-ul de volum la deschiderea sesiunii față de ora precedentă.',
+  volConfirmRelQ: 'VOLUM: volumul barei de confirmare (bara de 5 min care închide dincolo de marginea box-ului) împărțit la volumul MEDIU pe bară din ora PreBO, în chintile. „Breakout cu volum". Cunoscut abia la confirmare — deci nu poate prezice direcția, dar poate prezice ce urmează după confirmare (extensie, True/False).',
+  volPreConfirmRelQ: 'VOLUM: volumul mediu pe bară între închiderea box-ului și bara de confirmare (exclusiv), împărțit la media pe bară din PreBO, în chintile. ATENȚIE: confundat cu ora confirmării (confirmări târzii = mai multe bare în medie).',
+  volConfirmRel: 'VOLUM: raportul brut (continuu) volum bara de confirmare / medie pe bară PreBO, fără bucket-izare.',
+  volDefVsSim3Q: 'VOLUM (Pas 11): volumul mediu pe bară al orei PreBO împărțit la volumul mediu pe bară al ÎNTREGII sesiuni pentru ultimele 3 sesiuni anterioare de același tip (RDR cu RDR etc.), în chintile. „Deschidere cu volum mare față de sesiunile recente". Pe cripto: Q5 ⇒ True +20–29pp, mai puține confirmări (−10pp), extensie și MAE mai mici în R — dar e în mare parte același semnal ca box-ul mare (range); nu prezice direcția, nici continuarea trendului 4h/24h; amplifică ușor PreBO (+5–7pp).',
+  volConfirmVsSim3Q: 'VOLUM (Pas 11): volumul barei de confirmare împărțit la volumul mediu pe bară al ultimelor 3 sesiuni de același tip, în chintile. Cunoscut la confirmare. Pe cripto: Q5 ⇒ SL 1R atins −15…−20pp, MAE −0.3R, MAE-înainte-de-TP −0.1R, True +12–18pp, TP1 neschimbat; intrarea la confirmare rămâne negativă după costuri și în Q5 (−0.03…−0.09 R), doar mai puțin negativă decât în Q1.',
+  confirmDir: 'Direcția confirmării: up = prima închidere de 5 min peste DR high, down = sub DR low. Cunoscută la confirmare.',
+  preBOAligned: 'Dacă direcția confirmării coincide cu direcția PreBO (aligned: PreBO Long + confirmare up, sau Short + down) sau e opusă (contra). PreBO Flat e exclus. Cunoscut la confirmare.',
+  triggerBucket30: 'Ora la care a venit confirmarea, în intervale de 30 de minute numărate de la ÎNCHIDEREA orei PreBO (0 = în primele 30 min după box). Confirmarea târzie lasă mai puțin timp până la finalul sesiunii ⇒ efect mecanic pe extensie/TP (buget de timp, nu semnal).',
+  retrBeforeR: 'Cât de mult a mers prețul ÎN INTERIORUL box-ului, în direcția opusă viitoarei confirmări, între închiderea PreBO și bara de confirmare inclusiv. În R (1 R = mărimea box-ului). Cunoscut la confirmare.',
+  confirmSlipR: 'Cu cât a închis bara de confirmare dincolo de marginea box-ului (close − marginea de trigger), în R. Mare = confirmare „cu avânt", mică = close chiar lângă margine.',
+};
+for (const f of FEATURES) if (!f.desc) f.desc = DESC[f.name] || null;
+
 const byName = Object.fromEntries(FEATURES.map(f => [f.name, f]));
 function get(name) { const f = byName[name]; if (!f) throw new Error('feature necunoscut: ' + name); return f; }
+// Înregistrare la runtime (cercetare / module experimentale): același contract; suprascrie un nume existent doar cu {replace:true}.
+function register(f, { replace = false } = {}) {
+  if (!f || !f.name || !f.type || !f.availableAt || typeof f.value !== 'function') throw new Error('feature invalid: ' + (f && f.name));
+  if (byName[f.name] && !replace) throw new Error('feature deja înregistrat: ' + f.name);
+  if (byName[f.name]) FEATURES.splice(FEATURES.indexOf(byName[f.name]), 1);
+  FEATURES.push(f); byName[f.name] = f; return f;
+}
 function availableAt(stage) {
   const i = STAGES.indexOf(stage); if (i < 0) throw new Error('stage necunoscut: ' + stage);
   return FEATURES.filter(f => STAGES.indexOf(f.availableAt) <= i);
@@ -1728,7 +1794,7 @@ function fitAll(names, cycles) {
 function labelOf(name, cycle, params) { return get(name).value(cycle, params ? params[name] : null); }
 
 const { attachTrendContext } = require('./trend_context.js');
-const api = { FEATURES, STAGES, STAGE_FIELDS, get, availableAt, fitAll, labelOf, attachContext, attachTrendContext, percentileOf, DR_RANGE_LEVELS, TREND_LEVELS, STRUCT_LEVELS };
+const api = { FEATURES, STAGES, STAGE_FIELDS, get, register, availableAt, fitAll, labelOf, attachContext, attachTrendContext, percentileOf, DR_RANGE_LEVELS, TREND_LEVELS, STRUCT_LEVELS };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.DRIDR_FEATURES = api;
 
@@ -1790,9 +1856,38 @@ function tpSlOutcome(c, tpLevel, slLevel) {
   return tp < sl ? 'tp' : 'sl';
 }
 
+// ---------- DESCRIERI EXPLICITE (regula UI din 11 sep 2026) — citite de ui/glossary.js; lipsa lor pică verify_glossary.js ----------
+const R_NOTE = ' 1 R = mărimea box-ului DR (high−low al orei PreBO); distanțele se măsoară de la marginea de trigger (DR high pentru up, DR low pentru down).';
+const DESC = {
+  confirmed: 'Sesiunea a avut o confirmare (o închidere de 5 min dincolo de DR high sau DR low) — spre deosebire de o sesiune Inside, care rămâne în box până la final. Cunoscut la confirmare.',
+  dirUp: 'Confirmarea a fost Long (prima închidere dincolo de box a fost peste DR high). Doar pe sesiunile confirmate. Rata = P(Long); 50% = fără informație de direcție.',
+  isTrue: 'Sesiune True = după confirmare NU a existat nicio închidere de 5 min dincolo de marginea OPUSĂ a box-ului DR până la finalul sesiunii (regula v2, pe close, fără toleranță). False = a existat. Cunoscut la finalul sesiunii.',
+  extR: 'Extensia maximă: cât de departe a mers prețul (pe fitil) dincolo de marginea de trigger, în direcția confirmării, până la finalul sesiunii.' + R_NOTE,
+  retrR: 'Retragerea maximă DUPĂ confirmare (MAE pe fitil): cât de mult s-a întors prețul împotriva direcției confirmării, măsurat de la marginea de trigger; ≥0, în R. Baza pentru stop loss.' + R_NOTE,
+  retrBeforeR: 'Retragerea ÎNAINTE de confirmare: cât a mers prețul în interiorul box-ului în direcția opusă viitoarei confirmări, de la închiderea PreBO până la bara de confirmare inclusiv; ≥0, în R.',
+  maeR: 'Maximum Adverse Excursion pe fitil: cea mai mare mișcare contra poziției (intrare la marginea de trigger, la confirmare) până la finalul sesiunii, în R. Identic cu retragerea după confirmare.',
+  maeCloseR: 'Maximum Adverse Excursion pe CLOSE: cea mai mare mișcare contra, măsurată doar pe închiderile de 5 min (ignoră fitilele), în R. Relevant pentru stop-uri pe close.',
+  triggerElapsed: 'Minute scurse de la închiderea orei PreBO până la bara de confirmare.',
+};
+for (const t of TARGETS) {
+  if (t.desc) continue;
+  if (DESC[t.name]) t.desc = DESC[t.name];
+  else if (/^tpHit_/.test(t.name)) t.desc = `Take-profit la ${t.level} R a fost atins: prețul a ajuns (pe fitil) la ${t.level} × mărimea box-ului dincolo de marginea de trigger, în direcția confirmării, până la finalul sesiunii. Rata = probabilitatea de a atinge acest TP.` + R_NOTE;
+  else if (/^tpMaeBefore_/.test(t.name)) t.desc = `Pentru ciclurile care AU atins TP ${t.level} R: cea mai mare mișcare contra (pe fitil, în R) suferită ÎNAINTE de a atinge TP-ul. Spune cât de larg trebuie să fie stop-ul ca să nu fii scos înainte de TP. Ciclurile care nu au atins TP sunt excluse.` + R_NOTE;
+  else if (/^slHit_/.test(t.name)) t.desc = `Stop-loss la ${t.level} R a fost atins: prețul a mers (pe fitil) ${t.level} × mărimea box-ului contra direcției confirmării, până la finalul sesiunii.` + R_NOTE;
+  else t.desc = null;
+}
+
 const byName = Object.fromEntries(TARGETS.map(t => [t.name, t]));
 function get(name) { const t = byName[name]; if (!t) throw new Error('target necunoscut: ' + name); return t; }
-const api = { TARGETS, get, tpSlOutcome };
+function register(t, { replace = false } = {}) {
+  if (!t || !t.name || !t.kind || !t.decidedAt || typeof t.value !== 'function') throw new Error('target invalid: ' + (t && t.name));
+  if (byName[t.name] && !replace) throw new Error('target deja înregistrat: ' + t.name);
+  if (byName[t.name]) TARGETS.splice(TARGETS.indexOf(byName[t.name]), 1);
+  if (!t.scope) t.scope = 'confirmed';
+  TARGETS.push(t); byName[t.name] = t; return t;
+}
+const api = { TARGETS, get, register, tpSlOutcome };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.DRIDR_TARGETS = api;
 
@@ -2183,6 +2278,106 @@ function explain(dec) {
 module.exports = { decide, explain, lookup, bucketFor, roundUpToGrid };
 
 });
+__define("/ui/glossary.js", function (module, exports, require) {
+// dridr-core/ui/glossary.js — GLOSARUL UI (regula generală din 11 sep 2026, cerută de utilizator):
+// „orice parametru afișat are un hover label translucid care spune explicit ce reprezintă".
+//
+// O singură sursă de adevăr, trei straturi:
+//   • features  → F.get(name).desc      (scrise în features/index.js, lângă definiție)
+//   • targets   → T.get(name).desc      (scrise în targets/index.js)
+//   • module    → modules.json description
+//   • concepte UI / statistice / niveluri (KPI-uri, filtre, CI, chi², gate…) → UI de mai jos
+// describe(ref) primește o referință `tip:cheie` (f:preBO, t:isTrue, m:volume, ui:kpi.rate, lvl:Foarte mic)
+// și întoarce { title, text }. missing() listează ce NU are descriere — test/verify_glossary.js pică dacă e nevid,
+// ca să nu poată intra un parametru nou în UI fără explicație.
+'use strict';
+const F = require('../features/index.js'), T = require('../targets/index.js');
+const MODULES = require('../modules.json');
+
+const UI = {
+  // ---- KPI-uri ----
+  'kpi.n': { title: 'n cicluri (după filtre)', text: 'Numărul de sesiuni (cicluri DR/IDR) care au intrat în calcul după filtrele curente (sesiune, zile, rezultat, interval) și după excluderea celor fără valoare pentru target sau breakdown (ex. Inside pentru direcție). Sub ~200 concluziile sunt fragile.' },
+  'kpi.rate': { title: 'rată globală', text: 'Procentul de cicluri (din n) pentru care target-ul este adevărat, pe TOATE bucket-urile la un loc — nivelul de referință față de care citești barele. Ex. „True 79.6%" = 79.6% din sesiunile confirmate au fost True.' },
+  'kpi.median': { title: 'mediană globală', text: 'Valoarea din mijloc a target-ului continuu (în R) pe toate ciclurile filtrate: jumătate din cicluri sunt sub, jumătate peste. Preferată mediei pentru că extremele (extensii uriașe) nu o trag.' },
+  'kpi.iqr': { title: 'q25 – q75', text: 'Intervalul intercuartilic global: 25% din cicluri sunt sub q25 și 25% peste q75; jumătatea „tipică" a distribuției e între ele.' },
+  'kpi.spread': { title: 'efect hi − lo', text: 'Mărimea efectului: diferența dintre bucket-ul cu cea mai mare valoare și cel cu cea mai mică (pentru rate în puncte procentuale — pp; pentru mărimi continue diferența de mediane, în R). Doar bucket-urile cu n ≥ 30 contează. Pragul gate-ului: ≥ 5 pp, respectiv |Cliff δ| ≥ 0.1.' },
+  'kpi.test': { title: 'test statistic', text: 'chi² = testul de independență pentru rate (întrebarea: diferă rata între bucket-uri mai mult decât ar face-o din întâmplare?); kruskal = Kruskal-Wallis, echivalentul pentru mărimi continue (comparăm distribuțiile, nu mediile). p = probabilitatea de a vedea o diferență cel puțin atât de mare dacă bucket-ul NU ar conta; p < 0.05 = semnificativ; 3.1e-11 = 0.000000000031.' },
+  'kpi.mono': { title: 'monotonie (ρ Spearman)', text: 'Pentru breakdown-uri ORDINALE (chintile, intervale): corelația de rang între ordinea bucket-urilor și valoarea target-ului. ρ = +1 ⇒ crește strict de la stânga la dreapta, −1 ⇒ scade strict, ≈0 ⇒ fără tendință. Un efect real pe chintile e de obicei monoton; un ρ mic cu spread mare sugerează zgomot sau o formă în „U".' },
+  // ---- grafic / tabel ----
+  'chart.rate': { title: 'rată (%)', text: 'Înălțimea barei = procentul de cicluri din bucket pentru care target-ul e adevărat. Barele gri = bucket cu sub 30 de cicluri (orientativ, nu intră în gate).' },
+  'chart.median': { title: 'mediană (R)', text: 'Înălțimea barei = mediana target-ului în bucket, în R (1 R = mărimea box-ului DR). Barele gri = sub 30 de cicluri.' },
+  'chart.ci': { title: 'CI 95%', text: 'Intervalul de încredere 95% (Wilson) al ratei din bucket: dacă am repeta istoria, rata „adevărată" ar fi în acest interval în 95% din cazuri. Interval îngust = mult n; interval lat = puține cicluri. Două bucket-uri ale căror intervale nu se suprapun diferă cu adevărat.' },
+  'chart.iqr': { title: 'q25 – q75', text: 'Bara îngustă = intervalul intercuartilic al bucket-ului: jumătatea centrală a ciclurilor. Arată dispersia în jurul medianei.' },
+  'table.bucket': { title: 'bucket', text: 'Categoria breakdown-ului (rândul). Ce înseamnă fiecare categorie: vezi tooltip-ul de pe breakdown-ul selectat.' },
+  'table.n': { title: 'n', text: 'Câte cicluri au căzut în acest bucket. Rândurile gri au sub 30 — nu sunt luate în calcul de gate.' },
+  'table.rate': { title: 'rată', text: 'Procentul de cicluri din bucket pentru care target-ul e adevărat.' },
+  'table.ci': { title: 'CI 95%', text: 'Intervalul de încredere 95% (Wilson) al ratei din bucket.' },
+  'table.median': { title: 'mediană', text: 'Valoarea din mijloc a target-ului în bucket (R).' },
+  'table.q25': { title: 'q25', text: 'Percentila 25: un sfert din ciclurile bucket-ului au valori sub ea.' },
+  'table.q75': { title: 'q75', text: 'Percentila 75: trei sferturi din cicluri sunt sub ea.' },
+  'table.p90': { title: 'p90', text: 'Percentila 90: doar 10% din cicluri depășesc această valoare — util pentru a dimensiona un stop „care rezistă în 90% din cazuri".' },
+  // ---- filtre ----
+  'filter.target': { title: 'Target', text: 'CE prezicem / măsurăm (axa verticală): un rezultat binar (rată %) sau o mărime în R (mediană). Fiecare modul are propriile target-uri relevante.' },
+  'filter.breakdown': { title: 'Breakdown', text: 'PRIN CE împărțim ciclurile (axa orizontală): fiecare bară = un bucket al parametrului ales. Doar parametri cunoscuți ÎNAINTE de momentul în care se decide target-ul sunt permiși (anti-leakage).' },
+  'filter.session': { title: 'Sesiune', text: 'Restrânge la o singură sesiune DR/IDR: RDR (New York 09:30–16:00), ODR (Londra 03:00–08:30), ADR (Asia 19:30–02:00), ore New York. ALL = toate trei la un loc (atenție: sesiunile se comportă diferit).' },
+  'filter.dow': { title: 'Zile', text: 'Zilele săptămânii incluse (după calendarul New York). Apasă pentru a scoate/adăuga o zi.' },
+  'filter.outcome': { title: 'Rezultat', text: 'Restrânge la sesiunile True (nicio închidere dincolo de marginea opusă după confirmare) sau False (a existat). All = ambele + Inside. Folosit ca filtru, nu ca target: ex. „cum arată extensia DOAR pe sesiunile True?".' },
+  'filter.interval': { title: 'Intervalul confirmării', text: 'Restrânge la ciclurile a căror confirmare a venit în intervalele de 30 min selectate, numărate de la închiderea orei PreBO. Niciunul selectat = toate. Sesiunile Inside (fără confirmare) ies când filtrul e activ.' },
+  'filter.module': { title: 'Modul', text: 'Un modul = o întrebare de analiză (ex. „prezice volumul ceva?") cu target-urile și breakdown-urile ei. Toate modulele folosesc același motor statistic; nimic nu e calculat separat.' },
+  // ---- ștampila seriei 3 ----
+  'stamp.gate': { title: 'Seria 3 — gate live', text: 'Verificarea automată a relevanței, pe datele încărcate și filtrele curente: TRECE dacă p < 0.05, efectul ≥ 5 pp (sau |Cliff δ| ≥ 0.1), semnul efectului se păstrează pe cele două jumătăți temporale și efectul din a doua jumătate păstrează ≥ 50% din prima. Informativ — ștampila oficială vine din Asset Profile (train/test, walk-forward, corecție de multiplicitate Benjamini-Hochberg).' },
+  'stamp.halves': { title: 'jumătăți temporale', text: 'Datele sunt tăiate în două după dată (split = prima zi a jumătății a doua). Pragurile (chintilele) se calculează DOAR pe prima jumătate și se aplică pe ambele. „Semn identic k/m" = în câte din bucket-urile materiale (n ≥ max(30, 3%)) diferența față de rata globală are același semn în ambele jumătăți (se tolerează unul divergent). „Retenție" = efectul din H2 împărțit la efectul din H1 (1.0 = identic; sub 0.5 = efect care se stinge).' },
+  // ---- statusul din profil ----
+  'badge.activ': { title: 'ACTIV', text: 'Parametrul a trecut gate-ul pe setul de antrenare (70% din istoric), a rezistat out-of-sample pe ultimele 30% (retenție ≥ 0.5, ordinea hi/lo păstrată) și nu e redundant. Poate intra în seriile 4–5 pe acest asset.' },
+  'badge.inactiv': { title: 'INACTIV', text: 'Parametrul a fost testat pe acest asset și NU a trecut (pe antrenare, out-of-sample sau e redundant față de altul). Rămâne în modul și e retestabil pe alt asset sau pe date noi.' },
+  'badge.netestat': { title: 'NETESTAT', text: 'Combinația feature → target nu a fost încă în grila Asset Profile-ului pentru acest asset (sau nu e încărcat niciun profil). Statusul de aici nu spune nimic despre relevanță.' },
+  // ---- categorii de niveluri ----
+  'lvl.quint': { title: 'chintile', text: 'Ciclurile sunt sortate după valoarea parametrului și împărțite în 5 grupe egale: Foarte mic = cele mai mici 20%, Mic = 20–40%, Mediu = 40–60%, Mare = 60–80%, Foarte mare = cele mai mari 20%. Pragurile se calculează pe setul de antrenare (sau pe toate datele în modul live).' },
+  'lvl.trend': { title: 'clase de trend', text: 'Sideways = |valoare| sub percentila 20 (cele mai plate 20%); Up/Down = semnul valorii; Strong Up/Down = |valoare| peste percentila 80 (cele mai puternice 20%). Praguri per sesiune.' },
+  'lvl.struct': { title: 'structuri (modelul zilei)', text: 'Poziția box-ului IDR al sesiunii curente (H/L) față de box-ul IDR al sesiunii de referință (PH/PL, PM = mijlocul): RX = H peste PH și L sub PL (înghite referința); Contraction = complet în interiorul referinței; UXP = complet PESTE referința (L > PH); DXP = complet SUB referința (H < PL); UX = H peste PH și L peste mijloc; DX = L sub PL și H sub mijloc; U = H peste PH, L în interior; D = L sub PL, H în interior; None = nedefinit. Referința: RDR ← ODR din aceeași zi, ADR ← RDR din aceeași zi, ODR ← ADR anterior.' },
+};
+
+// niveluri individuale → concept
+const LEVEL_OF = {};
+for (const l of F.DR_RANGE_LEVELS) LEVEL_OF[l] = 'lvl.quint';
+for (const l of F.TREND_LEVELS) LEVEL_OF[l] = 'lvl.trend';
+for (const l of F.STRUCT_LEVELS) LEVEL_OF[l] = 'lvl.struct';
+const LEVEL_TEXT = {
+  'Long': 'PreBO Long: ora de definire a închis peste deschidere.', 'Short': 'PreBO Short: ora de definire a închis sub deschidere.', 'Flat': 'PreBO Flat: închidere ≈ deschidere.',
+  'aligned': 'Confirmarea are aceeași direcție cu PreBO.', 'contra': 'Confirmarea e în direcția opusă PreBO-ului.',
+  'up': 'Confirmare Long (close peste DR high).', 'down': 'Confirmare Short (close sub DR low).',
+  'Up': 'Trend structural ascendent (ASS).', 'Down': 'Trend structural descendent (ASS).', 'None': 'Fără trend structural definit.',
+  'Up3': 'Toate trei TF-urile ASS sunt Up.', 'Down3': 'Toate trei TF-urile ASS sunt Down.', 'Up2': 'Două TF-uri Up, niciunul Down.', 'Down2': 'Două TF-uri Down, niciunul Up.', 'Mixed': 'TF-urile ASS nu sunt de acord.',
+  'RDR': 'Regular DR — New York 09:30–16:00 (PreBO 09:30–10:30).', 'ODR': 'Overnight DR — Londra 03:00–08:30 (PreBO 03:00–04:00).', 'ADR': 'Asia DR — 19:30–02:00 (PreBO 19:30–20:30).',
+};
+
+function describe(ref) {
+  if (!ref) return null;
+  const i = ref.indexOf(':'); const kind = ref.slice(0, i), key = ref.slice(i + 1);
+  try {
+    if (kind === 'f') { const f = F.get(key); return { title: f.label, text: (f.desc || '(fără descriere)') + `\n\nDisponibil la: ${stageRO(f.availableAt)}. Tip: ${typeRO(f.type)}${f.requires ? '. Necesită coloana ' + f.requires + ' în CSV' : ''}.` }; }
+    if (kind === 't') { const t = T.get(key); return { title: t.label, text: (t.desc || '(fără descriere)') + `\n\nSe decide la: ${stageRO(t.decidedAt)}. ${t.kind === 'binary' ? 'Rezultat binar ⇒ rată %.' : 'Mărime continuă ⇒ mediană în R.'}${t.scope === 'confirmed' ? ' Doar sesiunile confirmate.' : ''}` }; }
+    if (kind === 'm') { const m = MODULES.modules.find(x => x.id === key); return m ? { title: m.label, text: m.description } : null; }
+    if (kind === 'ui') return UI[key] || null;
+    if (kind === 'lvl') { const c = LEVEL_OF[key]; const base = c ? UI[c] : null; const t = LEVEL_TEXT[key]; if (!base && !t) return null; return { title: key, text: (t ? t + (base ? '\n\n' : '') : '') + (base ? base.text : '') }; }
+  } catch (_) { return null; }
+  return null;
+}
+function stageRO(s) { return s === 'boxClose' ? 'închiderea box-ului (înainte de confirmare)' : s === 'confirm' ? 'închiderea barei de confirmare' : 'finalul sesiunii (post-hoc)'; }
+function typeRO(t) { return t === 'ordinal' ? 'ordinal (bucket-uri ordonate ⇒ se testează monotonia)' : t === 'categorical' ? 'categorial' : 'continuu'; }
+
+// ce nu are descriere — folosit de test
+function missing() {
+  const out = [];
+  for (const f of F.FEATURES) if (!f.desc) out.push('feature ' + f.name);
+  for (const t of T.TARGETS) if (!t.desc) out.push('target ' + t.name);
+  for (const m of MODULES.modules) { if (!m.description) out.push('modul ' + m.id); for (const l of m.targets || []) { try { T.get(l); } catch (_) { out.push(`modul ${m.id}: target necunoscut ${l}`); } } }
+  return out;
+}
+
+module.exports = { UI, LEVEL_TEXT, describe, missing };
+
+});
 __define("/ui/modules_tab.js", function (module, exports, require) {
 // dridr-core/ui/modules_tab.js — Seria 1: UI generic pentru modulele din modules.json (11 sep 2026).
 // Un singur renderer pentru toate modulele: modul → target → breakdown + filtre comune (sesiune, zile, rezultat,
@@ -2192,6 +2387,7 @@ __define("/ui/modules_tab.js", function (module, exports, require) {
 'use strict';
 const E = require('../engine.js'), F = require('../features/index.js'), T = require('../targets/index.js'), S = require('../stats/index.js');
 const MODULES = require('../modules.json');
+const G = require('./glossary.js'); // regula UI: fiecare parametru afișat are un tooltip translucid cu ce reprezintă (data-tip="tip:cheie")
 
 const state = { moduleId: null, target: null, breakdown: null, session: 'ALL', dows: new Set(E.DOW), outcome: 'all', intervals: new Set(), profile: null, chart: null, cycles: null };
 const DOW_RO = { Monday: 'Lu', Tuesday: 'Ma', Wednesday: 'Mi', Thursday: 'Jo', Friday: 'Vi' };
@@ -2206,19 +2402,20 @@ function markup() {
   return `
   <div class="panel">
     <h2>Module de analiză <span class="n">— seria 1 · fiecare modul e o fereastră spre același motor statistic (stats.analyze); nimic nu e calculat separat</span></h2>
-    <div class="mod-row" id="modBtns">${mods.map(m => `<button type="button" class="expl-toggle-btn mod-btn${m.status === 'planned' ? ' planned' : ''}" data-mod="${m.id}">${esc(m.label)}${m.status === 'planned' ? ' <span class="mod-soon">în lucru</span>' : ''}</button>`).join('')}</div>
+    <div class="mod-row" id="modBtns">${mods.map(m => `<button type="button" class="expl-toggle-btn mod-btn${m.status === 'planned' ? ' planned' : ''}" data-mod="${m.id}" data-tip="m:${m.id}">${esc(m.label)}${m.status === 'planned' ? ' <span class="mod-soon">în lucru</span>' : ''}</button>`).join('')}</div>
     <p class="mod-desc" id="modDesc"></p>
   </div>
   <div class="panel expl-filterbar" id="modFilters">
-    <div class="mod-filter"><label>Target</label><div id="modTargets" class="mod-row"></div></div>
-    <div class="mod-filter"><label>Breakdown (axa graficului)</label><div id="modBreakdowns" class="mod-row"></div></div>
-    <div class="mod-filter"><label>Sesiune</label><div id="modSession" class="mod-row">${['ALL', ...E.SESSIONS].map(s => `<button type="button" class="expl-toggle-btn${s === 'ALL' ? ' active' : ''}" data-v="${s}">${s}</button>`).join('')}</div></div>
-    <div class="mod-filter"><label>Zile</label><div id="modDows" class="mod-row">${E.DOW.map(d => `<button type="button" class="expl-toggle-btn active" data-v="${d}">${DOW_RO[d]}</button>`).join('')}</div></div>
-    <div class="mod-filter"><label>Rezultat</label><div id="modOutcome" class="mod-row">${[['all', 'All'], ['true', 'True'], ['false', 'False']].map(([v, l]) => `<button type="button" class="expl-toggle-btn${v === 'all' ? ' active' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div>
-    <div class="mod-filter mod-filter-wide"><label>Intervalul confirmării (30 min de la închiderea PreBO) <span class="n">— niciunul selectat = toate; ciclurile Inside nu au confirmare și ies când e activ</span></label><div id="modIntervals" class="mod-row"></div></div>
+    <div class="mod-filter"><label data-tip="ui:filter.target">Target</label><div id="modTargets" class="mod-row"></div></div>
+    <div class="mod-filter"><label data-tip="ui:filter.breakdown">Breakdown (axa graficului)</label><div id="modBreakdowns" class="mod-row"></div></div>
+    <div class="mod-filter"><label data-tip="ui:filter.session">Sesiune</label><div id="modSession" class="mod-row">${['ALL', ...E.SESSIONS].map(s => `<button type="button" class="expl-toggle-btn${s === 'ALL' ? ' active' : ''}" data-v="${s}"${s === 'ALL' ? '' : ` data-tip="lvl:${s}"`}>${s}</button>`).join('')}</div></div>
+    <div class="mod-filter"><label data-tip="ui:filter.dow">Zile</label><div id="modDows" class="mod-row">${E.DOW.map(d => `<button type="button" class="expl-toggle-btn active" data-v="${d}">${DOW_RO[d]}</button>`).join('')}</div></div>
+    <div class="mod-filter"><label data-tip="ui:filter.outcome">Rezultat</label><div id="modOutcome" class="mod-row">${[['all', 'All'], ['true', 'True'], ['false', 'False']].map(([v, l]) => `<button type="button" class="expl-toggle-btn${v === 'all' ? ' active' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div>
+    <div class="mod-filter mod-filter-wide"><label data-tip="ui:filter.interval">Intervalul confirmării (30 min de la închiderea PreBO) <span class="n">— niciunul selectat = toate; ciclurile Inside nu au confirmare și ies când e activ</span></label><div id="modIntervals" class="mod-row"></div></div>
   </div>
   <div class="panel">
     <div class="mod-kpis" id="modKpis"></div>
+    <div class="mod-legend" id="modLegend"></div>
     <div class="chart-box mod-chart"><canvas id="modChart"></canvas></div>
     <div id="modStamp" class="mod-stamp"></div>
     <div class="mod-table-wrap"><table class="mod-table" id="modTable"></table></div>
@@ -2237,7 +2434,11 @@ const CSS = `
 .mod-table th:first-child,.mod-table td:first-child{text-align:left}.mod-table tr.small td{color:var(--muted)}
 .mod-profile{margin-top:12px;font-size:12px;color:var(--muted)}.mod-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;margin-right:6px}
 .mod-badge.activ{background:var(--up);color:#fff}.mod-badge.inactiv{background:var(--down);color:#fff}.mod-badge.netestat{background:var(--inside);color:#fff}
-.mod-empty{color:var(--muted);padding:20px;text-align:center}`;
+.mod-empty{color:var(--muted);padding:20px;text-align:center}
+[data-tip]{cursor:help}.mod-filter label[data-tip],.mod-kpi[data-tip],.mod-table th[data-tip]{text-decoration:underline dotted rgba(255,255,255,.35);text-underline-offset:3px}
+.mod-tip{position:fixed;z-index:9999;max-width:360px;padding:10px 12px;border-radius:8px;background:rgba(20,24,32,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.18);color:#e6e9ef;font-size:12px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:none;opacity:0;transition:opacity .12s;white-space:pre-line}
+.mod-tip.show{opacity:1}.mod-tip b{display:block;margin-bottom:4px;font-size:12.5px;color:#fff}
+.mod-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin:-4px 0 8px;font-size:11px;color:var(--muted)}.mod-legend span{display:inline-flex;align-items:center;gap:5px}.mod-legend i{display:inline-block;width:12px;height:12px;border-radius:2px}`;
 
 // ---------- init ----------
 function init(containerId) {
@@ -2250,8 +2451,33 @@ function init(containerId) {
   bindGroup('modDows', (v, set) => { state.dows = set; render(); }, true);
   bindGroup('modOutcome', v => { state.outcome = v; render(); }, false);
   selectModule(mods[0].id);
+  initTips();
   tryLoadProfile();
 }
+// ---------- tooltip-uri (regula generală UI): un singur div translucid, delegat pe document; text din glossary.js ----------
+let tipEl = null;
+function initTips() {
+  if (tipEl) return;
+  tipEl = document.createElement('div'); tipEl.className = 'mod-tip'; document.body.appendChild(tipEl);
+  const show = (target, x, y) => {
+    const d = G.describe(target.getAttribute('data-tip')); if (!d) return;
+    tipEl.innerHTML = `<b>${esc(d.title)}</b>${esc(d.text)}`; tipEl.classList.add('show'); moveTip(x, y);
+  };
+  document.addEventListener('mouseover', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t) show(t, ev.clientX, ev.clientY); });
+  document.addEventListener('mousemove', ev => { if (tipEl.classList.contains('show')) moveTip(ev.clientX, ev.clientY); });
+  document.addEventListener('mouseout', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t && !(ev.relatedTarget && t.contains(ev.relatedTarget))) tipEl.classList.remove('show'); });
+  document.addEventListener('focusin', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); show(t, r.left, r.bottom); } });
+  document.addEventListener('focusout', () => tipEl.classList.remove('show'));
+  // touch: tap pe un element cu data-tip îl arată 3 s
+  document.addEventListener('touchstart', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); show(t, r.left, r.bottom); setTimeout(() => tipEl.classList.remove('show'), 3000); } }, { passive: true });
+}
+function moveTip(x, y) {
+  const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+  let left = x + pad, top = y + pad; if (left + w > W - 8) left = Math.max(8, x - w - pad); if (top + h > H - 8) top = Math.max(8, y - h - pad);
+  tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+}
+function showTipAt(ref, x, y) { if (!tipEl) return; const d = G.describe(ref); if (!d) return; tipEl.innerHTML = `<b>${esc(d.title)}</b>${esc(d.text)}`; tipEl.classList.add('show'); moveTip(x, y); }
+function hideTip() { if (tipEl) tipEl.classList.remove('show'); }
 function bindGroup(id, onChange, multi) {
   const el = $(id);
   el.addEventListener('click', ev => {
@@ -2269,13 +2495,14 @@ function selectModule(id) {
   // la schimbarea modulului pornim de la default-urile lui (fiecare modul are propria întrebare)
   state.target = m.defaultTarget || targets[0] || null;
   state.breakdown = m.defaultBreakdown || bds[0] || null;
-  $('modTargets').innerHTML = targets.map(t => `<button type="button" class="expl-toggle-btn${t === state.target ? ' active' : ''}" data-v="${t}" title="${esc(T.get(t).label)}">${esc(shortLabel(T.get(t).label, t))}</button>`).join('') || '<span class="n">—</span>';
-  $('modBreakdowns').innerHTML = bds.map(n => `<button type="button" class="expl-toggle-btn${n === state.breakdown ? ' active' : ''}" data-v="${n}" title="${esc(F.get(n).label)}">${esc(shortLabel(F.get(n).label, n))}</button>`).join('') || '<span class="n">—</span>';
+  $('modTargets').innerHTML = targets.map(t => `<button type="button" class="expl-toggle-btn${t === state.target ? ' active' : ''}" data-v="${t}" data-tip="t:${t}">${esc(shortLabel(T.get(t).label, t))}</button>`).join('') || '<span class="n">—</span>';
+  $('modBreakdowns').innerHTML = bds.map(n => `<button type="button" class="expl-toggle-btn${n === state.breakdown ? ' active' : ''}" data-v="${n}" data-tip="f:${n}">${esc(shortLabel(F.get(n).label, n))}</button>`).join('') || '<span class="n">—</span>';
   $('modTargets').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.target = b.dataset.v; $('modTargets').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); render(); };
   $('modBreakdowns').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.breakdown = b.dataset.v; $('modBreakdowns').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); render(); };
   render();
 }
-const SHORT = { triggerBucket30: 'Ora confirmării (30 min)', drRangeRelQ: 'Range relativ (chintilă)', drRangeQ: 'Range absolut (chintilă)', drRangeT: 'Range (tercilă)', momPre4hQ: 'Momentum 4h pre-PreBO', momPre1dQ: 'Momentum 24h pre-PreBO', trendBucket: 'mom60 (≡ mărimea PreBO)', preBOAligned: 'PreBO aliniat / contra', refStructure: 'Structura ref.', refPreBO: 'PreBO ref.', assAlign: 'ASS aliniere 1H/4H/D', 'tpMaeBefore_0.5': 'MAE înainte de TP 0.5R', tpMaeBefore_1: 'MAE înainte de TP 1R', 'tpMaeBefore_1.5': 'MAE înainte de TP 1.5R', tpMaeBefore_2: 'MAE înainte de TP 2R', retrBeforeR: 'Retragere ÎNAINTE de confirmare', retrR: 'Retragere DUPĂ confirmare (MAE fitil)', maeCloseR: 'MAE pe close' };
+const SHORT = { triggerBucket30: 'Ora confirmării (30 min)', drRangeRelQ: 'Range relativ (chintilă)', drRangeQ: 'Range absolut (chintilă)', drRangeT: 'Range (tercilă)', momPre4hQ: 'Momentum 4h pre-PreBO', momPre1dQ: 'Momentum 24h pre-PreBO', trendBucket: 'mom60 (≡ mărimea PreBO)', preBOAligned: 'PreBO aliniat / contra', refStructure: 'Structura ref.', refPreBO: 'PreBO ref.', assAlign: 'ASS aliniere 1H/4H/D', 'tpMaeBefore_0.5': 'MAE înainte de TP 0.5R', tpMaeBefore_1: 'MAE înainte de TP 1R', 'tpMaeBefore_1.5': 'MAE înainte de TP 1.5R', tpMaeBefore_2: 'MAE înainte de TP 2R', retrBeforeR: 'Retragere ÎNAINTE de confirmare', retrR: 'Retragere DUPĂ confirmare (MAE fitil)', maeCloseR: 'MAE pe close',
+  volDefRelQ: 'Volum PreBO / ultimele 60', volDefVsPrevQ: 'Volum PreBO / ora anterioară', volConfirmRelQ: 'Volum confirmare / PreBO', volPreConfirmRelQ: 'Volum pre-confirmare / PreBO' };
 function shortLabel(label, key) { return SHORT[key] || (label.length > 34 ? key : label); }
 
 // ---------- date ----------
@@ -2315,23 +2542,31 @@ function render() {
   // KPI
   const base = res.baseline;
   kp.innerHTML = [
-    ['n cicluri (după filtre)', String(res.meta.n)],
-    [kind === 'binary' ? 'rată globală' : 'mediană globală', kind === 'binary' ? pct(base.rate) : f3(base.median)],
-    kind === 'binary' ? null : ['q25 – q75', `${f3(base.q25)} – ${f3(base.q75)}`],
-    ['efect hi − lo', kind === 'binary' ? (res.effect.spreadPP == null ? '–' : res.effect.spreadPP.toFixed(1) + ' pp') : (res.effect.spreadMedian == null ? '–' : f3(res.effect.spreadMedian) + ' R')],
-    ['test', res.test.p == null ? '–' : `${res.test.name} p=${res.test.p < 1e-4 ? res.test.p.toExponential(1) : res.test.p.toFixed(4)}`],
-    res.monotonic ? ['monotonie', `ρ=${res.monotonic.spearman.toFixed(2)}`] : null,
-  ].filter(Boolean).map(([l, v]) => `<div class="mod-kpi"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+    ['n cicluri (după filtre)', String(res.meta.n), 'ui:kpi.n'],
+    [kind === 'binary' ? 'rată globală' : 'mediană globală', kind === 'binary' ? pct(base.rate) : f3(base.median), kind === 'binary' ? 'ui:kpi.rate' : 'ui:kpi.median'],
+    kind === 'binary' ? null : ['q25 – q75', `${f3(base.q25)} – ${f3(base.q75)}`, 'ui:kpi.iqr'],
+    ['efect hi − lo', kind === 'binary' ? (res.effect.spreadPP == null ? '–' : res.effect.spreadPP.toFixed(1) + ' pp') : (res.effect.spreadMedian == null ? '–' : f3(res.effect.spreadMedian) + ' R'), 'ui:kpi.spread'],
+    ['test', res.test.p == null ? '–' : `${res.test.name} p=${res.test.p < 1e-4 ? res.test.p.toExponential(1) : res.test.p.toFixed(4)}`, 'ui:kpi.test'],
+    res.monotonic ? ['monotonie', `ρ=${res.monotonic.spearman.toFixed(2)}`, 'ui:kpi.mono'] : null,
+  ].filter(Boolean).map(([l, v, tip]) => `<div class="mod-kpi" data-tip="${tip}"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+  // legendă explicativă sub KPI-uri (cu tooltip-uri pe fiecare element al graficului)
+  const lg = $('modLegend'); if (lg) lg.innerHTML =
+    `<span data-tip="t:${esc(state.target)}"><b>Y:</b> ${esc(tg.label)}</span>` +
+    `<span data-tip="f:${esc(state.breakdown)}"><b>X:</b> ${esc(fb.label)}</span>` +
+    `<span data-tip="${kind === 'binary' ? 'ui:chart.rate' : 'ui:chart.median'}"><i style="background:rgba(63,140,255,.85)"></i>${kind === 'binary' ? 'rată (%)' : 'mediană (R)'}</span>` +
+    `<span data-tip="${kind === 'binary' ? 'ui:chart.ci' : 'ui:chart.iqr'}"><i style="background:rgba(255,255,255,.35)"></i>${kind === 'binary' ? 'CI 95%' : 'q25 – q75'}</span>` +
+    `<span data-tip="ui:table.n"><i style="background:rgba(107,115,131,.45)"></i>n &lt; 30 (orientativ)</span>`;
   // grafic
   drawChart(res, kind, tg, fb);
   // tabel
-  const head = kind === 'binary' ? '<tr><th>bucket</th><th>n</th><th>rată</th><th>CI 95%</th></tr>' : '<tr><th>bucket</th><th>n</th><th>mediană</th><th>q25</th><th>q75</th><th>p90</th></tr>';
-  tb.innerHTML = head + res.buckets.map(b => `<tr class="${b.n < 30 ? 'small' : ''}"><td>${esc(labelOfBucket(b, fb))}</td><td>${b.n}</td>${kind === 'binary' ? `<td>${pct(b.rate)}</td><td>${pct(b.ci.lo)} – ${pct(b.ci.hi)}</td>` : `<td>${f3(b.median)}</td><td>${f3(b.q25)}</td><td>${f3(b.q75)}</td><td>${f3(b.p90)}</td>`}</tr>`).join('');
+  const th = (k, l) => `<th data-tip="ui:table.${k}">${l}</th>`;
+  const head = kind === 'binary' ? `<tr>${th('bucket', 'bucket')}${th('n', 'n')}${th('rate', 'rată')}${th('ci', 'CI 95%')}</tr>` : `<tr>${th('bucket', 'bucket')}${th('n', 'n')}${th('median', 'mediană')}${th('q25', 'q25')}${th('q75', 'q75')}${th('p90', 'p90')}</tr>`;
+  tb.innerHTML = head + res.buckets.map(b => `<tr class="${b.n < 30 ? 'small' : ''}"><td${G.describe('lvl:' + b.key) ? ` data-tip="lvl:${esc(b.key)}"` : ''}>${esc(labelOfBucket(b, fb))}</td><td>${b.n}</td>${kind === 'binary' ? `<td>${pct(b.rate)}</td><td>${pct(b.ci.lo)} – ${pct(b.ci.hi)}</td>` : `<td>${f3(b.median)}</td><td>${f3(b.q25)}</td><td>${f3(b.q75)}</td><td>${f3(b.p90)}</td>`}</tr>`).join('');
   // ștampila seriei 3 (live, pe datele încărcate)
   const g = S.gate(res, { nMin: 30 });
   const h = res.stability.halves;
-  stamp.innerHTML = `<b>Seria 3 (pe datele încărcate, cu filtrele curente):</b> <span class="${g.pass ? 'ok' : 'ko'}">${g.pass ? 'TRECE' : 'NU TRECE'}</span>${g.pass ? '' : ' — ' + esc(g.reasons.join('; '))}` +
-    (h ? `<br><span class="n">jumătăți temporale (split ${h.splitDate}): semn identic ${h.signAgree}/${h.bucketsCompared} bucket-uri materiale${h.hiLoKept === false ? ', ordinea hi/lo INVERSATĂ în a doua jumătate' : ''}, retenția efectului ${h.retention == null ? '–' : h.retention.toFixed(2)}</span>` : '') +
+  stamp.innerHTML = `<b data-tip="ui:stamp.gate">Seria 3 (pe datele încărcate, cu filtrele curente):</b> <span class="${g.pass ? 'ok' : 'ko'}">${g.pass ? 'TRECE' : 'NU TRECE'}</span>${g.pass ? '' : ' — ' + esc(g.reasons.join('; '))}` +
+    (h ? `<br><span class="n" data-tip="ui:stamp.halves">jumătăți temporale (split ${h.splitDate}): semn identic ${h.signAgree}/${h.bucketsCompared} bucket-uri materiale${h.hiLoKept === false ? ', ordinea hi/lo INVERSATĂ în a doua jumătate' : ''}, retenția efectului ${h.retention == null ? '–' : h.retention.toFixed(2)}</span>` : '') +
     `<br><span class="n">Gate-ul de aici e informativ — ștampila oficială vine din Asset Profile (train/test, walk-forward, corecție de multiplicitate). Filtrele reduc n; sub 30 pe bucket celula e gri.</span>`;
   // status din profil
   prof.innerHTML = profileStatusHTML(state.breakdown, state.target);
@@ -2353,7 +2588,11 @@ function drawChart(res, kind, tg, fb) {
       { label: kind === 'binary' ? 'CI 95%' : 'q25 – q75', data: band, backgroundColor: 'rgba(255,255,255,0.22)', borderColor: 'rgba(255,255,255,0.6)', borderWidth: 1, barPercentage: 0.25, order: 1 },
     ] },
     options: { responsive: true, maintainAspectRatio: false, animation: false, grouped: false,
-      plugins: { legend: { labels: { color: '#c9cdd6' } }, tooltip: { callbacks: { afterBody: items => { const b = res.buckets[items[0].dataIndex]; return [`n = ${b.n}` + (b.n < 30 ? ' (sub 30 — orientativ)' : '')]; } } } },
+      plugins: {
+        legend: { labels: { color: '#c9cdd6' },
+          onHover: (ev, item) => { const ref = item.datasetIndex === 0 ? (kind === 'binary' ? 'ui:chart.rate' : 'ui:chart.median') : (kind === 'binary' ? 'ui:chart.ci' : 'ui:chart.iqr'); const ne = ev.native || ev; showTipAt(ref, ne.clientX || 0, ne.clientY || 0); },
+          onLeave: () => hideTip() },
+        tooltip: { callbacks: { afterBody: items => { const b = res.buckets[items[0].dataIndex]; const lv = G.LEVEL_TEXT[b.key]; return [`n = ${b.n}` + (b.n < 30 ? ' (sub 30 — orientativ)' : '')].concat(lv ? [lv] : []); } } } },
       scales: { x: { ticks: { color: '#c9cdd6', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.06)' } }, y: { beginAtZero: true, max: kind === 'binary' ? 100 : undefined, ticks: { color: '#c9cdd6' }, grid: { color: 'rgba(255,255,255,0.08)' }, title: { display: true, text: kind === 'binary' ? tg.label + ' (%)' : tg.label + ' (R)', color: '#c9cdd6' } } } }
   });
 }
@@ -2369,7 +2608,7 @@ async function tryLoadProfile() {
 }
 function profileStatusHTML(feature, target) {
   const p = state.profile;
-  const wrap = (badge, txt) => `<span class="mod-badge ${badge}">${badge.toUpperCase()}</span> ${txt}`;
+  const wrap = (badge, txt) => `<span class="mod-badge ${badge}" data-tip="ui:badge.${badge}">${badge.toUpperCase()}</span> ${txt}`;
   if (!p) return wrap('netestat', 'Niciun Asset Profile încărcat (profiles/&lt;asset&gt;.json). Statusul oficial activ/inactiv al parametrului vine din profil (train → gate → out-of-sample → parcimonie).') + ` <button type="button" class="expl-toggle-btn" id="modProfileBtn">Încarcă profil JSON</button>`;
   const same = (arr) => arr.length === 1 && arr[0] === feature;
   const e = p.edges.find(x => same(x.features) && x.target === target);
@@ -2394,10 +2633,10 @@ module.exports = { init, setData, setProfile, render, state, MODULES };
 
 });
   const req = __makeRequire('/');
-  const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js');
+  const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, version: "0.10.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, glossary: G, version: "0.12.0" };
 })();
 
 </script>
