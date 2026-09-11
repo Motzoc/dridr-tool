@@ -242,7 +242,7 @@
 // un filtru ca tool-ul să nu fie deschis de cine nimerește URL-ul. Ca să schimbi parola, înlocuiește GATE_HASH
 // cu SHA-256 al șirului 'dridr::v1::' + parola nouă (ex. în consolă: await gateHash('parola-nouă')).
 (function () {
-  const GATE_HASH = '7ec013332fee050fedc4b7a711927417b9572e9526bf6887d17b3f32422fe50a';
+  const GATE_HASH = '10a9ba54f42a5a19c74343b7bd5288d7ff1f2c5649fdab7fd7ee9719d6c95490';
   const SALT = 'dridr::v1::';
   const KEY = 'dridrGateV1';
   const gate = document.getElementById('gate');
@@ -351,6 +351,7 @@
         <button class="tabbtn toptabbtn" data-toptab="explorer" title="Price Statistics">STATS</button>
         <button class="tabbtn toptabbtn" data-toptab="retracement" title="Retracement">RET</button>
         <button class="tabbtn toptabbtn" data-toptab="prebo" title="PreBO">BO</button>
+        <button class="tabbtn toptabbtn" data-toptab="modules" title="Module (seria 1)">MOD</button>
       </div>
       <div class="sidebar-expanded">
         <h2>Navigare</h2>
@@ -359,12 +360,15 @@
           <button class="tabbtn toptabbtn" data-toptab="explorer">PRICE STATISTICS</button>
           <button class="tabbtn toptabbtn" data-toptab="retracement">RETRACEMENT</button>
           <button class="tabbtn toptabbtn" data-toptab="prebo">PREBO</button>
+          <button class="tabbtn toptabbtn" data-toptab="modules">MODULE · v3</button>
         </div>
 
       </div>
     </div>
 
     <div class="main-content">
+
+  <div id="toptab-modules" class="toptab-content"></div>
 
   <div id="toptab-overview" class="toptab-content active">
     <div class="panel">
@@ -622,7 +626,77 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/engine.js INLINED de cli/build_online.js la 2026-09-10 17:41 UTC. NU edita aici — editează dridr-core/engine.js și rebuild. ===
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 09:09 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T09:09 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+(function () {
+  'use strict';
+  const __defs = {}, __cache = {};
+  function __define(name, fn) { __defs[name] = fn; }
+  function __norm(from, req) {
+    if (req === 'modules.json' || req === './modules.json' || req === '../modules.json') return '/modules.json';
+    const parts = (path_dirname(from) + '/' + req).split('/'), out = [];
+    for (const p of parts) { if (!p || p === '.') continue; if (p === '..') out.pop(); else out.push(p); }
+    return '/' + out.join('/');
+  }
+  function path_dirname(p) { const i = p.lastIndexOf('/'); return i <= 0 ? '' : p.slice(0, i); }
+  function __makeRequire(from) {
+    return function require(req) {
+      const name = __norm(from, req);
+      if (name === '/modules.json') return __MODULES;
+      if (__cache[name]) return __cache[name].exports;
+      const def = __defs[name]; if (!def) throw new Error('bundle: modul lipsă ' + name + ' (cerut din ' + from + ')');
+      const module = { exports: {} }; __cache[name] = module; def(module, module.exports, __makeRequire(name)); return module.exports;
+    };
+  }
+  const __MODULES = {
+  "schema": "dridr-modules/1",
+  "note": "Seria 1 — module de analiză și statistică. Fiecare modul = target(s) + filtre + breakdown-uri permise. Modulele sunt VIEW-uri peste stats.analyze(); nu calculează nimic singure. Un modul nou = o intrare aici; un parametru nou = un feature în features/index.js (apare automat în listele de breakdown dacă e adăugat la `breakdowns`).",
+  "commonFilters": ["session", "dow", "outcome", "interval30"],
+  "modules": [
+    {
+      "id": "dr", "label": "DR — True / False", "order": 1,
+      "description": "Probabilitatea ca după confirmare sesiunea să fie True (nicio închidere dincolo de marginea DR opusă) sau False. Filtrabil pe zile, sesiune, intervalul de 30 min al confirmării (de la închiderea PreBO), True/False/All.",
+      "targets": ["isTrue", "confirmed", "dirUp"], "defaultTarget": "isTrue",
+      "breakdowns": ["triggerBucket30", "dow", "session", "drRangeRelQ", "drRangeQ", "preBO", "structure", "refStructure"], "defaultBreakdown": "triggerBucket30"
+    },
+    {
+      "id": "trend", "label": "Trend", "order": 2,
+      "description": "Cum definim trendul și dacă prezice ceva. ATENȚIE: `trendBucket` (mom60 la închiderea box-ului) ≡ mărimea PreBO (fereastra de 60 min e chiar ora PreBO). Trendul INDEPENDENT (momentum 4h/24h și ASS 1H/4H/D din barele dinaintea PreBO) nu a prezis direcția/True pe WTI (Pas 8); momPre1dQ arată mean-reversion. Semnale noi de inversare/continuare intră aici ca features.",
+      "targets": ["dirUp", "isTrue", "extR", "confirmed"], "defaultTarget": "dirUp",
+      "breakdowns": ["trendBucket", "momPre4hQ", "momPre1dQ", "ass1H", "ass4H", "assD", "assAlign"], "defaultBreakdown": "momPre1dQ"
+    },
+    {
+      "id": "prebo", "label": "PreBO", "order": 3,
+      "description": "Direcția orei de definire (close vs open) — cel mai bun predictor de direcție cunoscut (~67%), amplificat de range; NU prezice True/False. Aliniat/contra e disponibil abia la confirmare.",
+      "targets": ["dirUp", "isTrue", "extR", "retrBeforeR", "tpHit_1"], "defaultTarget": "dirUp",
+      "breakdowns": ["preBO", "preBOAligned", "refPreBO", "triggerBucket30", "dow", "session"], "defaultBreakdown": "preBO"
+    },
+    {
+      "id": "range", "label": "DR Range", "order": 4,
+      "description": "Mărimea box-ului: absolută (chintile per sesiune) și RELATIVĂ la ultimele 60 de box-uri (staționară — recomandată). Range mare ⇒ P(True) mai mare și MAE-înainte-de-TP mai mic; nu prezice direcția, dar amplifică PreBO. Atenție: targets în R au drRange la numitor (efect mecanic pe extR/maeR).",
+      "targets": ["isTrue", "confirmed", "dirUp", "tpHit_1", "tpMaeBefore_1", "extR"], "defaultTarget": "isTrue",
+      "breakdowns": ["drRangeRelQ", "drRangeQ", "drRangeT", "triggerBucket30", "dow", "session"], "defaultBreakdown": "drRangeRelQ"
+    },
+    {
+      "id": "retracement", "label": "Price Retracement", "order": 5,
+      "description": "Retrageri: ÎNAINTE de candela de confirmare (retrBeforeR — de la închiderea PreBO până la confirmare inclusiv) și DUPĂ (retrR = MAE pe fitil de la marginea de trigger; maeCloseR pe close; tpMaeBefore_L = MAE acumulat înainte de a atinge TP L — baza stop loss-ului). Toate în R = drRange.",
+      "targets": ["retrBeforeR", "retrR", "maeCloseR", "tpMaeBefore_0.5", "tpMaeBefore_1", "tpMaeBefore_1.5", "tpMaeBefore_2"], "defaultTarget": "retrR",
+      "breakdowns": ["triggerBucket30", "dow", "session", "drRangeRelQ", "preBOAligned", "structure", "momPre1dQ"], "defaultBreakdown": "session"
+    },
+    {
+      "id": "extension", "label": "Price Extensions", "order": 6,
+      "description": "Extensia maximă după confirmare (extR, în R de la marginea de trigger) și probabilitatea de a atinge fiecare nivel TP (0.5…3 R). Ora confirmării domină mecanic (buget de timp până la finalul sesiunii).",
+      "targets": ["extR", "tpHit_0.5", "tpHit_1", "tpHit_1.5", "tpHit_2", "tpHit_3"], "defaultTarget": "tpHit_1",
+      "breakdowns": ["triggerBucket30", "dow", "session", "drRangeRelQ", "preBOAligned", "structure", "momPre1dQ"], "defaultBreakdown": "session"
+    },
+    {
+      "id": "boxEdge", "label": "Marginea box-ului (fade)", "order": 7, "status": "planned",
+      "description": "Comportamentul prețului la revenirea la marginea box-ului înainte de confirmare (respingere vs străpungere). Singurul edge out-of-sample după costuri găsit până acum (WTI +0.08 R/trade, Pas 9). Necesită targets noi calculate din traseul la nivel de bară — următorul pas al seriei 1.",
+      "targets": [], "breakdowns": []
+    }
+  ]
+};
+__define("/engine.js", function (module, exports, require) {
 // dridr-core/engine.js — motorul L1 al tool-ului DR/IDR (arhitectura v2, Pasul 1, 10 sep 2026).
 // Sursa UNICĂ a regulilor de sesiune/confirmare (project_dridr_rules_v2). Încărcat de:
 //   - DR-IDR Strategy.html            <script src="dridr-core/engine.js">
@@ -773,6 +847,12 @@ function finishPath(p) {
            tpElapsed: p.tpElapsed, tpMaeBefore: p.tpMaeBefore, slElapsed: p.slElapsed, slElapsedPost: p.slElapsedPost, maePostR: p.advMaxPost / p.drRange };
 }
 
+// Pasul 7 (10 sep 2026) — capturarea traseului la nivel de BARĂ pentru toată faza disp (de la închiderea box-ului la finalul
+// sesiunii), opțional (implicit OFF — ar încărca browserul inutil). Când e ON, fiecare rawCycle primește
+// `bars: [[elapsed, h, l, c], ...]`. Folosit de cercetarea/backtest-ul intrărilor pre-confirmare (research/sd_entry.js).
+let __pathBarsEnabled = false;
+function setPathBarsEnabled(v) { __pathBarsEnabled = !!v; }
+
 function computeSessionStats(rows, cfg, useIDR) {
   const defStart = timeToHM(cfg.defStart), defEnd = timeToHM(cfg.defEnd), dispEnd = timeToHM(cfg.dispEnd);
   const dispStart = defEnd;
@@ -856,7 +936,10 @@ function computeSessionStats(rows, cfg, useIDR) {
           : null;
         cycles.push({ dateKey: cycle.startDateKey, dow: cycle.startDow, direction, ruleHold, invalidElapsed, extAmt, extElapsed, retrAmt, retrElapsed, retrBeforeAmt, retrSessionAmt, giveback, givebackElapsed, drRange, triggerElapsed, relIdx,
           trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
-          path, confirmClose, confirmT, confirmSlipR });
+          path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined,
+          // Pasul 8: indexul barei de închidere a box-ului — permite features de context calculate din barele DINAINTEA
+          // orei PreBO (trend independent: momentum 4h/1d, ASS 1H/4H/D), fără să depindă de mom60Raw.
+          lastDefBarIdx: cycle.lastDefBarIdx });
       }
     }
     cycle = null;
@@ -909,10 +992,12 @@ function computeSessionStats(rows, cfg, useIDR) {
         // to support ruleHold's "did price ever breach the opposite box edge" check).
         cycle.dispLow = Infinity;
         cycle.dispHigh = -Infinity;
+        if (__pathBarsEnabled) cycle.bars = [];
       }
       if (cycle && cycle.phase === 'disp') {
         const trigHigh = useIDR ? cycle.idrHigh : cycle.drHigh;
         const trigLow = useIDR ? cycle.idrLow : cycle.drLow;
+        if (__pathBarsEnabled) cycle.bars.push([((hmToMin(b.hm) - dispStartMin) + 1440) % 1440, b.h, b.l, b.c]);
         if (b.l < cycle.sessLow) cycle.sessLow = b.l;
         if (b.h > cycle.sessHigh) cycle.sessHigh = b.h;
         if (b.l < cycle.dispLow) cycle.dispLow = b.l;
@@ -1182,13 +1267,984 @@ function computeAllSessions(rows, useIDR) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { PATH_TP_GRID, PATH_SL_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
+  module.exports = { setPathBarsEnabled, PATH_TP_GRID, PATH_SL_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
 }
+
+});
+__define("/features/trend_context.js", function (module, exports, require) {
+// dridr-core/features/trend_context.js — Pasul 8 (11 sep 2026): context de TREND independent de PreBO.
+//
+// Problema: trendBucket (mom60 la închiderea box-ului) acoperă exact ora PreBO ⇒ e mărimea PreBO, nu trend.
+// Aici totul se calculează din barele STRICT ANTERIOARE orei PreBO: referința i0 = lastDefBarIdx − 12 (ultima bară de
+// 5 min înainte de deschiderea ferestrei DR). Nimic de la i0 încolo nu intră ⇒ independent de PreBO și disponibil la boxClose.
+//   momPre4h / momPre1d  = (close[i0] − close[i0 − 48 | 288]) / drRange   (48 bare = 4h, 288 = 24h de bare de 5 min;
+//                          index-based: peste weekend „24h de bare" înseamnă ultimele 24h tranzacționate — acceptat)
+//   ass1H / ass4H / assD = trend-ul ASS (pivoți fractali + BOS/CHoCH, port 1:1 din DR-IDR Strategy.html / f_ass Pine)
+//                          pe bare reeșantionate 60 / 240 / 1440 min, ULTIMUL snapshot cu endRawIdx ≤ i0 (bare HTF complet
+//                          închise înainte de PreBO); n = 10 / 7 / 5 pivoți. Valori: 1 (Up), −1 (Down), 0 (None).
+// attachTrendContext(cycles, rows) e idempotent și setează pe fiecare ciclu: momPre4h, momPre1d, ass1H, ass4H, assD.
+'use strict';
+const E = require('../engine.js');
+
+const ASS_CFG = [{ key: 'ass1H', tf: 60, n: 10 }, { key: 'ass4H', tf: 240, n: 7 }, { key: 'assD', tf: 1440, n: 5 }];
+
+function resampleBars(rows, tfMinutes) {
+  const bars = []; let cur = null;
+  for (let i = 0; i < rows.length; i++) {
+    const b = rows[i];
+    const bucketStartMin = Math.floor(E.hmToMin(b.hm) / tfMinutes) * tfMinutes;
+    const bucketKey = b.dateKey + '_' + bucketStartMin;
+    if (!cur || cur.bucketKey !== bucketKey) { if (cur) bars.push(cur); cur = { bucketKey, h: b.h, l: b.l, c: b.c, endRawIdx: i }; }
+    else { if (b.h > cur.h) cur.h = b.h; if (b.l < cur.l) cur.l = b.l; cur.c = b.c; cur.endRawIdx = i; }
+  }
+  if (cur) bars.push(cur);
+  return bars;
+}
+// port 1:1 al computeASSStructure din HTML (useClose = true)
+function computeASSStructure(bars, n) {
+  const snapshots = [];
+  const bufH = [], bufL = [], bufBar = [];
+  let swingHigh = null, swingHighBarIdx = null, swingLow = null, swingLowBarIdx = null;
+  let brokenHighBarIdx = -1, brokenLowBarIdx = -1, trend = 0;
+  const maxBuf = 2 * n + 3;
+  for (let i = 0; i < bars.length; i++) {
+    const bar = bars[i]; let event = null;
+    if (swingHigh != null && swingHighBarIdx !== brokenHighBarIdx && bar.c > swingHigh) { const isCh = trend !== 1; trend = 1; brokenHighBarIdx = swingHighBarIdx; event = { type: isCh ? 'CHoCH' : 'BOS', dir: 'up' }; }
+    if (swingLow != null && swingLowBarIdx !== brokenLowBarIdx && bar.c < swingLow) { const isCh = trend !== -1; trend = -1; brokenLowBarIdx = swingLowBarIdx; event = event || { type: isCh ? 'CHoCH' : 'BOS', dir: 'down' }; }
+    bufH.push(bar.h); bufL.push(bar.l); bufBar.push(i);
+    if (bufH.length > maxBuf) { bufH.shift(); bufL.shift(); bufBar.shift(); }
+    const sz = bufH.length;
+    if (sz >= 2 * n + 1) {
+      const j = sz - 1 - n; let isPH = true, isPL = true;
+      for (let k = 1; k <= n; k++) { if (bufH[j] < bufH[j - k] || bufH[j] < bufH[j + k]) isPH = false; if (bufL[j] > bufL[j - k] || bufL[j] > bufL[j + k]) isPL = false; }
+      if (isPH) { swingHigh = bufH[j]; swingHighBarIdx = bufBar[j]; }
+      if (isPL) { swingLow = bufL[j]; swingLowBarIdx = bufBar[j]; }
+    }
+    snapshots.push({ endRawIdx: bar.endRawIdx, swingHigh, swingLow, trend, event });
+  }
+  return snapshots;
+}
+// ultimul snapshot cu endRawIdx <= idx (binary search)
+function snapshotAt(snaps, idx) {
+  let lo = 0, hi = snaps.length - 1, ans = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (snaps[m].endRawIdx <= idx) { ans = m; lo = m + 1; } else hi = m - 1; }
+  return ans >= 0 ? snaps[ans] : null;
+}
+
+function attachTrendContext(cycles, rows) {
+  const snaps = {};
+  for (const cfg of ASS_CFG) snaps[cfg.key] = computeASSStructure(resampleBars(rows, cfg.tf), cfg.n);
+  for (const c of cycles) {
+    const i0 = c.lastDefBarIdx != null ? c.lastDefBarIdx - 12 : null;
+    if (i0 == null || i0 < 0 || !(c.drRange > 0)) { c.momPre4h = c.momPre1d = null; for (const cfg of ASS_CFG) c[cfg.key] = null; continue; }
+    const ref = rows[i0].c;
+    c.momPre4h = i0 >= 48 ? (ref - rows[i0 - 48].c) / c.drRange : null;
+    c.momPre1d = i0 >= 288 ? (ref - rows[i0 - 288].c) / c.drRange : null;
+    for (const cfg of ASS_CFG) { const s = snapshotAt(snaps[cfg.key], i0); c[cfg.key] = s ? s.trend : null; }
+  }
+  return cycles;
+}
+
+module.exports = { attachTrendContext, resampleBars, computeASSStructure, snapshotAt, ASS_CFG };
+
+});
+__define("/features/index.js", function (module, exports, require) {
+// dridr-core/features/index.js — L2: registry-ul de predictori (arhitectura v2, Pasul 3, 10 sep 2026).
+//
+// Un feature = funcție PURĂ `cycle -> label | număr | null`, fără statistică. Contract obligatoriu:
+//   name        identificator unic
+//   label       nume afișabil
+//   type        'categorical' | 'ordinal' | 'continuous'   (ordinal ⇒ kernelul testează monotonia)
+//   levels      ordinea nivelurilor (categorical/ordinal); pentru ordinal ordinea E semnificația
+//   availableAt 'boxClose' | 'confirm' | 'sessionEnd'  — momentul REAL la care valoarea e cunoscută:
+//                 boxClose   = la închiderea ferestrei DR/IDR (înainte de orice confirmare)
+//                 confirm    = la închiderea barei de confirmare
+//                 sessionEnd = doar post-hoc (NU poate fi folosit ca predictor pentru decizii în sesiune)
+//   fit(cycles) (opțional) parametri dependenți de date (ex. chintile per sesiune) — returnează `params`;
+//               kernelul îi calculează DOAR pe setul de antrenare (nu pe cel evaluat), altfel e leakage.
+//   value(cycle, params) -> valoarea; null = nedisponibil (rândul e exclus din bucket, nu tratat ca 0).
+//
+// Regula de aur: `value` are voie să citească doar câmpurile din STAGE_FIELDS[availableAt] (verificat de
+// test/verify_features_pas3.js cu un Proxy care aruncă la citirea unui câmp interzis).
+'use strict';
+const E = (typeof require === 'function') ? require('../engine.js') : (typeof window !== 'undefined' ? window : globalThis);
+
+const STAGES = ['boxClose', 'confirm', 'sessionEnd'];
+const STAGE_FIELDS = {
+  boxClose: new Set(['dateKey', 'dow', 'srcSession', 'drHigh', 'drLow', 'idrHigh', 'idrLow', 'drRange', 'trigHigh', 'trigLow',
+                     'preBO', 'mom60Raw', 'structure', 'refStructure', 'refPreBO', 'drRangeRel',
+                     'momPre4h', 'momPre1d', 'ass1H', 'ass4H', 'assD']),
+  confirm:  new Set(['direction', 'triggerElapsed', 'triggerBarIdx', 'relIdx', 'retrBeforeAmt', 'confirmClose', 'confirmT', 'confirmSlipR']),
+  sessionEnd: null, // orice
+};
+STAGE_FIELDS.confirm = new Set([...STAGE_FIELDS.boxClose, ...STAGE_FIELDS.confirm]);
+
+// Identic cu percentileOf din HTML (index = floor(p*(n-1)), pe vector sortat).
+function percentileOf(sortedArr, p) {
+  if (!sortedArr.length) return null;
+  const idx = Math.min(sortedArr.length - 1, Math.max(0, Math.floor(p * (sortedArr.length - 1))));
+  return sortedArr[idx];
+}
+function bySession(cycles) {
+  const out = {};
+  for (const c of cycles) (out[c.srcSession] = out[c.srcSession] || []).push(c);
+  return out;
+}
+
+const DR_RANGE_LEVELS = ['Foarte mic', 'Mic', 'Mediu', 'Mare', 'Foarte mare'];
+const TREND_LEVELS = ['Strong Down', 'Down', 'Sideways', 'Up', 'Strong Up'];
+const STRUCT_LEVELS = ['RX', 'Contraction', 'UXP', 'DXP', 'UX', 'DX', 'U', 'D', 'None'];
+
+const FEATURES = [
+  { name: 'session', label: 'Sesiune', type: 'categorical', levels: ['RDR', 'ODR', 'ADR'], availableAt: 'boxClose',
+    value: c => c.srcSession || null },
+
+  { name: 'dow', label: 'Zi din săptămână', type: 'categorical', levels: E.DOW, availableAt: 'boxClose',
+    value: c => c.dow || null },
+
+  { name: 'preBO', label: 'PreBO (direcția orei DR)', type: 'categorical', levels: ['Long', 'Short', 'Flat'], availableAt: 'boxClose',
+    value: c => c.preBO || null },
+
+  // Chintila de DR range, PER SESIUNE (aceeași matematică ca buildDrRangeBuckets din HTML: praguri la 20/40/60/80/100%).
+  { name: 'drRangeQ', label: 'DR range (chintilă/sesiune)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'boxClose',
+    fit: cycles => {
+      const edges = {};
+      for (const [s, arr] of Object.entries(bySession(cycles))) {
+        const sorted = arr.filter(c => c.drRange != null && c.drRange > 0).map(c => c.drRange).sort((a, b) => a - b);
+        edges[s] = [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(sorted, p));
+      }
+      return { edges };
+    },
+    value: (c, P) => {
+      const e = P && P.edges && P.edges[c.srcSession];
+      if (!e || c.drRange == null || !(c.drRange > 0)) return null;
+      for (let i = 0; i < e.length; i++) if (c.drRange <= e[i]) return DR_RANGE_LEVELS[i];
+      return DR_RANGE_LEVELS[DR_RANGE_LEVELS.length - 1];
+    } },
+
+  // Tercila de range (varianta din tab-ul PreBO: t1/t2 la n/3, 2n/3, pe sesiunile CONFIRMATE ale sesiunii).
+  { name: 'drRangeT', label: 'DR range (tercilă/sesiune)', type: 'ordinal', levels: ['Mic', 'Mediu', 'Mare'], availableAt: 'boxClose',
+    fit: cycles => {
+      const cut = {};
+      for (const [s, arr] of Object.entries(bySession(cycles))) {
+        const vals = arr.filter(c => c.direction === 'up' || c.direction === 'down').map(c => c.drRange).sort((a, b) => a - b);
+        if (vals.length) cut[s] = { t1: vals[Math.floor(vals.length / 3)], t2: vals[Math.floor(2 * vals.length / 3)] };
+      }
+      return { cut };
+    },
+    value: (c, P) => {
+      const k = P && P.cut && P.cut[c.srcSession];
+      if (!k || c.drRange == null) return null;
+      return c.drRange <= k.t1 ? 'Mic' : (c.drRange <= k.t2 ? 'Mediu' : 'Mare');
+    } },
+
+  { name: 'drRangeR', label: 'DR range (brut, preț)', type: 'continuous', availableAt: 'boxClose',
+    value: c => (c.drRange != null && c.drRange > 0) ? c.drRange : null },
+
+  // Range RELATIV: c.drRangeRel = drRange / mediana ultimelor 60 de box-uri ANTERIOARE ale aceleiași sesiuni (câmp de
+  // context atașat de attachContext(), doar din trecut ⇒ fără leakage), apoi chintile ale raportului (fit pe train).
+  // Motiv: drRange în preț absolut e nestaționar (BTC 2017 vs 2025, WTI 2011 vs 2026) — chintilele fit-uite pe train
+  // nu se transferă pe test; raportul e staționar.
+  { name: 'drRangeRelQ', label: 'DR range relativ la ultimele 60 (chintilă)', type: 'ordinal', levels: DR_RANGE_LEVELS, availableAt: 'boxClose',
+    fit: cycles => {
+      const vals = cycles.map(c => c.drRangeRel).filter(v => v != null).sort((a, b) => a - b);
+      return { edges: vals.length ? [0.2, 0.4, 0.6, 0.8, 1.0].map(p => percentileOf(vals, p)) : null };
+    },
+    value: (c, P) => {
+      const r = c.drRangeRel;
+      if (r == null || !P || !P.edges) return null;
+      for (let i = 0; i < P.edges.length; i++) if (r <= P.edges[i]) return DR_RANGE_LEVELS[i];
+      return DR_RANGE_LEVELS[DR_RANGE_LEVELS.length - 1];
+    } },
+
+  { name: 'structure', label: 'Structură (modelul zilei)', type: 'categorical', levels: STRUCT_LEVELS, availableAt: 'boxClose',
+    value: c => c.structure || null },
+
+  { name: 'refStructure', label: 'Structura sesiunii de referință', type: 'categorical', levels: STRUCT_LEVELS.slice(0, -1), availableAt: 'boxClose',
+    value: c => c.refStructure || null },
+
+  { name: 'refPreBO', label: 'PreBO al sesiunii de referință', type: 'categorical', levels: ['Long', 'Short', 'Flat'], availableAt: 'boxClose',
+    value: c => c.refPreBO || null },
+
+  // Trend = momentum 60 min la închiderea box-ului, normalizat la drRange (trendScoreOf din HTML).
+  { name: 'trendScore', label: 'Trend (mom60/drRange)', type: 'continuous', availableAt: 'boxClose',
+    value: c => (c.mom60Raw != null && c.drRange) ? c.mom60Raw / c.drRange : null },
+
+  // Bucket-izarea din buildTrendBuckets: p20/p80 ale |score| PER SESIUNE, pe ciclurile confirmate cu scor.
+  { name: 'trendBucket', label: 'Trend (5 clase)', type: 'ordinal', levels: TREND_LEVELS, availableAt: 'boxClose',
+    fit: cycles => {
+      const p = {};
+      for (const [s, arr] of Object.entries(bySession(cycles))) {
+        const abs = arr.filter(c => (c.direction === 'up' || c.direction === 'down') && c.mom60Raw != null && c.drRange)
+                       .map(c => Math.abs(c.mom60Raw / c.drRange)).sort((a, b) => a - b);
+        p[s] = { p20: percentileOf(abs, 0.20), p80: percentileOf(abs, 0.80) };
+      }
+      return { p };
+    },
+    value: (c, P) => {
+      const k = P && P.p && P.p[c.srcSession];
+      if (!k || k.p20 == null || c.mom60Raw == null || !c.drRange) return null;
+      const sc = c.mom60Raw / c.drRange, a = Math.abs(sc);
+      if (a < k.p20) return 'Sideways';
+      const lbl = sc > 0 ? 'Up' : 'Down';
+      return a < k.p80 ? lbl : ('Strong ' + lbl);
+    } },
+
+  // ---- Pasul 8: trend INDEPENDENT de PreBO (context din barele dinaintea orei PreBO; vezi trend_context.js) ----
+  // momentum pre-PreBO pe 4h și 24h, în R, bucket-izat ca trendBucket (p20/p80 pe |valoare|, per sesiune, fit pe train)
+  ...['momPre4h', 'momPre1d'].map(fld => ({
+    name: fld + 'Q', label: `Momentum ${fld === 'momPre4h' ? '4h' : '24h'} înainte de PreBO (5 clase)`, type: 'ordinal', levels: TREND_LEVELS, availableAt: 'boxClose',
+    fit: cycles => {
+      const p = {};
+      for (const [s, arr] of Object.entries(bySession(cycles))) {
+        const abs = arr.filter(c => c[fld] != null).map(c => Math.abs(c[fld])).sort((a, b) => a - b);
+        p[s] = { p20: percentileOf(abs, 0.20), p80: percentileOf(abs, 0.80) };
+      }
+      return { p };
+    },
+    value: (c, P) => {
+      const k = P && P.p && P.p[c.srcSession], v = c[fld];
+      if (!k || k.p20 == null || v == null) return null;
+      const a = Math.abs(v); if (a < k.p20) return 'Sideways';
+      const lbl = v > 0 ? 'Up' : 'Down'; return a < k.p80 ? lbl : ('Strong ' + lbl);
+    } })),
+  ...['ass1H', 'ass4H', 'assD'].map(fld => ({
+    name: fld, label: `ASS ${fld.slice(3)} (trend structural, bare închise înainte de PreBO)`, type: 'categorical', levels: ['Down', 'None', 'Up'], availableAt: 'boxClose',
+    value: c => c[fld] == null ? null : (c[fld] > 0 ? 'Up' : (c[fld] < 0 ? 'Down' : 'None')) })),
+  // compozit: câte TF-uri ASS sunt de acord (1H/4H/D)
+  { name: 'assAlign', label: 'ASS aliniere 1H/4H/D', type: 'ordinal', levels: ['Down3', 'Down2', 'Mixed', 'Up2', 'Up3'], availableAt: 'boxClose',
+    value: c => { const v = [c.ass1H, c.ass4H, c.assD]; if (v.some(x => x == null)) return null; const up = v.filter(x => x > 0).length, dn = v.filter(x => x < 0).length;
+      return up === 3 ? 'Up3' : dn === 3 ? 'Down3' : up === 2 && dn === 0 ? 'Up2' : dn === 2 && up === 0 ? 'Down2' : 'Mixed'; } },
+
+  // ---- disponibile abia la confirmare ----
+  { name: 'confirmDir', label: 'Direcția confirmării', type: 'categorical', levels: ['up', 'down'], availableAt: 'confirm',
+    value: c => (c.direction === 'up' || c.direction === 'down') ? c.direction : null },
+
+  { name: 'preBOAligned', label: 'PreBO aliniat cu confirmarea', type: 'categorical', levels: ['aligned', 'contra'], availableAt: 'confirm',
+    value: c => {
+      if (!(c.direction === 'up' || c.direction === 'down') || c.preBO === 'Flat' || !c.preBO) return null;
+      return ((c.preBO === 'Long') === (c.direction === 'up')) ? 'aligned' : 'contra';
+    } },
+
+  { name: 'triggerBucket30', label: 'Ora confirmării (30 min de la dispStart)', type: 'ordinal', availableAt: 'confirm',
+    levels: Array.from({ length: 48 }, (_, i) => i * 30),
+    value: c => c.triggerElapsed != null ? Math.floor(c.triggerElapsed / 30) * 30 : null },
+
+  { name: 'retrBeforeR', label: 'Retragere înainte de confirmare (R)', type: 'continuous', availableAt: 'confirm',
+    value: c => (c.retrBeforeAmt != null && c.drRange) ? -c.retrBeforeAmt / c.drRange : null },
+
+  { name: 'confirmSlipR', label: 'Distanța close-ului de confirmare față de margine (R)', type: 'continuous', availableAt: 'confirm',
+    value: c => c.confirmSlipR != null ? c.confirmSlipR : null },
+];
+
+// Câmpuri de CONTEXT (depind de ciclurile anterioare ale aceleiași sesiuni, niciodată de cele viitoare). Se atașează o
+// singură dată pe lista completă de cicluri (stats.fromStats o face automat). Idempotent.
+const CONTEXT_WINDOW = 60, CONTEXT_MIN = 20;
+function attachContext(cycles) {
+  for (const [s, arr] of Object.entries(bySession(cycles))) {
+    const sorted = arr.slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : (a.dateKey > b.dateKey ? 1 : 0));
+    const win = [];
+    for (const c of sorted) {
+      if (win.length >= CONTEXT_MIN) { const m = win.slice().sort((a, b) => a - b); c.drRangeRel = c.drRange > 0 ? c.drRange / m[Math.floor(m.length / 2)] : null; }
+      else c.drRangeRel = null;
+      if (c.drRange > 0) { win.push(c.drRange); if (win.length > CONTEXT_WINDOW) win.shift(); }
+    }
+  }
+  return cycles;
+}
+
+const byName = Object.fromEntries(FEATURES.map(f => [f.name, f]));
+function get(name) { const f = byName[name]; if (!f) throw new Error('feature necunoscut: ' + name); return f; }
+function availableAt(stage) {
+  const i = STAGES.indexOf(stage); if (i < 0) throw new Error('stage necunoscut: ' + stage);
+  return FEATURES.filter(f => STAGES.indexOf(f.availableAt) <= i);
+}
+// fit + value într-un pas: întoarce {params, labels[]} pe setul dat; pentru evaluare out-of-sample apelează
+// fit() pe train și value() cu params pe test.
+function fitAll(names, cycles) {
+  const params = {};
+  for (const n of names) { const f = get(n); params[n] = f.fit ? f.fit(cycles) : null; }
+  return params;
+}
+function labelOf(name, cycle, params) { return get(name).value(cycle, params ? params[name] : null); }
+
+const { attachTrendContext } = require('./trend_context.js');
+const api = { FEATURES, STAGES, STAGE_FIELDS, get, availableAt, fitAll, labelOf, attachContext, attachTrendContext, percentileOf, DR_RANGE_LEVELS, TREND_LEVELS, STRUCT_LEVELS };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+if (typeof window !== 'undefined') window.DRIDR_FEATURES = api;
+
+});
+__define("/targets/index.js", function (module, exports, require) {
+// dridr-core/targets/index.js — L3: ce prezicem (arhitectura v2, Pasul 3, 10 sep 2026).
+//
+// Un target = funcție PURĂ `cycle -> valoare | null`. Contract:
+//   name, label, kind: 'binary' | 'continuous' ; pentru binary `value` întoarce true/false;
+//   scope: 'all' | 'confirmed' — pe ce cicluri are sens (Inside nu are direcție/extensie/MAE).
+//   decidedAt: 'confirm' | 'sessionEnd' — când se cunoaște rezultatul (pentru a împerechea corect cu features:
+//              un feature `availableAt: confirm` NU poate prezice un target `decidedAt: confirm`, e același moment).
+// Toate mărimile de preț sunt în R (= drRange), în cadrul marginii de trigger (ca extAmt/retrAmt/path).
+'use strict';
+const E = (typeof require === 'function') ? require('../engine.js') : (typeof window !== 'undefined' ? window : globalThis);
+const conf = c => c.direction === 'up' || c.direction === 'down';
+
+const TARGETS = [
+  { name: 'confirmed', label: 'Sesiune confirmată (nu Inside)', kind: 'binary', scope: 'all', decidedAt: 'confirm',
+    value: c => c.direction === 'none' ? false : (conf(c) ? true : null) },
+  { name: 'dirUp', label: 'Confirmare Long', kind: 'binary', scope: 'confirmed', decidedAt: 'confirm',
+    value: c => conf(c) ? c.direction === 'up' : null },
+  { name: 'isTrue', label: 'True (nu invalidată)', kind: 'binary', scope: 'confirmed', decidedAt: 'sessionEnd',
+    value: c => conf(c) ? c.ruleHold === true : null },
+  { name: 'extR', label: 'Extensie maximă (R)', kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd',
+    value: c => (conf(c) && c.extAmt != null && c.drRange) ? c.extAmt / c.drRange : null },
+  { name: 'retrR', label: 'Retragere după confirmare (R, ≥0)', kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd',
+    value: c => (conf(c) && c.retrAmt != null && c.drRange) ? -c.retrAmt / c.drRange : null },
+  { name: 'retrBeforeR', label: 'Retragere înainte de confirmare (R, ≥0)', kind: 'continuous', scope: 'confirmed', decidedAt: 'confirm',
+    value: c => (conf(c) && c.retrBeforeAmt != null && c.drRange) ? -c.retrBeforeAmt / c.drRange : null },
+  { name: 'maeR', label: 'MAE pe fitil (R)', kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd',
+    value: c => (c.path ? c.path.maeR : null) },
+  { name: 'maeCloseR', label: 'MAE pe close (R)', kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd',
+    value: c => (c.path ? c.path.maeCloseR : null) },
+  { name: 'triggerElapsed', label: 'Minute până la confirmare', kind: 'continuous', scope: 'confirmed', decidedAt: 'confirm',
+    value: c => conf(c) ? c.triggerElapsed : null },
+];
+// Targets pe grilă: TP atins / MAE-înainte-de-TP / SL atins, câte unul per nivel.
+E.PATH_TP_GRID.forEach((L, i) => {
+  TARGETS.push({ name: `tpHit_${L}`, label: `TP ${L}R atins`, kind: 'binary', scope: 'confirmed', decidedAt: 'sessionEnd', level: L,
+    value: c => c.path ? c.path.tpElapsed[i] !== null : null });
+  TARGETS.push({ name: `tpMaeBefore_${L}`, label: `MAE înainte de TP ${L}R (R)`, kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd', level: L,
+    value: c => (c.path && c.path.tpElapsed[i] !== null) ? c.path.tpMaeBefore[i] : null });
+});
+E.PATH_SL_GRID.forEach((L, i) => {
+  TARGETS.push({ name: `slHit_${L}`, label: `SL ${L}R atins`, kind: 'binary', scope: 'confirmed', decidedAt: 'sessionEnd', level: L,
+    value: c => c.path ? c.path.slElapsed[i] !== null : null });
+});
+
+// Rezultatul unei perechi TP×SL pe un ciclu: 'tp' | 'sl' | 'none' | null. Egalitate de timp = SL primul (pesimist).
+function tpSlOutcome(c, tpLevel, slLevel) {
+  if (!c.path) return null;
+  const ti = E.PATH_TP_GRID.indexOf(tpLevel), si = E.PATH_SL_GRID.indexOf(slLevel);
+  if (ti < 0 || si < 0) throw new Error('nivel în afara grilei');
+  const tp = c.path.tpElapsed[ti], sl = c.path.slElapsed[si];
+  if (tp === null && sl === null) return 'none';
+  if (sl === null) return 'tp';
+  if (tp === null) return 'sl';
+  return tp < sl ? 'tp' : 'sl';
+}
+
+const byName = Object.fromEntries(TARGETS.map(t => [t.name, t]));
+function get(name) { const t = byName[name]; if (!t) throw new Error('target necunoscut: ' + name); return t; }
+const api = { TARGETS, get, tpSlOutcome };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+if (typeof window !== 'undefined') window.DRIDR_TARGETS = api;
+
+});
+__define("/stats/index.js", function (module, exports, require) {
+// dridr-core/stats/index.js — L4: kernelul statistic UNIC (arhitectura v2, Pasul 4, 10 sep 2026).
+//
+// O singură funcție de analiză pentru orice combinație features × target:
+//   analyze({ cycles, features: ['preBO','drRangeQ'], target: 'dirUp', filters?, train?, opts? })
+// → { buckets[], baseline, effect, test, monotonic, stability, meta }
+// Corelarea/interacțiunea NU e un modul separat: se cere prin mai multe features în același apel (cross).
+// Fără dependențe. Fără DOM. Toate testele/CI-urile sunt implementate aici (Wilson, chi², Kruskal-Wallis, Spearman,
+// Cliff's delta, Benjamini-Hochberg) — deliberat simple și inspectabile.
+//
+// Anti-leakage (impus, nu opțional):
+//   1. un feature `availableAt` >= `decidedAt` al target-ului e REFUZAT (nu poți prezice cu ce afli în același moment);
+//   2. parametrii de `fit` (chintile, praguri) se calculează pe `train` (implicit: pe `cycles`); la `stability.halves`
+//      se calculează pe PRIMA jumătate și se aplică pe ambele — niciodată pe setul evaluat.
+'use strict';
+const E = require('../engine.js');
+const F = require('../features/index.js');
+const T = require('../targets/index.js');
+
+const STAGE_RANK = { boxClose: 0, confirm: 1, sessionEnd: 2 };
+const DEFAULT_OPTS = { nMin: 30, alpha: 0.05, ci: 0.95, halves: true, yearly: true };
+
+// ---------- utilitare numerice ----------
+function sortNum(a) { return a.slice().sort((x, y) => x - y); }
+function quantile(sorted, p) { if (!sorted.length) return null; const i = Math.min(sorted.length - 1, Math.max(0, Math.floor(p * (sorted.length - 1)))); return sorted[i]; }
+function mean(a) { return a.length ? a.reduce((s, x) => s + x, 0) / a.length : null; }
+function wilson(k, n, z = 1.96) {
+  if (!n) return { lo: null, hi: null };
+  const p = k / n, d = 1 + z * z / n, c = p + z * z / (2 * n), h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n));
+  return { lo: (c - h) / d, hi: (c + h) / d };
+}
+// funcția gamma incompletă regularizată superioară Q(a,x) — pentru p-value chi² (df libere)
+function lnGamma(x) { const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]; let y = x, t = x + 5.5; t -= (x + 0.5) * Math.log(t); let s = 1.000000000190015; for (const ci of c) s += ci / ++y; return -t + Math.log(2.5066282746310005 * s / x); }
+function gammaQ(a, x) {
+  if (x <= 0) return 1;
+  if (x < a + 1) { // serie
+    let ap = a, sum = 1 / a, del = sum; for (let n = 0; n < 500; n++) { ap++; del *= x / ap; sum += del; if (Math.abs(del) < Math.abs(sum) * 1e-14) break; }
+    return 1 - sum * Math.exp(-x + a * Math.log(x) - lnGamma(a));
+  }
+  let b = x + 1 - a, c = 1 / 1e-300, d = 1 / b, h = d; // fracție continuă
+  for (let i = 1; i < 500; i++) { const an = -i * (i - a); b += 2; d = an * d + b; if (Math.abs(d) < 1e-300) d = 1e-300; c = b + an / c; if (Math.abs(c) < 1e-300) c = 1e-300; d = 1 / d; const del = d * c; h *= del; if (Math.abs(del - 1) < 1e-14) break; }
+  return Math.exp(-x + a * Math.log(x) - lnGamma(a)) * h;
+}
+function chi2Pvalue(stat, df) { return (df > 0 && stat > 0) ? gammaQ(df / 2, stat / 2) : 1; }
+function ranks(values) { // ranguri medii pentru legături
+  const idx = values.map((v, i) => i).sort((a, b) => values[a] - values[b]);
+  const r = new Array(values.length); let i = 0;
+  while (i < idx.length) { let j = i; while (j + 1 < idx.length && values[idx[j + 1]] === values[idx[i]]) j++; const avg = (i + j) / 2 + 1; for (let k = i; k <= j; k++) r[idx[k]] = avg; i = j + 1; }
+  return r;
+}
+function spearman(x, y) {
+  if (x.length < 3) return null;
+  const rx = ranks(x), ry = ranks(y), mx = mean(rx), my = mean(ry);
+  let num = 0, dx = 0, dy = 0; for (let i = 0; i < x.length; i++) { num += (rx[i] - mx) * (ry[i] - my); dx += (rx[i] - mx) ** 2; dy += (ry[i] - my) ** 2; }
+  return (dx && dy) ? num / Math.sqrt(dx * dy) : null;
+}
+function cliffsDelta(a, b) { // P(a>b) - P(a<b), O(n log n) via sortare
+  if (!a.length || !b.length) return null;
+  const sb = sortNum(b); let gt = 0, lt = 0;
+  const lower = v => { let lo = 0, hi = sb.length; while (lo < hi) { const m = (lo + hi) >> 1; if (sb[m] < v) lo = m + 1; else hi = m; } return lo; };
+  const upper = v => { let lo = 0, hi = sb.length; while (lo < hi) { const m = (lo + hi) >> 1; if (sb[m] <= v) lo = m + 1; else hi = m; } return lo; };
+  for (const v of a) { gt += lower(v); lt += sb.length - upper(v); }
+  return (gt - lt) / (a.length * b.length);
+}
+function benjaminiHochberg(pvals) { // întoarce q-values (aceeași ordine)
+  const n = pvals.length, idx = pvals.map((p, i) => i).sort((a, b) => pvals[a] - pvals[b]);
+  const q = new Array(n); let prev = 1;
+  for (let k = n - 1; k >= 0; k--) { const i = idx[k]; prev = Math.min(prev, pvals[i] * n / (k + 1)); q[i] = prev; }
+  return q;
+}
+
+// ---------- pregătire ----------
+function ensureSrcSession(cycles) { return cycles.every(c => c.srcSession) ? cycles : cycles; }
+function fromStats(stats, rows) { const cyc = F.attachContext(E.SESSIONS.flatMap(s => (stats[s] && stats[s].rawCycles || []).map(c => Object.assign({}, c, { srcSession: s })))); return rows ? F.attachTrendContext(cyc, rows) : cyc; }
+function applyFilters(cycles, filters) {
+  if (!filters) return cycles;
+  return cycles.filter(c => Object.entries(filters).every(([k, v]) => Array.isArray(v) ? v.includes(c[k]) : c[k] === v));
+}
+function checkTiming(featureNames, target) {
+  const t = T.get(target);
+  const bad = featureNames.map(F.get).filter(f => STAGE_RANK[f.availableAt] >= STAGE_RANK[t.decidedAt]);
+  if (bad.length) throw new Error(`leakage: feature(s) ${bad.map(f => f.name).join(',')} (availableAt ${bad.map(f => f.availableAt).join(',')}) nu pot prezice target '${target}' (decidedAt ${t.decidedAt})`);
+}
+function labelRows(cycles, featureNames, target, params) {
+  const t = T.get(target), out = [];
+  for (const c of cycles) {
+    if (t.scope === 'confirmed' && !(c.direction === 'up' || c.direction === 'down')) continue;
+    const y = t.value(c); if (y === null || y === undefined) continue;
+    const labels = featureNames.map(n => F.labelOf(n, c, params));
+    if (labels.some(l => l === null || l === undefined)) continue;
+    out.push({ c, labels, y });
+  }
+  return out;
+}
+function bucketKey(labels) { return labels.join(' × '); }
+function orderedLevels(featureNames, rows) {
+  // ordinea bucket-urilor: produsul cartezian al `levels` (pentru ordinal ordinea E semnificația), doar cele prezente
+  const present = new Set(rows.map(r => bucketKey(r.labels)));
+  const lists = featureNames.map(n => { const f = F.get(n); if (f.levels) return f.levels; return [...new Set(rows.map(r => r.labels[featureNames.indexOf(n)]))].sort((a, b) => a - b); });
+  const keys = [];
+  (function rec(i, acc) { if (i === lists.length) { const k = bucketKey(acc); if (present.has(k)) keys.push({ key: k, labels: acc.slice() }); return; } for (const l of lists[i]) rec(i + 1, acc.concat([l])); })(0, []);
+  return keys;
+}
+
+// ---------- rezumate ----------
+function summarizeBinary(ys, ci) {
+  const n = ys.length, k = ys.filter(Boolean).length, z = ci === 0.99 ? 2.576 : (ci === 0.90 ? 1.645 : 1.96);
+  return { n, k, rate: n ? k / n : null, ci: wilson(k, n, z) };
+}
+function summarizeContinuous(ys) {
+  const s = sortNum(ys);
+  return { n: s.length, median: quantile(s, 0.5), q25: quantile(s, 0.25), q75: quantile(s, 0.75), p10: quantile(s, 0.10), p90: quantile(s, 0.90), mean: mean(s) };
+}
+function summarize(kind, ys, ci) { return kind === 'binary' ? summarizeBinary(ys, ci) : summarizeContinuous(ys); }
+
+// ---------- teste ----------
+function testBinary(groups) { // groups: [{ys}], chi² de omogenitate
+  const g = groups.filter(x => x.length); if (g.length < 2) return { name: 'chi2', stat: null, df: 0, p: 1 };
+  const N = g.reduce((a, x) => a + x.length, 0), K = g.reduce((a, x) => a + x.filter(Boolean).length, 0), p0 = K / N;
+  if (p0 === 0 || p0 === 1) return { name: 'chi2', stat: 0, df: g.length - 1, p: 1 };
+  let stat = 0; for (const x of g) { const n = x.length, k = x.filter(Boolean).length; const e1 = n * p0, e0 = n * (1 - p0); stat += (k - e1) ** 2 / e1 + ((n - k) - e0) ** 2 / e0; }
+  return { name: 'chi2', stat, df: g.length - 1, p: chi2Pvalue(stat, g.length - 1) };
+}
+function testContinuous(groups) { // Kruskal-Wallis
+  const g = groups.filter(x => x.length); if (g.length < 2) return { name: 'kruskal', stat: null, df: 0, p: 1 };
+  const all = g.flat(), N = all.length, r = ranks(all);
+  let off = 0, H = 0; for (const x of g) { const rs = r.slice(off, off + x.length); off += x.length; H += (rs.reduce((a, b) => a + b, 0) ** 2) / x.length; }
+  H = 12 / (N * (N + 1)) * H - 3 * (N + 1);
+  // corecție legături
+  const counts = new Map(); for (const v of all) counts.set(v, (counts.get(v) || 0) + 1);
+  let tie = 0; for (const t of counts.values()) tie += t ** 3 - t; const corr = 1 - tie / (N ** 3 - N); if (corr > 0) H /= corr;
+  return { name: 'kruskal', stat: H, df: g.length - 1, p: chi2Pvalue(H, g.length - 1) };
+}
+
+// ---------- efect ----------
+function effectOf(kind, buckets, nMin) {
+  const ok = buckets.filter(b => b.n >= nMin);
+  if (ok.length < 2) return { kind, spread: null, note: 'sub 2 bucket-uri cu n>=nMin' };
+  if (kind === 'binary') {
+    const rates = ok.map(b => b.rate); const hi = ok[rates.indexOf(Math.max(...rates))], lo = ok[rates.indexOf(Math.min(...rates))];
+    // odds ratio cu corecția Haldane (+0.5 pe fiecare celulă) — altfel un bucket cu 100% dă OR infinit
+    const or = ((hi.k + 0.5) / (hi.n - hi.k + 0.5)) / ((lo.k + 0.5) / (lo.n - lo.k + 0.5));
+    return { kind, spreadPP: 100 * (hi.rate - lo.rate), oddsRatio: or, hi: hi.key, lo: lo.key };
+  }
+  const meds = ok.map(b => b.median); const hi = ok[meds.indexOf(Math.max(...meds))], lo = ok[meds.indexOf(Math.min(...meds))];
+  return { kind, spreadMedian: hi.median - lo.median, cliffsDelta: cliffsDelta(hi._ys, lo._ys), hi: hi.key, lo: lo.key };
+}
+function monotonicOf(featureNames, buckets, kind) {
+  if (featureNames.length !== 1) return null;
+  const f = F.get(featureNames[0]); if (f.type !== 'ordinal') return null;
+  const ok = buckets.filter(b => b.n > 0); if (ok.length < 3) return null;
+  const x = ok.map(b => f.levels.indexOf(b.labels[0])), y = ok.map(b => kind === 'binary' ? b.rate : b.median);
+  const rho = spearman(x, y); return { spearman: rho, direction: rho == null ? null : (rho > 0 ? 'crescător' : 'descrescător') };
+}
+
+// ---------- nucleul ----------
+function analyzeRows(rows, featureNames, kind, opts) {
+  const order = orderedLevels(featureNames, rows);
+  const by = new Map(); for (const r of rows) { const k = bucketKey(r.labels); if (!by.has(k)) by.set(k, []); by.get(k).push(r.y); }
+  const buckets = order.map(({ key, labels }) => { const ys = by.get(key) || []; const s = summarize(kind, ys, opts.ci); return Object.assign({ key, labels, _ys: ys }, s); });
+  const baseline = summarize(kind, rows.map(r => r.y), opts.ci);
+  const groups = buckets.filter(b => b.n >= opts.nMin).map(b => b._ys);
+  const test = kind === 'binary' ? testBinary(groups) : testContinuous(groups);
+  return { buckets, baseline, test, effect: effectOf(kind, buckets, opts.nMin), monotonic: monotonicOf(featureNames, buckets, kind) };
+}
+function sameSign(a, b) { return (a > 0 && b > 0) || (a < 0 && b < 0) || (a === 0 && b === 0); }
+
+function analyze({ cycles, stats, features, target, filters, train, opts }) {
+  opts = Object.assign({}, DEFAULT_OPTS, opts || {});
+  if (!cycles && stats) cycles = fromStats(stats);
+  if (!Array.isArray(features) || !features.length) throw new Error('features[] obligatoriu');
+  checkTiming(features, target);
+  const t = T.get(target), kind = t.kind;
+  const all = applyFilters(ensureSrcSession(cycles), filters).slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : (a.dateKey > b.dateKey ? 1 : 0));
+  const params = F.fitAll(features, train ? applyFilters(train, filters) : all);
+  const rows = labelRows(all, features, target, params);
+  const main = analyzeRows(rows, features, kind, opts);
+
+  // stabilitate 1: jumătăți temporale — fit pe H1, aplicat pe H1 și H2
+  let halves = null;
+  if (opts.halves && all.length >= 2 * opts.nMin) {
+    const mid = Math.floor(all.length / 2), H1 = all.slice(0, mid), H2 = all.slice(mid);
+    const pH = F.fitAll(features, H1);
+    const r1 = analyzeRows(labelRows(H1, features, target, pH), features, kind, opts), r2 = analyzeRows(labelRows(H2, features, target, pH), features, kind, opts);
+    const dev = r => Object.fromEntries(r.buckets.filter(b => b.n >= opts.nMin).map(b => [b.key, kind === 'binary' ? b.rate - r.baseline.rate : b.median - r.baseline.median]));
+    const d1 = dev(r1), d2 = dev(r2);
+    const sp = r => kind === 'binary' ? r.effect.spreadPP : r.effect.spreadMedian;
+    const s1 = sp(r1), s2 = sp(r2);
+    // Semnul se compară doar pe bucket-urile MATERIALE în H1 (|deviație| >= 25% din spread-ul H1): un bucket de
+    // mijloc care stă lângă baseline poate flutura de o parte și de alta fără să spună nimic despre stabilitate.
+    // ... și doar pe bucket-uri cu greutate (n_H1 >= max(nMin, 3% din rândurile H1)): un bucket rar (ex. PreBO Flat)
+    // deviază zgomotos în H1 și își schimbă semnul în H2 fără să spună nimic despre edge-ul principal.
+    const unit = kind === 'binary' ? 100 : 1, thr = s1 != null ? 0.25 * Math.abs(s1) / unit : 0;
+    const nMat = Math.max(opts.nMin, Math.ceil(0.03 * r1.baseline.n));
+    const n1 = Object.fromEntries(r1.buckets.map(b => [b.key, b.n]));
+    const common = Object.keys(d1).filter(k => k in d2 && Math.abs(d1[k]) >= thr && n1[k] >= nMat);
+    const agree = common.filter(k => sameSign(d1[k], d2[k])).length;
+    // ordinea hi/lo din setul întreg trebuie să se păstreze în H2 (hi > lo)
+    const v2 = Object.fromEntries(r2.buckets.map(b => [b.key, kind === 'binary' ? b.rate : b.median]));
+    const hiLoKept = (main.effect.hi in v2 && main.effect.lo in v2) ? v2[main.effect.hi] > v2[main.effect.lo] : null;
+    halves = { splitDate: H2[0] && H2[0].dateKey, n1: r1.baseline.n, n2: r2.baseline.n, bucketsCompared: common.length, signAgree: agree, signAgreeShare: common.length ? agree / common.length : null, hiLoKept,
+               spread1: s1, spread2: s2, retention: (s1 && s2 != null && s1 !== 0) ? s2 / s1 : null,
+               h1: r1.buckets.map(b => ({ key: b.key, n: b.n, v: kind === 'binary' ? b.rate : b.median })), h2: r2.buckets.map(b => ({ key: b.key, n: b.n, v: kind === 'binary' ? b.rate : b.median })) };
+  }
+  // stabilitate 2: pe ani (parametrii din setul întreg; scop = consistența semnului efectului hi-vs-lo an de an)
+  let yearly = null;
+  if (opts.yearly && main.effect && main.effect.hi && main.effect.lo) {
+    const years = [...new Set(rows.map(r => r.c.dateKey.slice(0, 4)))].sort();
+    const rowsHi = rows.filter(r => bucketKey(r.labels) === main.effect.hi), rowsLo = rows.filter(r => bucketKey(r.labels) === main.effect.lo);
+    const perYear = years.map(y => {
+      const a = rowsHi.filter(r => r.c.dateKey.startsWith(y)).map(r => r.y), b = rowsLo.filter(r => r.c.dateKey.startsWith(y)).map(r => r.y);
+      const va = kind === 'binary' ? (a.length ? a.filter(Boolean).length / a.length : null) : quantile(sortNum(a), 0.5);
+      const vb = kind === 'binary' ? (b.length ? b.filter(Boolean).length / b.length : null) : quantile(sortNum(b), 0.5);
+      return { year: y, nHi: a.length, nLo: b.length, hi: va, lo: vb, diff: (va != null && vb != null) ? va - vb : null };
+    }).filter(r => r.nHi >= 10 && r.nLo >= 10);
+    const pos = perYear.filter(r => r.diff > 0).length;
+    yearly = { years: perYear.length, hiAboveLo: pos, share: perYear.length ? pos / perYear.length : null, detail: perYear };
+  }
+
+  const buckets = main.buckets.map(b => { const o = Object.assign({}, b); delete o._ys; return o; });
+  return { meta: { features, target, kind, decidedAt: t.decidedAt, filters: filters || null, n: rows.length, nMin: opts.nMin, params },
+           buckets, baseline: main.baseline, test: main.test, effect: main.effect, monotonic: main.monotonic, stability: { halves, yearly } };
+}
+
+// ---------- gate (L5 folosește asta) ----------
+function gate(res, g) {
+  g = Object.assign({ nMin: 30, alpha: 0.05, minSpreadPP: 5, minCliff: 0.1, minSignAgree: 0.75, minRetention: 0.5, minYearShare: 0.65, minBuckets: 2 }, g || {});
+  const reasons = [];
+  const ok = res.buckets.filter(b => b.n >= g.nMin).length;
+  if (ok < g.minBuckets) reasons.push(`doar ${ok} bucket-uri cu n>=${g.nMin}`);
+  const p = res.qValue != null ? res.qValue : res.test.p;
+  if (!(p < g.alpha)) reasons.push(`p${res.qValue != null ? '(BH)' : ''}=${p == null ? 'n/a' : p.toExponential(1)} >= ${g.alpha}`);
+  if (res.meta.kind === 'binary') { if (!(res.effect.spreadPP >= g.minSpreadPP)) reasons.push(`spread ${res.effect.spreadPP == null ? 'n/a' : res.effect.spreadPP.toFixed(1)}pp < ${g.minSpreadPP}`); }
+  else if (!(Math.abs(res.effect.cliffsDelta || 0) >= g.minCliff)) reasons.push(`cliff ${res.effect.cliffsDelta == null ? 'n/a' : res.effect.cliffsDelta.toFixed(2)} < ${g.minCliff}`);
+  const h = res.stability.halves;
+  if (h) {
+    // toleranță: cel puțin un bucket poate diverge (la 2–4 bucket-uri comparate, 75% strict ar cere perfecțiune)
+    const allowed = Math.max(1, Math.floor((1 - g.minSignAgree) * h.bucketsCompared));
+    if (h.bucketsCompared && (h.bucketsCompared - h.signAgree) > allowed) reasons.push(`semn identic pe jumătăți ${h.signAgree}/${h.bucketsCompared}`);
+    if (h.hiLoKept === false) reasons.push('ordinea hi/lo nu se păstrează în H2');
+    if (!(h.retention >= g.minRetention)) reasons.push(`retenție spread H2/H1 ${h.retention == null ? 'n/a' : h.retention.toFixed(2)} < ${g.minRetention}`);
+  }
+  const y = res.stability.yearly;
+  if (y && y.years >= 4 && !(y.share >= g.minYearShare)) reasons.push(`hi>lo doar în ${y.hiAboveLo}/${y.years} ani`);
+  return { pass: reasons.length === 0, reasons };
+}
+
+// ---------- grilă (singles + perechi) cu BH ----------
+function grid({ cycles, stats, features, targets, filters, maxOrder = 2, opts, gateOpts }) {
+  if (!cycles && stats) cycles = fromStats(stats);
+  const fNames = features || F.FEATURES.filter(f => f.type !== 'continuous').map(f => f.name);
+  const tNames = targets || T.TARGETS.filter(t => !/^slHit_/.test(t.name)).map(t => t.name);
+  const combos = []; for (const a of fNames) combos.push([a]);
+  if (maxOrder >= 2) for (let i = 0; i < fNames.length; i++) for (let j = i + 1; j < fNames.length; j++) combos.push([fNames[i], fNames[j]]);
+  const results = [];
+  for (const tg of tNames) for (const fs of combos) {
+    try { results.push(analyze({ cycles, features: fs, target: tg, filters, opts })); } catch (e) { if (!/leakage/.test(e.message)) throw e; }
+  }
+  const q = benjaminiHochberg(results.map(r => r.test.p == null ? 1 : r.test.p));
+  results.forEach((r, i) => { r.qValue = q[i]; r.gate = gate(r, gateOpts); });
+  results.sort((a, b) => (b.gate.pass - a.gate.pass) || ((b.effect.spreadPP || Math.abs(b.effect.cliffsDelta || 0) * 100 || 0) - (a.effect.spreadPP || Math.abs(a.effect.cliffsDelta || 0) * 100 || 0)));
+  return results;
+}
+
+// ---------- afișare compactă ----------
+function format(res, { maxBuckets = 40 } = {}) {
+  const k = res.meta.kind, L = [];
+  L.push(`${res.meta.features.join(' × ')} → ${res.meta.target}  (n=${res.meta.n}${res.meta.filters ? ', filtre ' + JSON.stringify(res.meta.filters) : ''})`);
+  L.push(`  baseline: ${k === 'binary' ? (100 * res.baseline.rate).toFixed(1) + '%' : 'med ' + res.baseline.median.toFixed(3)}   test ${res.test.name} p=${res.test.p.toExponential(2)}${res.qValue != null ? ' q=' + res.qValue.toExponential(2) : ''}   efect: ${k === 'binary' ? (res.effect.spreadPP == null ? 'n/a' : res.effect.spreadPP.toFixed(1) + 'pp, OR ' + res.effect.oddsRatio.toFixed(2)) : (res.effect.cliffsDelta == null ? 'n/a' : 'Δmed ' + res.effect.spreadMedian.toFixed(3) + ', cliff ' + res.effect.cliffsDelta.toFixed(2))}${res.monotonic ? '   monoton ρ=' + res.monotonic.spearman.toFixed(2) : ''}`);
+  for (const b of res.buckets.slice(0, maxBuckets)) L.push(`  ${b.key.padEnd(34)} n=${String(b.n).padStart(5)}  ${k === 'binary' ? (100 * b.rate).toFixed(1).padStart(5) + '%  [' + (100 * b.ci.lo).toFixed(1) + '–' + (100 * b.ci.hi).toFixed(1) + ']' : 'med ' + b.median.toFixed(3) + '  q25 ' + b.q25.toFixed(3) + '  q75 ' + b.q75.toFixed(3) + '  p90 ' + b.p90.toFixed(3)}${b.n < res.meta.nMin ? '  (n mic)' : ''}`);
+  const h = res.stability.halves; if (h) L.push(`  jumătăți (split ${h.splitDate}): semn identic ${h.signAgree}/${h.bucketsCompared} (materiale)${h.hiLoKept === false ? ', hi/lo INVERSAT în H2' : ''}, spread H1 ${h.spread1 == null ? 'n/a' : h.spread1.toFixed(2)} → H2 ${h.spread2 == null ? 'n/a' : h.spread2.toFixed(2)} (retenție ${h.retention == null ? 'n/a' : h.retention.toFixed(2)})`);
+  const y = res.stability.yearly; if (y) L.push(`  ani: hi>lo în ${y.hiAboveLo}/${y.years}`);
+  if (res.gate) L.push(`  GATE: ${res.gate.pass ? 'PASS' : 'FAIL — ' + res.gate.reasons.join('; ')}`);
+  return L.join('\n');
+}
+
+module.exports = { analyze, gate, grid, format, fromStats, benjaminiHochberg, wilson, chi2Pvalue, spearman, cliffsDelta, quantile, DEFAULT_OPTS };
+
+});
+__define("/playbook/index.js", function (module, exports, require) {
+// dridr-core/playbook/index.js — L6: Playbook (arhitectura v2, Pasul 6, 10 sep 2026).
+//
+// SINGURUL loc care produce numere de tranzacționare. Intrare: un Asset Profile (profiles/<asset>.json) + starea unui
+// ciclu la un moment dat ('boxClose' sau 'confirm'). Ieșire: o decizie transparentă — fiecare număr spune din ce
+// edge/bucket vine și pe câte observații se bazează. Fără model, fără fit: doar căutare în profil + quantile.
+//
+//   const PB = require('./playbook');
+//   PB.decide(profile, cycle, { stage: 'confirm', tp: 1, slQuantile: 'p75', minConf: 0.60 })
+//
+// Reguli:
+//   - la 'boxClose' se folosesc doar features availableAt=boxClose; la 'confirm' și cele availableAt=confirm;
+//   - pentru fiecare target se alege edge-ul al cărui bucket (pentru acest ciclu) are n >= nMin și cea mai mare
+//     „informație" (|P − baseline| pentru binary, n pentru continuous — quantilele cer eșantion); dacă niciun edge nu
+//     are bucket valid ⇒ baseline-ul sesiunii ⇒ decizia poartă `source: 'baseline'`;
+//   - „no edge" direcțional = P(up) în [1−minConf, minConf] ⇒ fără bias; se tranzacționează doar confirmarea;
+//   - SL = quantila cerută (p50/p75/p90) din MAE-înainte-de-TP pentru TP-ul ales, rotunjită ÎN SUS la grila SL
+//     (PATH_SL_GRID) ca outcome-ul să fie evaluabil exact din rawCycle.path; toate distanțele sunt în R de la
+//     marginea de trigger; față de intrarea reală (confirmClose) se aplică confirmSlipR.
+'use strict';
+const E = require('../engine.js'), F = require('../features/index.js');
+
+const STAGE_RANK = { boxClose: 0, confirm: 1, sessionEnd: 2 };
+
+function labelsFor(edge, cycle) {
+  // params salvați în profil (full.params) — chintile, praguri etc. calculate pe setul profilului
+  return edge.features.map(n => F.labelOf(n, cycle, edge.full.params));
+}
+function bucketFor(edge, cycle) {
+  const labels = labelsFor(edge, cycle);
+  if (labels.some(l => l === null || l === undefined)) return null;
+  const key = labels.join(' × ');
+  return edge.full.buckets.find(b => b.key === key) || null;
+}
+function edgesFor(profile, target, stage) {
+  return profile.edges.filter(e => e.target === target && e.features.every(n => STAGE_RANK[F.get(n).availableAt] <= STAGE_RANK[stage]));
+}
+// alege bucket-ul cel mai informativ pentru acest ciclu
+function lookup(profile, target, cycle, stage, nMin) {
+  let best = null;
+  for (const e of edgesFor(profile, target, stage)) {
+    const b = bucketFor(e, cycle);
+    if (!b || b.n < nMin) continue;
+    const info = e.kind === 'binary' ? Math.abs(b.rate - e.full.baseline.rate) : Math.log(b.n);
+    if (!best || info > best.info) best = { info, edge: e, bucket: b };
+  }
+  return best;
+}
+function roundUpToGrid(v, grid) { for (const g of grid) if (g >= v - 1e-9) return g; return grid[grid.length - 1]; }
+function q(bucket, which) { return which === 'p50' ? bucket.median : (which === 'p75' ? bucket.q75 : (which === 'p90' ? bucket.p90 : bucket.median)); }
+
+function decide(profile, cycle, opts = {}) {
+  const stage = opts.stage || (cycle.direction === 'up' || cycle.direction === 'down' ? 'confirm' : 'boxClose');
+  const nMin = opts.nMin || 30, minConf = opts.minConf || 0.60, TP = opts.tp || 1, SLQ = opts.slQuantile || 'p75';
+  const s = cycle.srcSession, base = profile.baseline[s];
+  const out = { asset: profile.asset, session: s, dateKey: cycle.dateKey, stage, tp: TP, slQuantile: SLQ };
+
+  // 1. direcție (doar boxClose features)
+  const d = lookup(profile, 'dirUp', cycle, 'boxClose', nMin);
+  const pUp = d ? d.bucket.rate : base.pUp;
+  out.direction = { pUp, bias: pUp >= minConf ? 'up' : (pUp <= 1 - minConf ? 'down' : null), confidence: Math.abs(pUp - 0.5) * 2,
+                    source: d ? { edge: d.edge.features, bucket: d.bucket.key, n: d.bucket.n } : 'baseline' };
+
+  // 2. dacă e confirmat: aliniere, P(True), TP, SL, expectancy
+  const conf = cycle.direction === 'up' || cycle.direction === 'down';
+  if (stage === 'confirm' && conf) {
+    out.confirmed = { direction: cycle.direction, aligned: out.direction.bias ? out.direction.bias === cycle.direction : null, slipR: cycle.confirmSlipR };
+    const t = lookup(profile, 'isTrue', cycle, 'confirm', nMin);
+    out.pTrue = { p: t ? t.bucket.rate : base.pTrue, source: t ? { edge: t.edge.features, bucket: t.bucket.key, n: t.bucket.n } : 'baseline' };
+    const h = lookup(profile, `tpHit_${TP}`, cycle, 'confirm', nMin);
+    const baseTp = base.tp.find(x => x.level === TP);
+    out.tp = { level: TP, pHit: h ? h.bucket.rate : (baseTp ? baseTp.pHit : null), source: h ? { edge: h.edge.features, bucket: h.bucket.key, n: h.bucket.n } : 'baseline' };
+    const m = lookup(profile, `tpMaeBefore_${TP}`, cycle, 'confirm', nMin);
+    const maeQ = m ? q(m.bucket, SLQ) : (baseTp ? (SLQ === 'p50' ? baseTp.maeBefore.med : (SLQ === 'p90' ? baseTp.maeBefore.p90 : baseTp.maeBefore.p75)) : null);
+    const slLevel = maeQ != null ? roundUpToGrid(maeQ, E.PATH_SL_GRID) : null;
+    out.sl = { maeBeforeQ: maeQ, level: slLevel, source: m ? { edge: m.edge.features, bucket: m.bucket.key, n: m.bucket.n } : 'baseline' };
+    // Expectancy aproximativă din profil (NU din traseu): P(win) ≈ P(TP) · P(MAE-înainte-de-TP ≤ SL | TP) unde a doua e
+    // quantila cerută (p75 ⇒ 0.75); restul se consideră pierdere la SL. Cifra exactă vine din backtest (cli/backtest.js).
+    const pSurv = SLQ === 'p50' ? 0.5 : (SLQ === 'p90' ? 0.9 : 0.75);
+    const pWin = out.tp.pHit != null ? out.tp.pHit * pSurv : null;
+    const slip = cycle.confirmSlipR || 0;
+    out.expectancyApprox = pWin != null && slLevel != null ? { pWin, winR: TP - slip, lossR: slLevel + slip, expR: pWin * (TP - slip) - (1 - pWin) * (slLevel + slip) } : null;
+    // prețuri
+    const R = cycle.drRange, edge = cycle.direction === 'up' ? cycle.trigHigh : cycle.trigLow, sgn = cycle.direction === 'up' ? 1 : -1;
+    out.prices = { entry: cycle.confirmClose, tp: edge + sgn * TP * R, sl: slLevel != null ? edge - sgn * slLevel * R : null, triggerEdge: edge, drRange: R };
+  }
+  return out;
+}
+
+// text scurt, pentru UI/CLI
+function explain(dec) {
+  const pct = v => v == null ? 'n/a' : (100 * v).toFixed(0) + '%';
+  const src = s => s === 'baseline' ? 'baseline' : `${s.edge.join('×')}=[${s.bucket}] n=${s.n}`;
+  const L = [`${dec.asset} ${dec.session} ${dec.dateKey} @${dec.stage}`];
+  L.push(`  direcție: P(up)=${pct(dec.direction.pUp)} → ${dec.direction.bias || 'fără bias (no edge)'}  [${src(dec.direction.source)}]`);
+  if (dec.confirmed) {
+    L.push(`  confirmat ${dec.confirmed.direction}${dec.confirmed.aligned == null ? '' : dec.confirmed.aligned ? ' (aliniat)' : ' (CONTRA bias)'}, slip ${dec.confirmed.slipR.toFixed(2)}R · P(True)=${pct(dec.pTrue.p)} [${src(dec.pTrue.source)}]`);
+    L.push(`  TP ${dec.tp.level}R: P(atins)=${pct(dec.tp.pHit)} [${src(dec.tp.source)}] · SL: MAE-înainte ${dec.slQuantile}=${dec.sl.maeBeforeQ == null ? 'n/a' : dec.sl.maeBeforeQ.toFixed(2)}R → ${dec.sl.level}R [${src(dec.sl.source)}]`);
+    if (dec.expectancyApprox) L.push(`  expectancy≈ ${dec.expectancyApprox.expR.toFixed(2)}R/trade (P(win)≈${pct(dec.expectancyApprox.pWin)}, +${dec.expectancyApprox.winR.toFixed(2)} / −${dec.expectancyApprox.lossR.toFixed(2)})`);
+    if (dec.prices) L.push(`  prețuri: entry ${dec.prices.entry}  TP ${dec.prices.tp.toFixed(4)}  SL ${dec.prices.sl == null ? 'n/a' : dec.prices.sl.toFixed(4)}`);
+  }
+  return L.join('\n');
+}
+
+module.exports = { decide, explain, lookup, bucketFor, roundUpToGrid };
+
+});
+__define("/ui/modules_tab.js", function (module, exports, require) {
+// dridr-core/ui/modules_tab.js — Seria 1: UI generic pentru modulele din modules.json (11 sep 2026).
+// Un singur renderer pentru toate modulele: modul → target → breakdown + filtre comune (sesiune, zile, rezultat,
+// interval 30 min al confirmării) ⇒ stats.analyze() ⇒ grafic + tabel (n, rată + CI Wilson | mediană/q25/q75/p90)
+// + ștampila seriei 3 (gate live pe datele încărcate) + statusul din Asset Profile dacă e încărcat (activ/inactiv/netestat).
+// NU calculează nimic singur — totul vine din stats/features/targets. Fără dependențe în afară de Chart.js (global).
+'use strict';
+const E = require('../engine.js'), F = require('../features/index.js'), T = require('../targets/index.js'), S = require('../stats/index.js');
+const MODULES = require('../modules.json');
+
+const state = { moduleId: null, target: null, breakdown: null, session: 'ALL', dows: new Set(E.DOW), outcome: 'all', intervals: new Set(), profile: null, chart: null, cycles: null };
+const DOW_RO = { Monday: 'Lu', Tuesday: 'Ma', Wednesday: 'Mi', Thursday: 'Jo', Friday: 'Vi' };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pct = v => v == null ? '–' : (100 * v).toFixed(1) + '%';
+const f3 = v => v == null ? '–' : Number(v).toFixed(3);
+
+// ---------- markup ----------
+function markup() {
+  const mods = MODULES.modules.slice().sort((a, b) => a.order - b.order);
+  return `
+  <div class="panel">
+    <h2>Module de analiză <span class="n">— seria 1 · fiecare modul e o fereastră spre același motor statistic (stats.analyze); nimic nu e calculat separat</span></h2>
+    <div class="mod-row" id="modBtns">${mods.map(m => `<button type="button" class="expl-toggle-btn mod-btn${m.status === 'planned' ? ' planned' : ''}" data-mod="${m.id}">${esc(m.label)}${m.status === 'planned' ? ' <span class="mod-soon">în lucru</span>' : ''}</button>`).join('')}</div>
+    <p class="mod-desc" id="modDesc"></p>
+  </div>
+  <div class="panel expl-filterbar" id="modFilters">
+    <div class="mod-filter"><label>Target</label><div id="modTargets" class="mod-row"></div></div>
+    <div class="mod-filter"><label>Breakdown (axa graficului)</label><div id="modBreakdowns" class="mod-row"></div></div>
+    <div class="mod-filter"><label>Sesiune</label><div id="modSession" class="mod-row">${['ALL', ...E.SESSIONS].map(s => `<button type="button" class="expl-toggle-btn${s === 'ALL' ? ' active' : ''}" data-v="${s}">${s}</button>`).join('')}</div></div>
+    <div class="mod-filter"><label>Zile</label><div id="modDows" class="mod-row">${E.DOW.map(d => `<button type="button" class="expl-toggle-btn active" data-v="${d}">${DOW_RO[d]}</button>`).join('')}</div></div>
+    <div class="mod-filter"><label>Rezultat</label><div id="modOutcome" class="mod-row">${[['all', 'All'], ['true', 'True'], ['false', 'False']].map(([v, l]) => `<button type="button" class="expl-toggle-btn${v === 'all' ? ' active' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div>
+    <div class="mod-filter mod-filter-wide"><label>Intervalul confirmării (30 min de la închiderea PreBO) <span class="n">— niciunul selectat = toate; ciclurile Inside nu au confirmare și ies când e activ</span></label><div id="modIntervals" class="mod-row"></div></div>
+  </div>
+  <div class="panel">
+    <div class="mod-kpis" id="modKpis"></div>
+    <div class="chart-box mod-chart"><canvas id="modChart"></canvas></div>
+    <div id="modStamp" class="mod-stamp"></div>
+    <div class="mod-table-wrap"><table class="mod-table" id="modTable"></table></div>
+    <div class="mod-profile" id="modProfile"></div>
+  </div>`;
+}
+const CSS = `
+.mod-row{display:flex;flex-wrap:wrap;gap:6px}.mod-btn{font-weight:600}.mod-btn.planned{opacity:.55}.mod-soon{font-size:10px;color:var(--muted);font-weight:400;margin-left:4px}
+.mod-desc{color:var(--muted);font-size:12px;line-height:1.5;margin:10px 0 0}.mod-filter{display:flex;flex-direction:column;gap:6px;min-width:160px}.mod-filter-wide{flex:1 1 100%}
+.mod-filter label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.mod-kpis{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}.mod-kpi{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:120px}
+.mod-kpi .v{font-size:20px;font-weight:700}.mod-kpi .l{font-size:11px;color:var(--muted)}.mod-chart{height:320px}
+.mod-stamp{margin:12px 0;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);font-size:12px;line-height:1.6}
+.mod-stamp .ok{color:var(--up);font-weight:700}.mod-stamp .ko{color:var(--down);font-weight:700}
+.mod-table-wrap{overflow-x:auto}.mod-table{width:100%;border-collapse:collapse;font-size:12px}.mod-table th,.mod-table td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+.mod-table th:first-child,.mod-table td:first-child{text-align:left}.mod-table tr.small td{color:var(--muted)}
+.mod-profile{margin-top:12px;font-size:12px;color:var(--muted)}.mod-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;margin-right:6px}
+.mod-badge.activ{background:var(--up);color:#fff}.mod-badge.inactiv{background:var(--down);color:#fff}.mod-badge.netestat{background:var(--inside);color:#fff}
+.mod-empty{color:var(--muted);padding:20px;text-align:center}`;
+
+// ---------- init ----------
+function init(containerId) {
+  const root = $(containerId); if (!root) return;
+  const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+  root.innerHTML = markup();
+  const mods = MODULES.modules.slice().sort((a, b) => a.order - b.order);
+  root.querySelectorAll('.mod-btn').forEach(b => b.addEventListener('click', () => selectModule(b.dataset.mod)));
+  bindGroup('modSession', v => { state.session = v; render(); }, false);
+  bindGroup('modDows', (v, set) => { state.dows = set; render(); }, true);
+  bindGroup('modOutcome', v => { state.outcome = v; render(); }, false);
+  selectModule(mods[0].id);
+  tryLoadProfile();
+}
+function bindGroup(id, onChange, multi) {
+  const el = $(id);
+  el.addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    if (multi) { b.classList.toggle('active'); onChange(null, new Set([...el.querySelectorAll('button.active')].map(x => x.dataset.v))); }
+    else { el.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); onChange(b.dataset.v); }
+  });
+}
+function selectModule(id) {
+  const m = MODULES.modules.find(x => x.id === id); if (!m) return;
+  state.moduleId = id;
+  document.querySelectorAll('.mod-btn').forEach(b => b.classList.toggle('active', b.dataset.mod === id));
+  $('modDesc').textContent = m.description;
+  const targets = m.targets || [], bds = (m.breakdowns || []).filter(n => { try { F.get(n); return true; } catch (_) { return false; } });
+  // la schimbarea modulului pornim de la default-urile lui (fiecare modul are propria întrebare)
+  state.target = m.defaultTarget || targets[0] || null;
+  state.breakdown = m.defaultBreakdown || bds[0] || null;
+  $('modTargets').innerHTML = targets.map(t => `<button type="button" class="expl-toggle-btn${t === state.target ? ' active' : ''}" data-v="${t}" title="${esc(T.get(t).label)}">${esc(shortLabel(T.get(t).label, t))}</button>`).join('') || '<span class="n">—</span>';
+  $('modBreakdowns').innerHTML = bds.map(n => `<button type="button" class="expl-toggle-btn${n === state.breakdown ? ' active' : ''}" data-v="${n}" title="${esc(F.get(n).label)}">${esc(shortLabel(F.get(n).label, n))}</button>`).join('') || '<span class="n">—</span>';
+  $('modTargets').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.target = b.dataset.v; $('modTargets').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); render(); };
+  $('modBreakdowns').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.breakdown = b.dataset.v; $('modBreakdowns').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); render(); };
+  render();
+}
+const SHORT = { triggerBucket30: 'Ora confirmării (30 min)', drRangeRelQ: 'Range relativ (chintilă)', drRangeQ: 'Range absolut (chintilă)', drRangeT: 'Range (tercilă)', momPre4hQ: 'Momentum 4h pre-PreBO', momPre1dQ: 'Momentum 24h pre-PreBO', trendBucket: 'mom60 (≡ mărimea PreBO)', preBOAligned: 'PreBO aliniat / contra', refStructure: 'Structura ref.', refPreBO: 'PreBO ref.', assAlign: 'ASS aliniere 1H/4H/D', 'tpMaeBefore_0.5': 'MAE înainte de TP 0.5R', tpMaeBefore_1: 'MAE înainte de TP 1R', 'tpMaeBefore_1.5': 'MAE înainte de TP 1.5R', tpMaeBefore_2: 'MAE înainte de TP 2R', retrBeforeR: 'Retragere ÎNAINTE de confirmare', retrR: 'Retragere DUPĂ confirmare (MAE fitil)', maeCloseR: 'MAE pe close' };
+function shortLabel(label, key) { return SHORT[key] || (label.length > 34 ? key : label); }
+
+// ---------- date ----------
+function setData(allStats, rows) {
+  if (!allStats) { state.cycles = null; render(); return; }
+  state.cycles = S.fromStats(allStats, rows || undefined);
+  // grila de intervale: din dispDurMin maxim
+  const maxDur = Math.max(...E.SESSIONS.map(s => allStats[s] ? allStats[s].dispDurMin : 0));
+  const el = $('modIntervals'); if (el) {
+    const btns = []; for (let m = 0; m < maxDur; m += 30) btns.push(`<button type="button" class="expl-grid-btn${state.intervals.has(m) ? ' active' : ''}" data-v="${m}">${E.elapsedLabel(m)}</button>`);
+    el.innerHTML = btns.join('');
+    el.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; const v = Number(b.dataset.v); if (state.intervals.has(v)) state.intervals.delete(v); else state.intervals.add(v); b.classList.toggle('active'); render(); };
+  }
+  render();
+}
+function filteredCycles() {
+  let cyc = state.cycles || [];
+  if (state.session !== 'ALL') cyc = cyc.filter(c => c.srcSession === state.session);
+  if (state.dows.size < E.DOW.length) cyc = cyc.filter(c => state.dows.has(c.dow));
+  if (state.outcome === 'true') cyc = cyc.filter(c => c.ruleHold === true); else if (state.outcome === 'false') cyc = cyc.filter(c => c.ruleHold === false);
+  if (state.intervals.size) cyc = cyc.filter(c => c.triggerElapsed != null && state.intervals.has(Math.floor(c.triggerElapsed / 30) * 30));
+  return cyc;
+}
+
+// ---------- render ----------
+function render() {
+  const m = MODULES.modules.find(x => x.id === state.moduleId);
+  const kp = $('modKpis'), tb = $('modTable'), stamp = $('modStamp'), prof = $('modProfile');
+  if (!kp) return;
+  if (!m || m.status === 'planned' || !state.target || !state.breakdown) { kp.innerHTML = `<div class="mod-empty">${m && m.status === 'planned' ? 'Modul planificat — vezi descrierea.' : 'Alege un target și un breakdown.'}</div>`; tb.innerHTML = ''; stamp.innerHTML = ''; prof.innerHTML = ''; destroyChart(); return; }
+  if (!state.cycles) { kp.innerHTML = '<div class="mod-empty">Încarcă un CSV (panoul Sursă) — modulele se calculează din datele încărcate.</div>'; tb.innerHTML = ''; stamp.innerHTML = ''; prof.innerHTML = ''; destroyChart(); return; }
+  const cyc = filteredCycles();
+  let res;
+  try { res = S.analyze({ cycles: cyc, features: [state.breakdown], target: state.target, opts: { nMin: 30, yearly: false } }); }
+  catch (e) { kp.innerHTML = `<div class="mod-empty">${esc(e.message)}</div>`; tb.innerHTML = ''; stamp.innerHTML = ''; destroyChart(); return; }
+  const kind = res.meta.kind, tg = T.get(state.target), fb = F.get(state.breakdown);
+  // KPI
+  const base = res.baseline;
+  kp.innerHTML = [
+    ['n cicluri (după filtre)', String(res.meta.n)],
+    [kind === 'binary' ? 'rată globală' : 'mediană globală', kind === 'binary' ? pct(base.rate) : f3(base.median)],
+    kind === 'binary' ? null : ['q25 – q75', `${f3(base.q25)} – ${f3(base.q75)}`],
+    ['efect hi − lo', kind === 'binary' ? (res.effect.spreadPP == null ? '–' : res.effect.spreadPP.toFixed(1) + ' pp') : (res.effect.spreadMedian == null ? '–' : f3(res.effect.spreadMedian) + ' R')],
+    ['test', res.test.p == null ? '–' : `${res.test.name} p=${res.test.p < 1e-4 ? res.test.p.toExponential(1) : res.test.p.toFixed(4)}`],
+    res.monotonic ? ['monotonie', `ρ=${res.monotonic.spearman.toFixed(2)}`] : null,
+  ].filter(Boolean).map(([l, v]) => `<div class="mod-kpi"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+  // grafic
+  drawChart(res, kind, tg, fb);
+  // tabel
+  const head = kind === 'binary' ? '<tr><th>bucket</th><th>n</th><th>rată</th><th>CI 95%</th></tr>' : '<tr><th>bucket</th><th>n</th><th>mediană</th><th>q25</th><th>q75</th><th>p90</th></tr>';
+  tb.innerHTML = head + res.buckets.map(b => `<tr class="${b.n < 30 ? 'small' : ''}"><td>${esc(labelOfBucket(b, fb))}</td><td>${b.n}</td>${kind === 'binary' ? `<td>${pct(b.rate)}</td><td>${pct(b.ci.lo)} – ${pct(b.ci.hi)}</td>` : `<td>${f3(b.median)}</td><td>${f3(b.q25)}</td><td>${f3(b.q75)}</td><td>${f3(b.p90)}</td>`}</tr>`).join('');
+  // ștampila seriei 3 (live, pe datele încărcate)
+  const g = S.gate(res, { nMin: 30 });
+  const h = res.stability.halves;
+  stamp.innerHTML = `<b>Seria 3 (pe datele încărcate, cu filtrele curente):</b> <span class="${g.pass ? 'ok' : 'ko'}">${g.pass ? 'TRECE' : 'NU TRECE'}</span>${g.pass ? '' : ' — ' + esc(g.reasons.join('; '))}` +
+    (h ? `<br><span class="n">jumătăți temporale (split ${h.splitDate}): semn identic ${h.signAgree}/${h.bucketsCompared} bucket-uri materiale${h.hiLoKept === false ? ', ordinea hi/lo INVERSATĂ în a doua jumătate' : ''}, retenția efectului ${h.retention == null ? '–' : h.retention.toFixed(2)}</span>` : '') +
+    `<br><span class="n">Gate-ul de aici e informativ — ștampila oficială vine din Asset Profile (train/test, walk-forward, corecție de multiplicitate). Filtrele reduc n; sub 30 pe bucket celula e gri.</span>`;
+  // status din profil
+  prof.innerHTML = profileStatusHTML(state.breakdown, state.target);
+}
+function labelOfBucket(b, fb) { if (fb.name === 'triggerBucket30') return E.elapsedLabel(Number(b.labels[0])) + ' – ' + E.elapsedLabel(Number(b.labels[0]) + 30); return b.key; }
+function destroyChart() { if (state.chart) { state.chart.destroy(); state.chart = null; } }
+function drawChart(res, kind, tg, fb) {
+  destroyChart();
+  if (typeof Chart === 'undefined') return;
+  const ctx = $('modChart').getContext('2d');
+  const labels = res.buckets.map(b => labelOfBucket(b, fb));
+  const main = res.buckets.map(b => kind === 'binary' ? 100 * b.rate : b.median);
+  const band = res.buckets.map(b => kind === 'binary' ? [100 * b.ci.lo, 100 * b.ci.hi] : [b.q25, b.q75]);
+  const colors = res.buckets.map(b => b.n < 30 ? 'rgba(107,115,131,0.45)' : 'rgba(63,140,255,0.85)');
+  state.chart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: kind === 'binary' ? 'rată (%)' : 'mediană (R)', data: main, backgroundColor: colors, borderRadius: 4, order: 2 },
+      { label: kind === 'binary' ? 'CI 95%' : 'q25 – q75', data: band, backgroundColor: 'rgba(255,255,255,0.22)', borderColor: 'rgba(255,255,255,0.6)', borderWidth: 1, barPercentage: 0.25, order: 1 },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, grouped: false,
+      plugins: { legend: { labels: { color: '#c9cdd6' } }, tooltip: { callbacks: { afterBody: items => { const b = res.buckets[items[0].dataIndex]; return [`n = ${b.n}` + (b.n < 30 ? ' (sub 30 — orientativ)' : '')]; } } } },
+      scales: { x: { ticks: { color: '#c9cdd6', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.06)' } }, y: { beginAtZero: true, max: kind === 'binary' ? 100 : undefined, ticks: { color: '#c9cdd6' }, grid: { color: 'rgba(255,255,255,0.08)' }, title: { display: true, text: kind === 'binary' ? tg.label + ' (%)' : tg.label + ' (R)', color: '#c9cdd6' } } } }
+  });
+}
+
+// ---------- Asset Profile (seria 2/3): status activ / inactiv / netestat ----------
+function setProfile(p) { state.profile = p; render(); }
+async function tryLoadProfile() {
+  // pe GitHub Pages / local: profiles/<asset>.json lângă index.html (dacă a fost publicat); altfel rămâne netestat
+  if (typeof location !== 'undefined' && location.protocol === 'file:') return; // fetch nu merge pe file://; folosește butonul „Încarcă profil JSON"
+  for (const asset of ['WTI', 'BTC', 'ETH']) {
+    try { const r = await fetch(`profiles/${asset}.json`, { cache: 'no-store' }); if (r.ok) { const p = await r.json(); if (p && p.edges) { setProfile(p); return; } } } catch (_) { /* ignorat */ }
+  }
+}
+function profileStatusHTML(feature, target) {
+  const p = state.profile;
+  const wrap = (badge, txt) => `<span class="mod-badge ${badge}">${badge.toUpperCase()}</span> ${txt}`;
+  if (!p) return wrap('netestat', 'Niciun Asset Profile încărcat (profiles/&lt;asset&gt;.json). Statusul oficial activ/inactiv al parametrului vine din profil (train → gate → out-of-sample → parcimonie).') + ` <button type="button" class="expl-toggle-btn" id="modProfileBtn">Încarcă profil JSON</button>`;
+  const same = (arr) => arr.length === 1 && arr[0] === feature;
+  const e = p.edges.find(x => same(x.features) && x.target === target);
+  if (e) return wrap('activ', `pe <b>${esc(p.asset)}</b> (profil ${esc((p.generatedAt || '').slice(0, 10))}): efect ${e.kind === 'binary' ? e.full.effect.spreadPP.toFixed(1) + ' pp' : 'Cliff δ ' + e.full.effect.cliffsDelta.toFixed(2)}, n=${e.full.n}, q(train)=${e.train.q.toExponential(1)}, retenție out-of-sample ${e.oos.retention.toFixed(2)}.`);
+  const rej = (p.grid.rejectedOOS || []).find(x => same(x.features) && x.target === target);
+  if (rej) return wrap('inactiv', `pe <b>${esc(p.asset)}</b>: a trecut gate-ul pe train, dar a fost respins out-of-sample (${esc(rej.reason)}). Rămâne în modul, retestabil pe alt asset sau pe date noi.`);
+  const red = (p.grid.redundantPairs || []).find(x => same(x.features) && x.target === target);
+  if (red) return wrap('inactiv', `redundant față de single-uri.`);
+  const inGrid = (p.config.gridFeatures || []).includes(feature) && (p.config.gridTargets || []).includes(target);
+  if (inGrid) return wrap('inactiv', `pe <b>${esc(p.asset)}</b>: a fost în grilă (train ${esc(p.data.trainUntil)} / test de la ${esc(p.data.testFrom)}) și NU a trecut gate-ul pe train. Retestabil pe alt asset.`);
+  return wrap('netestat', `combinația ${esc(feature)} → ${esc(target)} nu a fost în grila profilului ${esc(p.asset)}. Se adaugă la GRID_FEATURES/GRID_TARGETS și se rulează cli/profile.js.`);
+}
+document.addEventListener('click', ev => {
+  if (ev.target && ev.target.id === 'modProfileBtn') {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = async () => { const f = inp.files[0]; if (!f) return; try { setProfile(JSON.parse(await f.text())); } catch (e) { const el = $('modProfile'); if (el) el.innerHTML = '<span class="mod-badge inactiv">EROARE</span> JSON invalid: ' + esc(e.message); } };
+    inp.click();
+  }
+});
+
+module.exports = { init, setData, setProfile, render, state, MODULES };
+
+});
+  const req = __makeRequire('/');
+  const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js');
+  // globalele motorului, pentru codul HTML existent
+  Object.assign(window, E);
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, version: "0.9.0" };
+})();
 
 </script>
 <script>
 // === Motorul L1 (CFGS, parseCSV, enrich, computeSessionStats, structură, computeAllSessions etc.) e în
-// === ../dridr-core/engine.js — încărcat prin <script src> de mai sus. NU redefini aici funcțiile motorului.
+// === motorul + nucleul v3 (features/targets/stats/playbook/ui) vin din ../dridr-core/dist/dridr-core.browser.js (window.DRIDR). NU redefini aici funcțiile motorului.
 setIncludeFalseProvider(() => {
   const el = (typeof document !== 'undefined') ? document.getElementById('includeFalse') : null;
   return (el && typeof el.checked === 'boolean') ? el.checked : true;
@@ -3432,6 +4488,8 @@ function switchTopTab(t) {
   document.getElementById('toptab-retracement').classList.toggle('active', t === 'retracement');
   document.getElementById('toptab-explorer').classList.toggle('active', t === 'explorer');
   document.getElementById('toptab-prebo').classList.toggle('active', t === 'prebo');
+  document.getElementById('toptab-modules').classList.toggle('active', t === 'modules');
+  if (t === 'modules' && window.DRIDR) DRIDR.ui.render();
   document.getElementById('badgesOverview').style.display = (t === 'overview') ? 'flex' : 'none';
   document.getElementById('badgesRetracement').style.display = (t === 'retracement') ? 'flex' : 'none';
   document.getElementById('globalSessionBar').style.display = (t === 'overview') ? 'flex' : 'none'; // task #153: în Retracement selecția e în panoul de filtre
@@ -3446,6 +4504,7 @@ function switchTopTab(t) {
 
 function renderAll(stats) {
   allStats = stats;
+  if (window.DRIDR) { try { DRIDR.ui.setData(stats, lastRows); } catch (e) { console.error('modules tab', e); } }
   if (activeSession === 'ALL') {
     renderCombined(combinedOverride || computeCombinedStats(allStats));
     renderRetracementCombined(combinedOverride || computeCombinedStats(allStats));
@@ -3715,6 +4774,9 @@ const DEMO_MULTI = {"meta":{"ticker":"WTI Crude Oil (CL)","tz":"America/New_York
 combinedOverride = DEMO_MULTI.combined;
 renderAll(DEMO_MULTI.sessions);
 setStatus('Set demo: ' + DEMO_MULTI.meta.ticker + ' · RDR ' + DEMO_MULTI.sessions.RDR.nDays + ' zile, ODR ' + DEMO_MULTI.sessions.ODR.nDays + ' zile, ADR ' + DEMO_MULTI.sessions.ADR.nDays + ' zile. Alege alt folder/fișier pentru alt ticker/sursă.');
+
+// Seria 1 — tab-ul generic de module (dridr-core/ui/modules_tab.js)
+if (window.DRIDR) { try { DRIDR.ui.init('toptab-modules'); } catch (e) { console.error('modules tab init', e); } }
 </script>
 </body>
 </html>
