@@ -242,7 +242,7 @@
 // un filtru ca tool-ul să nu fie deschis de cine nimerește URL-ul. Ca să schimbi parola, înlocuiește GATE_HASH
 // cu SHA-256 al șirului 'dridr::v1::' + parola nouă (ex. în consolă: await gateHash('parola-nouă')).
 (function () {
-  const GATE_HASH = '10a9ba54f42a5a19c74343b7bd5288d7ff1f2c5649fdab7fd7ee9719d6c95490';
+  const GATE_HASH = '7ec013332fee050fedc4b7a711927417b9572e9526bf6887d17b3f32422fe50a';
   const SALT = 'dridr::v1::';
   const KEY = 'dridrGateV1';
   const gate = document.getElementById('gate');
@@ -310,6 +310,7 @@
           </div>
           <div class="field" style="justify-content:flex-end;">
             <div class="toggle"><input type="checkbox" id="useIDR"><label for="useIDR">Trigger pe IDR (nu DR)</label></div>
+            <div class="toggle" title="Bifat: statisticile de preț (extensie/retracement/PreBO/Confluence/cadrane SIM) includ și sesiunile False. Debifat: doar sesiunile True. Ratele True/False/Inside nu sunt afectate. Apasă Recalculează după schimbare."><input type="checkbox" id="includeFalse" checked><label for="includeFalse">Include sesiunile False în statistici</label></div>
           </div>
         </div>
         <button id="recalc" style="margin-top:12px;">Recalculează</button>
@@ -508,8 +509,31 @@
   </div>
 
   <div id="toptab-retracement" class="toptab-content">
+    <!-- Task #153 — filtre globale ale tab-ului Retracement: tipul de retragere (înainte/după confirmare/sesiune)
+         și tipul de sesiune (True/False/All). Toate graficele, badge-urile și comparațiile din acest tab se
+         recalculează din rawCycles conform acestor filtre (vezi retrTabState / retrTabStats()). -->
+    <div class="panel" id="retrTabFilters">
+      <div style="display:flex; flex-wrap:wrap; gap:22px; align-items:flex-start;">
+        <div class="expl-fgroup">
+          <h3>Sesiune <span class="n" title="Aceeași selecție ca meniul „Sesiune” din tab-ul Overview — schimbă sesiunea analizată în tot tab-ul Retracement.">?</span></h3>
+          <div class="expl-toggles" id="retrTabSession"></div>
+        </div>
+        <div class="expl-fgroup">
+          <h3>Tip retragere <span class="n" title="Înainte de confirmare = cel mai adânc nivel atins de la închiderea ferestrei de definire până la lumânarea de confirmare inclusiv (retrBeforeAmt). După confirmare = de la lumânarea de confirmare până la finalul sesiunii (retrAmt). Sesiune = cea mai adâncă retragere din întreaga sesiune, înainte + după confirmare (retrSessionAmt). Toate raportate la nivelul DR/IDR spart, în multipli ai range-ului DR (R).">?</span></h3>
+          <div class="expl-toggles" id="retrTabType"></div>
+        </div>
+        <div class="expl-fgroup">
+          <h3>Tip sesiune <span class="n" title="True = doar sesiunile confirmate care au ținut până la final. False = doar sesiunile invalidate (close dincolo de marginea DR opusă după confirmare). All = ambele. Sesiunile Inside (fără confirmare) nu au retragere și sunt excluse întotdeauna. Acest filtru are prioritate, în acest tab, față de bifa globală „Include sesiunile False în statistici”.">?</span></h3>
+          <div class="expl-toggles" id="retrTabSess"></div>
+        </div>
+        <div class="expl-fgroup" style="justify-content:flex-end;">
+          <p class="note" id="retrTabFilterNote" style="margin:0;"></p>
+        </div>
+      </div>
+    </div>
+
     <div class="panel">
-      <h2>Comparație între sesiuni pe zilele săptămânii <span class="n">— retragere mediană după confirmare (R), RDR vs ODR vs ADR</span></h2>
+      <h2>Comparație între sesiuni pe zilele săptămânii <span class="n" id="retrCmpDowSub">— retragere mediană după confirmare (R), RDR vs ODR vs ADR</span></h2>
       <div class="chart-box"><canvas id="chartCompareRetrDow"></canvas></div>
     </div>
 
@@ -598,14 +622,28 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
+// === dridr-core/engine.js INLINED de cli/build_online.js la 2026-09-10 17:41 UTC. NU edita aici — editează dridr-core/engine.js și rebuild. ===
+// dridr-core/engine.js — motorul L1 al tool-ului DR/IDR (arhitectura v2, Pasul 1, 10 sep 2026).
+// Sursa UNICĂ a regulilor de sesiune/confirmare (project_dridr_rules_v2). Încărcat de:
+//   - DR-IDR Strategy.html            <script src="dridr-core/engine.js">
+//   - DR-IDR-Online/index.html        <script src="../dridr-core/engine.js">  (inlined la deploy de cli/build_online.js)
+//   - Node (teste, CLI)               const E = require('./dridr-core/engine.js')
+// Pasul 1: cod mutat VERBATIM din HTML (singura schimbare: statsCycleOK nu mai citește DOM-ul direct).
+// Pasul 2: traseu post-confirmare (rawCycle.path, confirmClose, confirmT, confirmSlipR) — vezi PATH_* mai jos.
+// Fără dependențe. Fără acces la DOM. Orice regulă nouă se schimbă AICI și nicăieri altundeva.
+/* eslint-disable */
 const DOW = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+
 const DOW_RO = { Monday:'Luni', Tuesday:'Marți', Wednesday:'Miercuri', Thursday:'Joi', Friday:'Vineri' };
+
 const DOW_MAP = { Mon:'Monday', Tue:'Tuesday', Wed:'Wednesday', Thu:'Thursday', Fri:'Friday', Sat:'Saturday', Sun:'Sunday' };
+
 const SESSIONS = ['RDR','ODR','ADR'];
+
 // Minimum price fluctuation for WTI Crude Oil (CL) futures = $0.01/barrel. Used only to express DR-range
 // statistics in ticks in the Price Statistics tab; recalibrate if a different ticker/instrument is loaded.
 const TICK_SIZE = 0.01;
-const SESSION_COLOR = { RDR:'#3f8cff', ODR:'#c974e0', ADR:'#38c2b0', ALL:'#e7e9ee' };
+
 const CFGS = {
   RDR: { defStart:'09:30', defEnd:'10:30', dispEnd:'16:00' },
   ODR: { defStart:'03:00', defEnd:'04:00', dispEnd:'08:30' },
@@ -613,10 +651,15 @@ const CFGS = {
 };
 
 function timeToHM(str) { const [h,m] = str.split(':').map(Number); return h*100+m; }
+
 function inWin(hm, start, end) { return start <= end ? (hm >= start && hm < end) : (hm >= start || hm < end); }
+
 function hmToMin(hm) { return Math.floor(hm/100)*60 + (hm%100); }
+
 function minToHM(min) { min = ((min % 1440)+1440)%1440; const h = Math.floor(min/60), m = min%60; return h*100+m; }
+
 function hmLabel(hm) { const h = Math.floor(hm/100), m = hm%100; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+
 function elapsedLabel(min) {
   // Elapsed time formatted as hh:mm, referenced to the end of the DR/IDR defining window (elapsed 0 = 00:00).
   if (min < 0) min = 0;
@@ -667,6 +710,69 @@ function enrich(rows, tz) {
   return rows;
 }
 
+// Task #152 — global "Include sesiunile False în statistici" toggle (checkbox #includeFalse, default ON = current
+// behavior). When OFF, every PRICE statistic (extension/retracement/giveback distributions, Explorer, PreBO,
+// Confluence, SIM retracement/extension gauges) is computed from True sessions only. True/False/Inside RATES,
+// the structure chain, the Simulation backtest and the Replay never use this filter — they need all sessions.
+// Motorul nu citește DOM-ul: UI-ul înregistrează un provider (vezi setIncludeFalseProvider în HTML); implicit true,
+// identic cu vechiul fallback când checkbox-ul #includeFalse nu există (Node, teste).
+let __includeFalseProvider = () => true;
+function setIncludeFalseProvider(fn) { __includeFalseProvider = (typeof fn === 'function') ? fn : (() => true); }
+function statsCycleOK(c) {
+  const includeFalse = __includeFalseProvider();
+  return includeFalse || c.ruleHold !== false;
+}
+
+// ============================================================
+// Pasul 2 (arhitectura v2, 10 sep 2026) — traseul post-confirmare, baza pentru TP/SL statistic (L3 targets).
+// Cadrul de referință e ACELAȘI ca la extAmt/retrAmt: distanțe de la marginea de trigger (trigHigh pentru Long,
+// trigLow pentru Short), exprimate în multipli de drRange ("R"). Favorabil = în direcția confirmării, pe fitil;
+// advers = contra direcției, pe fitil (stop-urile reale se ating pe fitil; invalidarea rămâne pe close, Regula 4).
+// Pe aceeași bară, dacă se ating și TP și un nivel advers, se ia varianta PESIMISTĂ (adversul contează ca și cum
+// ar fi venit primul) — nu știm ordinea intra-bar pe 5 min.
+const PATH_TP_GRID = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+const PATH_SL_GRID = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.25, 1.5];
+function newPathTracker(drRange) {
+  return { drRange, advMax: 0, advCloseMax: 0, advMaxPost: 0, bars: 0, lastFavClose: null,
+           tpElapsed: PATH_TP_GRID.map(() => null), tpMaeBefore: PATH_TP_GRID.map(() => null),
+           slElapsed: PATH_SL_GRID.map(() => null), slElapsedPost: PATH_SL_GRID.map(() => null) };
+}
+// fav/adv/advClose în PREȚ (>= 0), elapsed în minute de la dispStart. Se apelează pentru fiecare bară de la
+// bara de confirmare (inclusiv) până la finalul sesiunii.
+// PATH_EPS: prețurile au 2 decimale, deci fav/drRange poate cădea pe 0.4999999999 la un nivel atins EXACT;
+// toleranța evită ca zgomotul de virgulă mobilă să decidă dacă un nivel a fost atins.
+const PATH_EPS = 1e-9;
+function pathStep(p, fav, adv, advClose, elapsed, favClose) {
+  p.bars++;
+  if (favClose !== undefined) p.lastFavClose = favClose;
+  if (adv > p.advMax) p.advMax = adv;
+  if (advClose > p.advCloseMax) p.advCloseMax = advClose;
+  const favR = fav / p.drRange, advR = p.advMax / p.drRange;
+  for (let i = 0; i < PATH_TP_GRID.length; i++) {
+    if (p.tpElapsed[i] === null && favR >= PATH_TP_GRID[i] - PATH_EPS) { p.tpElapsed[i] = elapsed; p.tpMaeBefore[i] = advR; }
+  }
+  for (let i = 0; i < PATH_SL_GRID.length; i++) {
+    if (p.slElapsed[i] === null && advR >= PATH_SL_GRID[i] - PATH_EPS) p.slElapsed[i] = elapsed;
+  }
+  // slElapsedPost: aceeași grilă adversă, dar IGNORÂND bara de confirmare (p.bars === 1). Bara de confirmare a
+  // traversat marginea, deci fitilul ei sub margine nu e o „revenire" în care ai putea intra — la momentul acelui
+  // fitil confirmarea încă nu exista. Pentru intrări LIMIT la pullback se folosește DOAR slElapsedPost.
+  if (p.bars > 1) {
+    if (adv > p.advMaxPost) p.advMaxPost = adv;
+    const advPostR = p.advMaxPost / p.drRange;
+    for (let i = 0; i < PATH_SL_GRID.length; i++) {
+      if (p.slElapsedPost[i] === null && advPostR >= PATH_SL_GRID[i] - PATH_EPS) p.slElapsedPost[i] = elapsed;
+    }
+  }
+}
+function finishPath(p) {
+  if (!p) return null;
+  // endR = close-ul ULTIMEI bare a sesiunii față de marginea de trigger, în R, semnat în direcția confirmării
+  // (pozitiv = sesiunea s-a închis în profit față de margine). Necesar pentru ieșirea „la finalul sesiunii" în backtest.
+  return { bars: p.bars, maeR: p.advMax / p.drRange, maeCloseR: p.advCloseMax / p.drRange, endR: p.lastFavClose == null ? null : p.lastFavClose / p.drRange,
+           tpElapsed: p.tpElapsed, tpMaeBefore: p.tpMaeBefore, slElapsed: p.slElapsed, slElapsedPost: p.slElapsedPost, maePostR: p.advMaxPost / p.drRange };
+}
+
 function computeSessionStats(rows, cfg, useIDR) {
   const defStart = timeToHM(cfg.defStart), defEnd = timeToHM(cfg.defEnd), dispEnd = timeToHM(cfg.dispEnd);
   const dispStart = defEnd;
@@ -684,19 +790,26 @@ function computeSessionStats(rows, cfg, useIDR) {
       const drRange = cycle.drHigh - cycle.drLow;
       if (drRange > 0 && DOW.includes(cycle.startDow)) {
         dateKeys.push(cycle.startDateKey);
+        // Task #152 — tUp/tDn are now mutually exclusive (first close beyond the box wins, see the main loop),
+        // so 'both' can no longer occur; a later opposite-side close is recorded as invalidation (False) on the
+        // confirmed direction instead of a second direction.
         let direction = 'none';
-        if (cycle.tUp && cycle.tDn) direction = 'both'; else if (cycle.tUp) direction = 'up'; else if (cycle.tDn) direction = 'down';
-        const eps = 0.01 * drRange;
-        let ruleHold = null, extAmt = null, extElapsed = null, retrAmt = null, retrBeforeAmt = null, retrSessionAmt = null, giveback = null, givebackElapsed = null, triggerElapsed = null;
+        if (cycle.tUp) direction = 'up'; else if (cycle.tDn) direction = 'down';
+        let ruleHold = null, extAmt = null, extElapsed = null, retrAmt = null, retrElapsed = null, retrBeforeAmt = null, retrSessionAmt = null, giveback = null, givebackElapsed = null, triggerElapsed = null, invalidElapsed = null;
         const trigHigh = useIDR ? cycle.idrHigh : cycle.drHigh;
         const trigLow = useIDR ? cycle.idrLow : cycle.drLow;
         if (direction === 'up') {
-          ruleHold = cycle.sessLow >= cycle.drLow - eps;
+          // True = no close below DR low AFTER the Long confirmation (close-based, no tolerance) — Regula 4.
+          ruleHold = !cycle.tUp.invalidated;
+          invalidElapsed = cycle.tUp.invalidElapsed;
           triggerElapsed = cycle.tUp.elapsed;
           extAmt = cycle.tUp.maxHighAfter - trigHigh;
           extElapsed = cycle.tUp.maxHighElapsed;
           // "După breakout": worst pullback level (from trigger) reached from the trigger bar onward.
           retrAmt = -Math.max(0, trigHigh - cycle.tUp.minLowAfter);
+          // Elapsed time (minutes since dispStart) at which that worst-pullback level was actually reached —
+          // task #146, feeds the price chart's new "most probable time window" projection for SL/TP.
+          retrElapsed = cycle.tUp.minLowElapsed;
           // "Înainte de breakout": worst level (from trigger) reached anytime between the end of the DR/IDR
           // defining window and the breakout bar itself (inclusive) — captured as a snapshot of the running
           // session low at the moment of trigger.
@@ -711,23 +824,39 @@ function computeSessionStats(rows, cfg, useIDR) {
           giveback = Math.min(0, cycle.tUp.peakMinLowAfter - trigHigh);
           givebackElapsed = cycle.tUp.peakMinLowElapsed;
         } else if (direction === 'down') {
-          ruleHold = cycle.sessHigh <= cycle.drHigh + eps;
+          ruleHold = !cycle.tDn.invalidated;
+          invalidElapsed = cycle.tDn.invalidElapsed;
           triggerElapsed = cycle.tDn.elapsed;
           extAmt = trigLow - cycle.tDn.minLowAfter;
           extElapsed = cycle.tDn.minLowElapsed;
           retrAmt = -Math.max(0, cycle.tDn.maxHighAfter - trigLow);
+          retrElapsed = cycle.tDn.maxHighElapsed;
           retrBeforeAmt = -Math.max(0, cycle.tDn.preHighAtTrigger - trigLow);
           retrSessionAmt = -Math.max(0, cycle.dispHigh - trigLow);
           giveback = Math.min(0, trigLow - cycle.tDn.peakMaxHighAfter);
           givebackElapsed = cycle.tDn.peakMaxHighElapsed;
         }
+        // Pasul 2 — traseu post-confirmare + prețul/momentul confirmării (intrarea realistă = close-ul barei de
+        // confirmare, NU marginea box-ului; confirmSlipR = cât de departe de margine s-a închis, în R).
+        const __t = direction === 'up' ? cycle.tUp : (direction === 'down' ? cycle.tDn : null);
+        const path = __t ? finishPath(__t.path) : null;
+        const confirmClose = __t ? rows[__t.triggerBarIdx].c : null;
+        const confirmT = __t ? rows[__t.triggerBarIdx].t.getTime() : null;
+        const confirmSlipR = __t ? (direction === 'up' ? (confirmClose - trigHigh) : (trigLow - confirmClose)) / drRange : null;
         const relIdx = triggerElapsed != null ? Math.min(9, Math.floor((triggerElapsed / dispDurMin) * 10)) : null;
         const triggerBarIdx = direction === 'up' ? cycle.tUp.triggerBarIdx : (direction === 'down' ? cycle.tDn.triggerBarIdx : null);
         // PreBO ("PreDefined BO"): direction of the defining-range hour itself, Close vs Open, independent of
         // breakout/confirmation — fixed for the whole session. 'Flat' is the rare defClose === defOpen edge case.
         const preBO = cycle.defClose > cycle.defOpen ? 'Long' : (cycle.defClose < cycle.defOpen ? 'Short' : 'Flat');
-        cycles.push({ dateKey: cycle.startDateKey, dow: cycle.startDow, direction, ruleHold, extAmt, extElapsed, retrAmt, retrBeforeAmt, retrSessionAmt, giveback, givebackElapsed, drRange, triggerElapsed, relIdx,
-          trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO });
+        // Trend metric (task #115): 60-min trailing momentum (12 bars of 5 min) measured AT box-close
+        // (cycle.lastDefBarIdx), normalized by drRange. null if there isn't a full hour of prior bars yet
+        // (e.g. right at the very start of the loaded CSV).
+        const mom60Raw = (cycle.lastDefBarIdx != null && cycle.lastDefBarIdx >= 12)
+          ? rows[cycle.lastDefBarIdx].c - rows[cycle.lastDefBarIdx - 12].c
+          : null;
+        cycles.push({ dateKey: cycle.startDateKey, dow: cycle.startDow, direction, ruleHold, invalidElapsed, extAmt, extElapsed, retrAmt, retrElapsed, retrBeforeAmt, retrSessionAmt, giveback, givebackElapsed, drRange, triggerElapsed, relIdx,
+          trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
+          path, confirmClose, confirmT, confirmSlipR });
       }
     }
     cycle = null;
@@ -751,10 +880,19 @@ function computeSessionStats(rows, cfg, useIDR) {
                 // updated on every bar while inDef below, so it ends up as the close of the LAST defining bar.
                 // Together they give the direction of the defining-range "hour candle" itself — PreBO — fixed
                 // for the whole session regardless of what breaks out later or whether it ends True/False.
-                defOpen: b.o, defClose: b.c };
+                defOpen: b.o, defClose: b.c,
+                // lastDefBarIdx tracks the raw-row index of the LAST bar of the defining window (updated every
+                // bar while inDef below) — the "box-close" moment. Used post-hoc (in closeCycle) to compute the
+                // 60-min trailing momentum AT that moment (rows[lastDefBarIdx].c - rows[lastDefBarIdx-12].c),
+                // the basis for the Trend gauge (see task #115 validation: analyze_trend_metric_v3/v4.js —
+                // this measure, taken right as the DR/IDR box finishes forming, predicts the session's eventual
+                // breakout direction with real, monotonic, out-of-sample-stable accuracy; nothing at or before
+                // this index depends on anything that happens later in the session, so it's fully non-repaint).
+                lastDefBarIdx: null };
     }
     if (inDef && cycle) {
       cycle.defClose = b.c;
+      cycle.lastDefBarIdx = __rowIdx;
       if (b.h > cycle.drHigh) cycle.drHigh = b.h;
       if (b.l < cycle.drLow) cycle.drLow = b.l;
       const bh = Math.max(b.o, b.c), bl = Math.min(b.o, b.c);
@@ -780,22 +918,41 @@ function computeSessionStats(rows, cfg, useIDR) {
         if (b.l < cycle.dispLow) cycle.dispLow = b.l;
         if (b.h > cycle.dispHigh) cycle.dispHigh = b.h;
         const elapsed = ((hmToMin(b.hm) - dispStartMin) + 1440) % 1440;
-        if (cycle.tUp === null && b.c > trigHigh) {
+        // Task #152 — Regula 4 (revizuită cu utilizatorul): confirmarea = PRIMUL close dincolo de box (Long dacă
+        // peste trigHigh, Short dacă sub trigLow); o singură direcție per sesiune — cine închide prima dată
+        // câștigă, nu mai există 'both'/whipsaw. Invalidarea (False) = orice close ULTERIOR confirmării în
+        // direcția opusă, dincolo de marginea DR opusă (mereu DR, indiferent de toggle-ul IDR), fără nicio
+        // toleranță de distanță. Un fitil sub/peste DR nu invalidează; nici o mișcare de dinaintea confirmării.
+        if (cycle.tUp === null && cycle.tDn === null && b.c > trigHigh) {
           // preLowAtTrigger snapshots the running disp-phase low (cycle.dispLow, already updated above for this
           // bar) at the moment of breakout — i.e. the worst point reached anytime from the end of the DR/IDR
           // defining window up to and including the breakout bar ("retragere înainte de breakout").
-          cycle.tUp = { elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, minLowAfter: b.l, peakMinLowAfter: b.l, peakMinLowElapsed: elapsed, triggerBarIdx: __rowIdx, preLowAtTrigger: cycle.dispLow };
+          // minLowElapsed (task #146) tracks the elapsed time of the RUNNING minLowAfter itself (the level that
+          // directly defines retrAmt below) — distinct from peakMinLowElapsed, which only tracks the pullback
+          // that follows the session's OWN peak (giveback's own reference frame).
+          cycle.tUp = { elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, minLowAfter: b.l, minLowElapsed: elapsed, peakMinLowAfter: b.l, peakMinLowElapsed: elapsed, triggerBarIdx: __rowIdx, preLowAtTrigger: cycle.dispLow, invalidated: false, invalidElapsed: null,
+                        path: newPathTracker(cycle.drHigh - cycle.drLow) };
+          pathStep(cycle.tUp.path, b.h - trigHigh, Math.max(0, trigHigh - b.l), Math.max(0, trigHigh - b.c), elapsed, b.c - trigHigh);
         } else if (cycle.tUp !== null) {
-          if (b.l < cycle.tUp.minLowAfter) cycle.tUp.minLowAfter = b.l;
+          if (b.l < cycle.tUp.minLowAfter) { cycle.tUp.minLowAfter = b.l; cycle.tUp.minLowElapsed = elapsed; }
           if (b.h > cycle.tUp.maxHighAfter) { cycle.tUp.maxHighAfter = b.h; cycle.tUp.maxHighElapsed = elapsed; cycle.tUp.peakMinLowAfter = b.l; cycle.tUp.peakMinLowElapsed = elapsed; }
           else if (b.l < cycle.tUp.peakMinLowAfter) { cycle.tUp.peakMinLowAfter = b.l; cycle.tUp.peakMinLowElapsed = elapsed; }
+          if (!cycle.tUp.invalidated && b.c < cycle.drLow) { cycle.tUp.invalidated = true; cycle.tUp.invalidElapsed = elapsed; }
+          pathStep(cycle.tUp.path, b.h - trigHigh, Math.max(0, trigHigh - b.l), Math.max(0, trigHigh - b.c), elapsed, b.c - trigHigh);
         }
-        if (cycle.tDn === null && b.c < trigLow) {
-          cycle.tDn = { elapsed, minLowAfter: b.l, minLowElapsed: elapsed, maxHighAfter: b.h, peakMaxHighAfter: b.h, peakMaxHighElapsed: elapsed, triggerBarIdx: __rowIdx, preHighAtTrigger: cycle.dispHigh };
+        if (cycle.tDn === null && cycle.tUp === null && b.c < trigLow) {
+          // maxHighElapsed (task #146) tracks the elapsed time of the RUNNING maxHighAfter itself (the level
+          // that directly defines retrAmt for a down-direction cycle) — symmetric addition to minLowElapsed
+          // above; maxHighAfter's own VALUE is unchanged.
+          cycle.tDn = { elapsed, minLowAfter: b.l, minLowElapsed: elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, peakMaxHighAfter: b.h, peakMaxHighElapsed: elapsed, triggerBarIdx: __rowIdx, preHighAtTrigger: cycle.dispHigh, invalidated: false, invalidElapsed: null,
+                        path: newPathTracker(cycle.drHigh - cycle.drLow) };
+          pathStep(cycle.tDn.path, trigLow - b.l, Math.max(0, b.h - trigLow), Math.max(0, b.c - trigLow), elapsed, trigLow - b.c);
         } else if (cycle.tDn !== null) {
-          if (b.h > cycle.tDn.maxHighAfter) cycle.tDn.maxHighAfter = b.h;
+          if (b.h > cycle.tDn.maxHighAfter) { cycle.tDn.maxHighAfter = b.h; cycle.tDn.maxHighElapsed = elapsed; }
           if (b.l < cycle.tDn.minLowAfter) { cycle.tDn.minLowAfter = b.l; cycle.tDn.minLowElapsed = elapsed; cycle.tDn.peakMaxHighAfter = b.h; cycle.tDn.peakMaxHighElapsed = elapsed; }
           else if (b.h > cycle.tDn.peakMaxHighAfter) { cycle.tDn.peakMaxHighAfter = b.h; cycle.tDn.peakMaxHighElapsed = elapsed; }
+          if (!cycle.tDn.invalidated && b.c > cycle.drHigh) { cycle.tDn.invalidated = true; cycle.tDn.invalidElapsed = elapsed; }
+          pathStep(cycle.tDn.path, trigLow - b.l, Math.max(0, b.h - trigLow), Math.max(0, b.c - trigLow), elapsed, trigLow - b.c);
         }
       }
     }
@@ -836,7 +993,10 @@ function computeSessionStats(rows, cfg, useIDR) {
     byDow[d] = { n, up, down, whip, inside, hold, falseRate, cleanN: cleanD.length, trueCount, confirmedN, holdConfirmed, falseRateConfirmed };
   }
 
-  const clean = cycles.filter(x => x.direction === 'up' || x.direction === 'down');
+  // Task #152 — `clean` feeds every PRICE statistic below (extension/retracement medians, buckets, box SD);
+  // the "Include sesiunile False" toggle (statsCycleOK) can drop False cycles from it. byDow/bucketStats
+  // above deliberately keep using ALL cycles, so True/False/Inside rates are never affected by the toggle.
+  const clean = cycles.filter(x => (x.direction === 'up' || x.direction === 'down') && statsCycleOK(x));
   const drRangeMean = mean(clean.map(x => x.drRange));
   const drRangeStd = stdev(clean.map(x => x.drRange));
   for (const x of clean) x.boxSD = (drRangeStd != null && drRangeStd > 0) ? (x.drRange - drRangeMean) / drRangeStd : null;
@@ -940,8 +1100,106 @@ function median(arr) {
   const s = arr.slice().sort((a,b)=>a-b);
   return s[Math.floor(s.length/2)];
 }
+
 function mean(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+
 function stdev(arr) { const m = mean(arr); if (m == null) return null; return Math.sqrt(mean(arr.map(x => (x-m)*(x-m)))); }
+
+// ============================================================
+// "Modelul zilei" — clasificator de structură inter-sesiuni (8 tipuri, din "Structuri Inter-Sesiuni Analysis.md"):
+// H/L = IDR high/low al sesiunii curente; PH/PL = IDR high/low al sesiunii de REFERINȚĂ din lanț; PM=(PH+PL)/2.
+// Ordinea contează (primul match câștigă, mutual exclusive).
+// ============================================================
+function classifyStructure(H, L, PH, PL) {
+  const PM = (PH + PL) / 2;
+  if (H > PH && L < PL) return 'RX';
+  if (H < PH && L > PL) return 'Contraction';
+  if (H > PH && L > PH) return 'UXP';
+  if (L < PL && H < PL) return 'DXP';
+  if (H > PH && L >= PM) return 'UX';
+  if (L < PL && H <= PM) return 'DX';
+  if (H > PH && L >= PL) return 'U';
+  if (L < PL && H <= PH) return 'D';
+  return 'None';
+}
+
+// Lanțul de sesiuni de referință: RDR(ziua D) <- ODR(ziua D, aceeași dimineață); ADR(ziua D) <- RDR(ziua D, aceeași zi);
+// ODR(ziua D) <- ADR(cea mai apropiată zi ANTERIOARĂ, nu neapărat D-1 — gestionează weekend-uri/goluri prin căutare binară).
+function attachStructureModel(out) {
+  const byDate = {};
+  for (const s of SESSIONS) byDate[s] = new Map(out[s].rawCycles.map(c => [c.dateKey, c]));
+  const adrSorted = out.ADR.rawCycles.slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
+  function prevADR(dateKey) {
+    let lo = 0, hi = adrSorted.length - 1, idx = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (adrSorted[mid].dateKey < dateKey) { idx = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    return idx === -1 ? null : adrSorted[idx];
+  }
+  // refLookupOf(session, cycle) -> its reference cycle in the chain (RDR<-ODR same day; ADR<-RDR same day;
+  // ODR<-nearest earlier-day ADR). Exposed as a standalone function (not just inlined in attach() below)
+  // because task #116's Structure gauge needs the SAME lookup again later, in a second pass, to read the
+  // reference's OWN .structure — seeing STRUCT_TYPES: RDR's ref is ODR (processed 3rd below), ADR's ref is RDR
+  // (processed 1st), ODR's ref is a PRIOR DAY's ADR (processed 2nd) — the chain is cyclic (RDR<-ODR<-ADR<-RDR),
+  // so there is no single pass order where every reference's .structure is already computed when first read.
+  // Fix: classify everyone's OWN structure first (this function, reading only raw idrHigh/idrLow — no
+  // dependency issue), then run a SECOND pass afterward (see refStructure loop below) once every cycle in
+  // every session already has .structure set, and only then look up ref.structure safely.
+  function refOf(s, c) {
+    if (s === 'RDR') return byDate.ODR.get(c.dateKey);
+    if (s === 'ADR') return byDate.RDR.get(c.dateKey);
+    if (s === 'ODR') return prevADR(c.dateKey);
+    return null;
+  }
+  function attach(s, cycles) {
+    for (const c of cycles) {
+      const ref = refOf(s, c);
+      c.structure = ref ? classifyStructure(c.idrHigh, c.idrLow, ref.idrHigh, ref.idrLow) : null;
+      c.refPreBO = ref ? ref.preBO : null;
+    }
+  }
+  attach('RDR', out.RDR.rawCycles);
+  attach('ADR', out.ADR.rawCycles);
+  attach('ODR', out.ODR.rawCycles);
+  // Second pass (task #116): now that every cycle's OWN .structure is set, attach refStructure — the
+  // REFERENCE session's own classified structure (e.g. for an RDR cycle, refStructure is that day's ODR
+  // structure). Used, together with the already-existing refPreBO, as the conditioning key for the Structure
+  // gauge's "potential next structure" probabilities (see buildStructureTransitions()).
+  for (const s of SESSIONS) {
+    for (const c of out[s].rawCycles) {
+      const ref = refOf(s, c);
+      c.refStructure = (ref && ref.structure && ref.structure !== 'None') ? ref.structure : null;
+    }
+  }
+}
+
+function computeAllSessions(rows, useIDR) {
+  const out = {};
+  for (const name of SESSIONS) out[name] = computeSessionStats(rows, CFGS[name], useIDR);
+  attachStructureModel(out);
+  return out;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { PATH_TP_GRID, PATH_SL_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
+}
+
+</script>
+<script>
+// === Motorul L1 (CFGS, parseCSV, enrich, computeSessionStats, structură, computeAllSessions etc.) e în
+// === ../dridr-core/engine.js — încărcat prin <script src> de mai sus. NU redefini aici funcțiile motorului.
+setIncludeFalseProvider(() => {
+  const el = (typeof document !== 'undefined') ? document.getElementById('includeFalse') : null;
+  return (el && typeof el.checked === 'boolean') ? el.checked : true;
+});
+const SESSION_COLOR = { RDR:'#3f8cff', ODR:'#c974e0', ADR:'#38c2b0', ALL:'#e7e9ee' };
+
+
+
+
+
+
 
 function aggregateByDow(cyclesArr) {
   const byDow = {};
@@ -995,24 +1253,29 @@ function aggregateRelStats(cleanArr) {
   return relStats;
 }
 
-function aggregateRetrExt(cleanArr) {
+// Task #153 — all four aggregateRetr*() helpers take an optional value accessor `valOf` (default = retrAmt,
+// i.e. the historical "după confirmare" definition) so the Retracement tab can re-aggregate the same cycles
+// on retrBeforeAmt / retrSessionAmt without touching computeSessionStats. Every other caller is unchanged.
+const RETR_DEFAULT_VAL = x => x.retrAmt;
+
+function aggregateRetrExt(cleanArr, valOf = RETR_DEFAULT_VAL) {
   const thresholds = [0.5,1.0,1.5,2.0,2.5,3.0];
   const retrExtStats = {};
-  for (const th of thresholds) retrExtStats[th] = cleanArr.length ? cleanArr.filter(x => x.retrAmt/x.drRange <= -th).length/cleanArr.length : null;
-  const retrMedianR = median(cleanArr.map(x => x.retrAmt/x.drRange));
+  for (const th of thresholds) retrExtStats[th] = cleanArr.length ? cleanArr.filter(x => valOf(x)/x.drRange <= -th).length/cleanArr.length : null;
+  const retrMedianR = median(cleanArr.map(x => valOf(x)/x.drRange));
   return { retrExtStats, retrMedianR };
 }
 
-function aggregateRetrByDow(cleanArr) {
+function aggregateRetrByDow(cleanArr, valOf = RETR_DEFAULT_VAL) {
   const out = {};
   for (const d of DOW) {
     const sub = cleanArr.filter(x => x.dow === d);
-    out[d] = { n: sub.length, medianR: median(sub.map(x => x.retrAmt/x.drRange)) };
+    out[d] = { n: sub.length, medianR: median(sub.map(x => valOf(x)/x.drRange)) };
   }
   return out;
 }
 
-function aggregateRetrRelStats(cleanArr) {
+function aggregateRetrRelStats(cleanArr, valOf = RETR_DEFAULT_VAL) {
   const RELN = 10;
   const out = {};
   for (const g of ['All', ...DOW]) {
@@ -1020,7 +1283,7 @@ function aggregateRetrRelStats(cleanArr) {
     const arr = [];
     for (let i = 0; i < RELN; i++) {
       const s2 = subG.filter(x => x.relIdx === i);
-      arr.push({ i, n: s2.length, medianR: median(s2.map(x => x.retrAmt/x.drRange)) });
+      arr.push({ i, n: s2.length, medianR: median(s2.map(x => valOf(x)/x.drRange)) });
     }
     out[g] = arr;
   }
@@ -1062,21 +1325,112 @@ function aggregateBucketStats(cleanArr, maxDispDurMin, nAllSession, byDow) {
   return { bucketStats, dowBucketMatrix };
 }
 
-function aggregateRetrBucketStats(cleanArr, maxDispDurMin) {
+function aggregateRetrBucketStats(cleanArr, maxDispDurMin, valOf = RETR_DEFAULT_VAL) {
   const buckets = [];
   for (let m = 0; m < maxDispDurMin; m += 30) buckets.push(m);
   const retrBucketStats = buckets.map(bk => {
     const sub = cleanArr.filter(x => bucketOfMin(x.triggerElapsed, buckets) === bk);
-    return { bucket: bk, n: sub.length, medianR: median(sub.map(x => x.retrAmt/x.drRange)) };
+    return { bucket: bk, n: sub.length, medianR: median(sub.map(x => valOf(x)/x.drRange)) };
   });
   const retrDowBucketMatrix = {};
   for (const d of DOW) {
     retrDowBucketMatrix[d] = buckets.map(bk => {
       const sub = cleanArr.filter(x => x.dow === d && bucketOfMin(x.triggerElapsed, buckets) === bk);
-      return { bucket: bk, n: sub.length, medianR: median(sub.map(x => x.retrAmt/x.drRange)) };
+      return { bucket: bk, n: sub.length, medianR: median(sub.map(x => valOf(x)/x.drRange)) };
     });
   }
   return { retrBucketStats, retrDowBucketMatrix };
+}
+
+// ============================================================
+// Task #153 — filtrele tab-ului Retracement: "Tip retragere" (before/after/session) × "Tip sesiune" (true/false/all).
+// retrTabStats(stats, s) returnează o copie a obiectului de statistici cu TOATE câmpurile retr* re-agregate din
+// rawCycles conform filtrelor; celelalte câmpuri (byDow, extStats, nDays, dateStart...) rămân neatinse. Dacă
+// sursa nu are rawCycles (setul demo), întoarce stats nemodificat și filtrele sunt afișate ca inactive.
+// ============================================================
+const retrTabState = { retrType: 'after', sessType: 'all' };
+const RETR_TYPE_LABEL = { before: 'înainte de confirmare', after: 'după confirmare', session: 'pe întreaga sesiune (înainte + după)' };
+const RETR_SESS_LABEL = { true: 'True', false: 'False', all: 'True + False' };
+function retrTabValOf() {
+  if (retrTabState.retrType === 'before') return x => x.retrBeforeAmt;
+  if (retrTabState.retrType === 'session') return x => x.retrSessionAmt;
+  return RETR_DEFAULT_VAL;
+}
+function retrTabCycleOK(c) {
+  if (c.direction !== 'up' && c.direction !== 'down') return false;
+  if (retrTabState.sessType === 'true') return c.ruleHold === true;
+  if (retrTabState.sessType === 'false') return c.ruleHold === false;
+  return true; // 'all' — explicit filter, are prioritate față de bifa globală #includeFalse în acest tab
+}
+function retrTabCyclesFor(s) {
+  if (!allStats) return null;
+  if (s === 'ALL') {
+    if (SESSIONS.some(k => !allStats[k] || !allStats[k].rawCycles)) return null;
+    return SESSIONS.flatMap(k => allStats[k].rawCycles.map(x => Object.assign({}, x, { srcSession: k })));
+  }
+  return (allStats[s] && allStats[s].rawCycles) ? allStats[s].rawCycles : null;
+}
+function retrTabStats(stats, s) {
+  const raw = retrTabCyclesFor(s);
+  if (!raw || !stats) return Object.assign({}, stats, { retrTabActive: false });
+  const valOf = retrTabValOf();
+  const clean = raw.filter(retrTabCycleOK).filter(x => x.drRange > 0 && valOf(x) != null);
+  const durMin = s === 'ALL' ? Math.max(...SESSIONS.map(k => allStats[k].dispDurMin)) : stats.dispDurMin;
+  const { retrExtStats, retrMedianR } = aggregateRetrExt(clean, valOf);
+  const { retrBucketStats, retrDowBucketMatrix } = aggregateRetrBucketStats(clean, durMin, valOf);
+  return Object.assign({}, stats, {
+    retrExtStats, retrMedianR,
+    retrByDow: aggregateRetrByDow(clean, valOf),
+    retrRelStats: aggregateRetrRelStats(clean, valOf),
+    retrBucketStats, retrDowBucketMatrix,
+    nClean: clean.length, retrTabActive: true
+  });
+}
+function retrTabSubtitle() {
+  return 'retragere mediană ' + RETR_TYPE_LABEL[retrTabState.retrType] + ' (R) · sesiuni ' + RETR_SESS_LABEL[retrTabState.sessType];
+}
+function retrTabRerender() {
+  if (!allStats) return;
+  if (activeSession === 'ALL') renderRetracementCombined(combinedOverride || computeCombinedStats(allStats));
+  else renderRetracementSession(allStats[activeSession], activeSession);
+  renderCompareRetr();
+}
+function retrTabUpdateNote(stats) {
+  const el = document.getElementById('retrTabFilterNote'); if (!el) return;
+  const bar = document.getElementById('retrTabFilters');
+  if (stats && stats.retrTabActive === false) {
+    el.textContent = 'Filtrele devin active după încărcarea unei surse reale (setul demo nu conține ciclurile individuale).';
+    if (bar) bar.style.opacity = '0.6';
+  } else {
+    el.textContent = 'Afișat: ' + retrTabSubtitle() + '. Sesiunile Inside (fără confirmare) sunt excluse întotdeauna.';
+    if (bar) bar.style.opacity = '';
+  }
+}
+function initRetrTabFilters() {
+  explRadioGroupHTML('retrTabSession', [
+    { value:'RDR', label:'RDR' }, { value:'ODR', label:'ODR' }, { value:'ADR', label:'ADR' }, { value:'ALL', label:'Toate sesiunile' }
+  ], activeSession);
+  document.getElementById('retrTabSession').querySelectorAll('.expl-toggle-btn').forEach(btn => {
+    btn.onclick = () => { if (btn.dataset.value !== activeSession) switchTab(btn.dataset.value); };
+  });
+  explRadioGroupHTML('retrTabType', [
+    { value:'before', label:'Înainte de confirmare' }, { value:'after', label:'După confirmare' }, { value:'session', label:'Sesiune' }
+  ], retrTabState.retrType);
+  explRadioGroupHTML('retrTabSess', [
+    { value:'true', label:'True' }, { value:'false', label:'False' }, { value:'all', label:'All' }
+  ], retrTabState.sessType);
+  // bindRadioGroup() re-randează Explorer-ul; aici avem nevoie de re-randarea tab-ului Retracement, deci legăm direct.
+  [['retrTabType', 'retrType'], ['retrTabSess', 'sessType']].forEach(([id, key]) => {
+    const wrap = document.getElementById(id);
+    wrap.querySelectorAll('.expl-toggle-btn').forEach(btn => {
+      btn.onclick = () => {
+        if (btn.dataset.value === retrTabState[key]) return;
+        retrTabState[key] = btn.dataset.value;
+        wrap.querySelectorAll('.expl-toggle-btn').forEach(b => b.classList.toggle('active', b === btn));
+        retrTabRerender();
+      };
+    });
+  });
 }
 
 function computeCombinedStats(allStatsObj) {
@@ -1105,56 +1459,8 @@ function computeCombinedStats(allStatsObj) {
   };
 }
 
-// ============================================================
-// "Modelul zilei" — clasificator de structură inter-sesiuni (8 tipuri, din "Structuri Inter-Sesiuni Analysis.md"):
-// H/L = IDR high/low al sesiunii curente; PH/PL = IDR high/low al sesiunii de REFERINȚĂ din lanț; PM=(PH+PL)/2.
-// Ordinea contează (primul match câștigă, mutual exclusive).
-// ============================================================
-function classifyStructure(H, L, PH, PL) {
-  const PM = (PH + PL) / 2;
-  if (H > PH && L < PL) return 'RX';
-  if (H < PH && L > PL) return 'Contraction';
-  if (H > PH && L > PH) return 'UXP';
-  if (L < PL && H < PL) return 'DXP';
-  if (H > PH && L >= PM) return 'UX';
-  if (L < PL && H <= PM) return 'DX';
-  if (H > PH && L >= PL) return 'U';
-  if (L < PL && H <= PH) return 'D';
-  return 'None';
-}
 
-// Lanțul de sesiuni de referință: RDR(ziua D) <- ODR(ziua D, aceeași dimineață); ADR(ziua D) <- RDR(ziua D, aceeași zi);
-// ODR(ziua D) <- ADR(cea mai apropiată zi ANTERIOARĂ, nu neapărat D-1 — gestionează weekend-uri/goluri prin căutare binară).
-function attachStructureModel(out) {
-  const byDate = {};
-  for (const s of SESSIONS) byDate[s] = new Map(out[s].rawCycles.map(c => [c.dateKey, c]));
-  const adrSorted = out.ADR.rawCycles.slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
-  function prevADR(dateKey) {
-    let lo = 0, hi = adrSorted.length - 1, idx = -1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if (adrSorted[mid].dateKey < dateKey) { idx = mid; lo = mid + 1; } else hi = mid - 1;
-    }
-    return idx === -1 ? null : adrSorted[idx];
-  }
-  function attach(cycles, refLookup) {
-    for (const c of cycles) {
-      const ref = refLookup(c);
-      c.structure = ref ? classifyStructure(c.idrHigh, c.idrLow, ref.idrHigh, ref.idrLow) : null;
-      c.refPreBO = ref ? ref.preBO : null;
-    }
-  }
-  attach(out.RDR.rawCycles, c => byDate.ODR.get(c.dateKey));
-  attach(out.ADR.rawCycles, c => byDate.RDR.get(c.dateKey));
-  attach(out.ODR.rawCycles, c => prevADR(c.dateKey));
-}
 
-function computeAllSessions(rows, useIDR) {
-  const out = {};
-  for (const name of SESSIONS) out[name] = computeSessionStats(rows, CFGS[name], useIDR);
-  attachStructureModel(out);
-  return out;
-}
 
 function pct(x) { return x==null ? null : Math.round(x*1000)/10; }
 
@@ -1275,12 +1581,15 @@ function initRetracementPanels() {
 
 function renderRetracementSession(stats, s) {
   ['chartRetrDow_'+s,'chartRetrBucket_'+s,'chartRetrBucketN_'+s,'chartRetrExt_'+s].forEach(destroyChart);
+  stats = retrTabStats(stats, s); // task #153 — aplică filtrele tab-ului (tip retragere × tip sesiune)
+  retrTabUpdateNote(stats);
+  const RT = RETR_TYPE_LABEL[retrTabState.retrType], RS = RETR_SESS_LABEL[retrTabState.sessType];
 
   document.getElementById('badgesRetracement').innerHTML =
     '<div class="badge"><div class="v">' + stats.nDays + '</div><div class="k">zile procesate</div></div>' +
-    '<div class="badge"><div class="v">' + stats.nClean + (stats.nDays ? ' <span style="font-size:12px; color:var(--text2);">('+pct(stats.nClean/stats.nDays)+'%)</span>' : '') + '</div><div class="k">breakout-uri curate (up/down)</div></div>' +
+    '<div class="badge"><div class="v">' + stats.nClean + (stats.nDays ? ' <span style="font-size:12px; color:var(--text2);">('+pct(stats.nClean/stats.nDays)+'%)</span>' : '') + '</div><div class="k">sesiuni în filtru (' + RS + ')</div></div>' +
     '<div class="badge"><div class="v">' + (stats.dateStart||'-') + ' → ' + (stats.dateEnd||'-') + '</div><div class="k">interval date</div></div>' +
-    '<div class="badge"><div class="v">' + (stats.retrMedianR!=null ? stats.retrMedianR.toFixed(2)+'R' : '-') + '</div><div class="k">retragere mediană</div></div>';
+    '<div class="badge"><div class="v">' + (stats.retrMedianR!=null ? stats.retrMedianR.toFixed(2)+'R' : '-') + '</div><div class="k">retragere mediană ' + RT + '</div></div>';
 
   const dowLabels = DOW.map(d => DOW_RO[d]);
   charts['chartRetrDow_'+s] = new Chart(document.getElementById('chartRetrDow_'+s), {
@@ -1288,7 +1597,7 @@ function renderRetracementSession(stats, s) {
     data: { labels: dowLabels, datasets: [ { label:'Retragere mediană (R)', data: DOW.map(d => stats.retrByDow[d].medianR), backgroundColor: SESSION_COLOR[s] } ] },
     options: { responsive: true, maintainAspectRatio: false,
       scales: { x: { grid:{display:false}, ticks:{color:'#9aa2b1'} }, y: { max:0, ticks:{ color:'#9aa2b1', stepSize:0.1, callback: v => v.toFixed(1)+'R' }, grid:{ color:'#2a2f3a' } } },
-      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană după confirmare pe zile ale săptămânii ('+s+')', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană '+RT+' pe zile ale săptămânii ('+s+') · '+RS, color:'#e7e9ee', font:{size:12} } } }
   });
 
   const realBucketLabels = stats.retrBucketStats.map(b => elapsedLabel(b.bucket + 30));
@@ -1297,7 +1606,7 @@ function renderRetracementSession(stats, s) {
     data: { labels: realBucketLabels, datasets: [ { label:'Retragere mediană (R)', data: stats.retrBucketStats.map(b => b.medianR), borderColor: SESSION_COLOR[s], backgroundColor: SESSION_COLOR[s]+'26', fill:true, tension:.25, pointRadius:3 } ] },
     options: { responsive:true, maintainAspectRatio:false,
       scales: { x:{ grid:{display:false}, ticks:{color:'#9aa2b1'} }, y:{ max:0, ticks:{ color:'#9aa2b1', stepSize:0.1, callback:v=>v.toFixed(1)+'R' }, grid:{color:'#2a2f3a'} } },
-      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană în funcție de timpul scurs de la închiderea ferestrei de definire ('+s+')', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană '+RT+' vs. timpul scurs de la închiderea ferestrei de definire ('+s+') · '+RS, color:'#e7e9ee', font:{size:12} } } }
   });
   charts['chartRetrBucketN_'+s] = new Chart(document.getElementById('chartRetrBucketN_'+s), {
     type: 'bar',
@@ -1314,7 +1623,7 @@ function renderRetracementSession(stats, s) {
     data: { labels: thrLabels, datasets: [ { label:'% zile care ating retragerea', data: thrKeys.map(k => pct(stats.retrExtStats[k])), backgroundColor: SESSION_COLOR[s] } ] },
     options: { responsive:true, maintainAspectRatio:false,
       scales: { x:{ grid:{display:false}, ticks:{color:'#9aa2b1'} }, y:{ min:0, max:100, ticks:{ color:'#9aa2b1', callback:v=>v+'%' }, grid:{color:'#2a2f3a'} } },
-      plugins: { legend:{display:false}, title:{ display:true, text:'% din zilele cu breakout curat care ating cel puțin X · R retragere ('+s+')', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{display:false}, title:{ display:true, text:'% din sesiunile '+RS+' care ating cel puțin X · R retragere '+RT+' ('+s+')', color:'#e7e9ee', font:{size:12} } } }
   });
 
   let html = '<table class="heat"><tr><th></th>' + realBucketLabels.map(l => '<th>'+l+'</th>').join('') + '</tr>';
@@ -1335,12 +1644,15 @@ function renderRetracementSession(stats, s) {
 function renderRetracementCombined(stats) {
   const s = 'ALL';
   ['chartRetrDow_'+s,'chartRetrBucket_'+s,'chartRetrBucketN_'+s,'chartRetrExt_'+s].forEach(destroyChart);
+  stats = retrTabStats(stats, s); // task #153
+  retrTabUpdateNote(stats);
+  const RT = RETR_TYPE_LABEL[retrTabState.retrType], RS = RETR_SESS_LABEL[retrTabState.sessType];
 
   document.getElementById('badgesRetracement').innerHTML =
     '<div class="badge"><div class="v">' + stats.nDays + '</div><div class="k">cicluri de sesiune procesate</div></div>' +
-    '<div class="badge"><div class="v">' + stats.nClean + (stats.nDays ? ' <span style="font-size:12px; color:var(--text2);">('+pct(stats.nClean/stats.nDays)+'%)</span>' : '') + '</div><div class="k">breakout-uri curate (up/down)</div></div>' +
+    '<div class="badge"><div class="v">' + stats.nClean + (stats.nDays ? ' <span style="font-size:12px; color:var(--text2);">('+pct(stats.nClean/stats.nDays)+'%)</span>' : '') + '</div><div class="k">cicluri în filtru (' + RS + ')</div></div>' +
     '<div class="badge"><div class="v">' + (stats.dateStart||'-') + ' → ' + (stats.dateEnd||'-') + '</div><div class="k">interval date</div></div>' +
-    '<div class="badge"><div class="v">' + (stats.retrMedianR!=null ? stats.retrMedianR.toFixed(2)+'R' : '-') + '</div><div class="k">retragere mediană</div></div>';
+    '<div class="badge"><div class="v">' + (stats.retrMedianR!=null ? stats.retrMedianR.toFixed(2)+'R' : '-') + '</div><div class="k">retragere mediană ' + RT + '</div></div>';
 
   const dowLabels = DOW.map(d => DOW_RO[d]);
   charts['chartRetrDow_'+s] = new Chart(document.getElementById('chartRetrDow_'+s), {
@@ -1348,7 +1660,7 @@ function renderRetracementCombined(stats) {
     data: { labels: dowLabels, datasets: [ { label:'Retragere mediană (R)', data: DOW.map(d => stats.retrByDow[d].medianR), backgroundColor: SESSION_COLOR[s] } ] },
     options: { responsive: true, maintainAspectRatio: false,
       scales: { x: { grid:{display:false}, ticks:{color:'#9aa2b1'} }, y: { max:0, ticks:{ color:'#9aa2b1', stepSize:0.1, callback: v => v.toFixed(1)+'R' }, grid:{ color:'#2a2f3a' } } },
-      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană după confirmare pe zile ale săptămânii (toate sesiunile)', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană '+RT+' pe zile ale săptămânii (toate sesiunile) · '+RS, color:'#e7e9ee', font:{size:12} } } }
   });
 
   const realBucketLabels = stats.retrBucketStats.map(b => elapsedLabel(b.bucket + 30));
@@ -1357,7 +1669,7 @@ function renderRetracementCombined(stats) {
     data: { labels: realBucketLabels, datasets: [ { label:'Retragere mediană (R)', data: stats.retrBucketStats.map(b => b.medianR), borderColor: SESSION_COLOR[s], backgroundColor: SESSION_COLOR[s]+'26', fill:true, tension:.25, pointRadius:3 } ] },
     options: { responsive:true, maintainAspectRatio:false,
       scales: { x:{ grid:{display:false}, ticks:{color:'#9aa2b1'} }, y:{ max:0, ticks:{ color:'#9aa2b1', stepSize:0.1, callback:v=>v.toFixed(1)+'R' }, grid:{color:'#2a2f3a'} } },
-      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană în funcție de timpul scurs de la închiderea ferestrei de definire (toate sesiunile)', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{display:false}, title:{ display:true, text:'Retragere mediană '+RT+' vs. timpul scurs de la închiderea ferestrei de definire (toate sesiunile) · '+RS, color:'#e7e9ee', font:{size:12} } } }
   });
   charts['chartRetrBucketN_'+s] = new Chart(document.getElementById('chartRetrBucketN_'+s), {
     type: 'bar',
@@ -1374,7 +1686,7 @@ function renderRetracementCombined(stats) {
     data: { labels: thrLabels, datasets: [ { label:'% cicluri care ating retragerea', data: thrKeys.map(k => pct(stats.retrExtStats[k])), backgroundColor: SESSION_COLOR[s] } ] },
     options: { responsive:true, maintainAspectRatio:false,
       scales: { x:{ grid:{display:false}, ticks:{color:'#9aa2b1'} }, y:{ min:0, max:100, ticks:{ color:'#9aa2b1', callback:v=>v+'%' }, grid:{color:'#2a2f3a'} } },
-      plugins: { legend:{display:false}, title:{ display:true, text:'% din ciclurile cu breakout curat care ating cel puțin X · R retragere (toate sesiunile)', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{display:false}, title:{ display:true, text:'% din ciclurile '+RS+' care ating cel puțin X · R retragere '+RT+' (toate sesiunile)', color:'#e7e9ee', font:{size:12} } } }
   });
 
   let html = '<table class="heat"><tr><th></th>' + realBucketLabels.map(l => '<th>'+l+'</th>').join('') + '</tr>';
@@ -1392,16 +1704,25 @@ function renderRetracementCombined(stats) {
   document.getElementById('heatmapRetrWrap_'+s).innerHTML = html;
 }
 
+// Task #153 — statisticile per sesiune folosite de graficele de comparație, filtrate conform tab-ului.
+function retrTabCompareStats() {
+  const out = {};
+  for (const s of SESSIONS) out[s] = retrTabStats(allStats[s], s);
+  return out;
+}
 function renderCompareRetr() {
   if (!allStats) return;
   destroyChart('chartCompareRetrDow');
+  const cs = retrTabCompareStats();
+  const RT = RETR_TYPE_LABEL[retrTabState.retrType], RS = RETR_SESS_LABEL[retrTabState.sessType];
+  const sub = document.getElementById('retrCmpDowSub'); if (sub) sub.textContent = '— ' + retrTabSubtitle() + ', RDR vs ODR vs ADR';
   const dowLabels = DOW.map(d => DOW_RO[d]);
   charts.chartCompareRetrDow = new Chart(document.getElementById('chartCompareRetrDow'), {
     type: 'bar',
-    data: { labels: dowLabels, datasets: SESSIONS.map(s => ({ label: s, data: DOW.map(d => allStats[s].retrByDow[d].medianR), backgroundColor: SESSION_COLOR[s] })) },
+    data: { labels: dowLabels, datasets: SESSIONS.map(s => ({ label: s, data: DOW.map(d => cs[s].retrByDow[d].medianR), backgroundColor: SESSION_COLOR[s] })) },
     options: { responsive:true, maintainAspectRatio:false,
       scales: { x:{ grid:{display:false}, ticks:{color:'#9aa2b1'} }, y:{ max:0, ticks:{ color:'#9aa2b1', stepSize:0.1, callback:v=>v.toFixed(1)+'R' }, grid:{color:'#2a2f3a'} } },
-      plugins: { legend:{ position:'top', labels:{ color:'#9aa2b1', boxWidth:12 } }, title:{ display:true, text:'Retragere mediană (R) pe zile ale săptămânii', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{ position:'top', labels:{ color:'#9aa2b1', boxWidth:12 } }, title:{ display:true, text:'Retragere mediană '+RT+' (R) pe zile ale săptămânii · '+RS, color:'#e7e9ee', font:{size:12} } } }
   });
   renderCompareRetrRel();
 }
@@ -1410,14 +1731,16 @@ function renderCompareRetrRel() {
   if (!allStats) return;
   destroyChart('chartCompareRetrRel');
   const dowSel = document.getElementById('compareDowRetr').value;
+  const cs = retrTabCompareStats(); // task #153
+  const RT = RETR_TYPE_LABEL[retrTabState.retrType], RS = RETR_SESS_LABEL[retrTabState.sessType];
 
   // Shared elapsed-time (hh:mm) bucket axis across sessions, same convention as the OVERVIEW compare chart:
   // RDR/ADR (330min) run longer than ODR (270min), so ODR simply stops having points beyond its own duration.
-  const maxLen = Math.max(...SESSIONS.map(s => allStats[s].retrBucketStats.length));
+  const maxLen = Math.max(...SESSIONS.map(s => cs[s].retrBucketStats.length));
   const timeLabels = Array.from({length:maxLen}, (_,i) => elapsedLabel(i*30 + 30));
 
   function seriesFor(s) {
-    const src = dowSel === 'All' ? allStats[s].retrBucketStats : allStats[s].retrDowBucketMatrix[dowSel];
+    const src = dowSel === 'All' ? cs[s].retrBucketStats : cs[s].retrDowBucketMatrix[dowSel];
     return Array.from({length:maxLen}, (_,i) => {
       const cell = src[i];
       return cell ? cell.medianR : null;
@@ -1432,7 +1755,7 @@ function renderCompareRetrRel() {
     })) },
     options: { responsive:true, maintainAspectRatio:false,
       scales: { x:{ grid:{display:false}, ticks:{color:'#9aa2b1'} }, y:{ max:0, ticks:{ color:'#9aa2b1', stepSize:0.1, callback:v=>v.toFixed(1)+'R' }, grid:{color:'#2a2f3a'} } },
-      plugins: { legend:{ position:'top', labels:{ color:'#9aa2b1', boxWidth:12 } }, title:{ display:true, text:'Retragere mediană (R) vs. timp scurs de la închiderea ferestrei de definire', color:'#e7e9ee', font:{size:12} } } }
+      plugins: { legend:{ position:'top', labels:{ color:'#9aa2b1', boxWidth:12 } }, title:{ display:true, text:'Retragere mediană '+RT+' (R) vs. timp scurs de la închiderea ferestrei de definire · '+RS, color:'#e7e9ee', font:{size:12} } } }
   });
 }
 
@@ -3089,6 +3412,8 @@ let activeTopTab = 'overview';
 function switchTab(s) {
   activeSession = s;
   document.getElementById('sessionSelect').value = s;
+  const rts = document.getElementById('retrTabSession'); // task #153 — ține butoanele „Sesiune” din Retracement în sincron
+  if (rts) rts.querySelectorAll('.expl-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.value === s));
   document.querySelectorAll('.session-panel').forEach(p => p.classList.toggle('active', p.dataset.session === s));
   if (!allStats) return;
   if (s === 'ALL') {
@@ -3109,7 +3434,7 @@ function switchTopTab(t) {
   document.getElementById('toptab-prebo').classList.toggle('active', t === 'prebo');
   document.getElementById('badgesOverview').style.display = (t === 'overview') ? 'flex' : 'none';
   document.getElementById('badgesRetracement').style.display = (t === 'retracement') ? 'flex' : 'none';
-  document.getElementById('globalSessionBar').style.display = (t === 'overview' || t === 'retracement') ? 'flex' : 'none';
+  document.getElementById('globalSessionBar').style.display = (t === 'overview') ? 'flex' : 'none'; // task #153: în Retracement selecția e în panoul de filtre
   // Charts created while their tab was hidden (display:none) can end up stuck at a stale/zero size in some
   // browsers, since a resize-observer doesn't always catch a display:none -> block transition. Force a fresh
   // re-render whenever the user (re)visits Price Statistics/PreBO so charts are always built while visible and
@@ -3381,6 +3706,7 @@ if (!supportsFS()) {
 
 initSessionPanels();
 initRetracementPanels();
+initRetrTabFilters(); // task #153
 initExplorer();
 initPreBO();
 tryAutoConnectFolder();
