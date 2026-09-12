@@ -586,8 +586,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-12 07:07 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-12T07:07 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-12 17:00 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-12T17:00 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -1149,6 +1149,16 @@ function finishPath(p) {
 let __pathBarsEnabled = false;
 function setPathBarsEnabled(v) { __pathBarsEnabled = !!v; }
 
+// Pas 21 (12 sep 2026) — modul de invalidare (False), comutabil:
+//   'close' = Regula 4 (10 sep, RECONFIRMATĂ 12 sep de utilizator după datele BTC): False doar dacă o lumânare FULL (close) sparge
+//             marginea DR opusă după confirmare — DEFAULT. Motiv: pe BTCUSDT fitilul singur mută 4.4% din sesiuni în False, 42% din ele
+//             cu fitil < 0.1R dincolo și 32% cu extensia continuând după fitil ⇒ zgomot, nu invalidare; efectul scade an de an.
+//   'wick'  = varianta strictă (QuantX): orice fitil dincolo de marginea opusă după confirmare ⇒ False. Păstrată pentru comparație.
+// Motorul calculează MEREU ambele etichete (ruleHoldClose / ruleHoldWick) și le expune în rawCycle; `ruleHold` = eticheta modului activ.
+let __invalidationMode = 'close';
+function setInvalidationMode(m) { if (m !== 'wick' && m !== 'close') throw new Error('invalidation mode: wick|close'); __invalidationMode = m; }
+function getInvalidationMode() { return __invalidationMode; }
+
 // ============================================================
 // Pasul 12 (11 sep 2026) — MARGINEA BOX-ULUI (modulul boxEdge, seria 1). Pentru fiecare margine DR (top = DR high,
 // bot = DR low) urmărim, ÎNAINTE de orice confirmare, prima ATINGERE (fitilul ajunge la margine): momentul, dacă bara a
@@ -1232,12 +1242,19 @@ function computeSessionStats(rows, cfg, useIDR) {
         let direction = 'none';
         if (cycle.tUp) direction = 'up'; else if (cycle.tDn) direction = 'down';
         let ruleHold = null, extAmt = null, extElapsed = null, retrAmt = null, retrElapsed = null, retrBeforeAmt = null, retrSessionAmt = null, giveback = null, givebackElapsed = null, triggerElapsed = null, invalidElapsed = null;
+        // Pas 21 — ambele etichete True/False (close = Regula 4 v2, wick = Regula 4 v3) + retracementul post-confirmare PRE-VÂRF.
+        let ruleHoldClose = null, invalidElapsedClose = null, ruleHoldWick = null, invalidElapsedWick = null, retrPrePeakAmt = null, retrPrePeakElapsed = null;
         const trigHigh = useIDR ? cycle.idrHigh : cycle.drHigh;
         const trigLow = useIDR ? cycle.idrLow : cycle.drLow;
         if (direction === 'up') {
-          // True = no close below DR low AFTER the Long confirmation (close-based, no tolerance) — Regula 4.
-          ruleHold = !cycle.tUp.invalidated;
-          invalidElapsed = cycle.tUp.invalidElapsed;
+          // Regula 4 (close, default): True = niciun close sub DR low DUPĂ confirmarea Long; mod 'wick': niciun fitil.
+          // Ambele etichete sunt expuse, ruleHold = modul activ.
+          ruleHoldClose = !cycle.tUp.invalidated; invalidElapsedClose = cycle.tUp.invalidElapsed;
+          ruleHoldWick = !cycle.tUp.invalidatedWick; invalidElapsedWick = cycle.tUp.invalidWickElapsed;
+          ruleHold = __invalidationMode === 'wick' ? ruleHoldWick : ruleHoldClose;
+          invalidElapsed = __invalidationMode === 'wick' ? invalidElapsedWick : invalidElapsedClose;
+          // „Retracement după confirmare" (limba comună): cel mai adânc low de la bara de confirmare până la bara maximului de extensie.
+          retrPrePeakAmt = -Math.max(0, trigHigh - cycle.tUp.prePeakMinLow); retrPrePeakElapsed = cycle.tUp.prePeakMinLowElapsed;
           triggerElapsed = cycle.tUp.elapsed;
           extAmt = cycle.tUp.maxHighAfter - trigHigh;
           extElapsed = cycle.tUp.maxHighElapsed;
@@ -1260,8 +1277,11 @@ function computeSessionStats(rows, cfg, useIDR) {
           giveback = Math.min(0, cycle.tUp.peakMinLowAfter - trigHigh);
           givebackElapsed = cycle.tUp.peakMinLowElapsed;
         } else if (direction === 'down') {
-          ruleHold = !cycle.tDn.invalidated;
-          invalidElapsed = cycle.tDn.invalidElapsed;
+          ruleHoldClose = !cycle.tDn.invalidated; invalidElapsedClose = cycle.tDn.invalidElapsed;
+          ruleHoldWick = !cycle.tDn.invalidatedWick; invalidElapsedWick = cycle.tDn.invalidWickElapsed;
+          ruleHold = __invalidationMode === 'wick' ? ruleHoldWick : ruleHoldClose;
+          invalidElapsed = __invalidationMode === 'wick' ? invalidElapsedWick : invalidElapsedClose;
+          retrPrePeakAmt = -Math.max(0, cycle.tDn.prePeakMaxHigh - trigLow); retrPrePeakElapsed = cycle.tDn.prePeakMaxHighElapsed;
           triggerElapsed = cycle.tDn.elapsed;
           extAmt = trigLow - cycle.tDn.minLowAfter;
           extElapsed = cycle.tDn.minLowElapsed;
@@ -1302,6 +1322,7 @@ function computeSessionStats(rows, cfg, useIDR) {
         const edgeTouch = __first ? { side: __first.side, elapsed: __first.touchElapsed, closedInside: __first.touchClosedInside, vol: __first.touchVol, barDir: __first.touchBarDir, preRetrR: __first.touchPreRetrR, bothTouchedSameBar: !!(__eT && __eB && __eT.touchElapsed === __eB.touchElapsed) } : null;
         const edge = finishEdge(__first), edgeOther = finishEdge(__other);
         cycles.push({ dateKey: cycle.startDateKey, dow: cycle.startDow, direction, ruleHold, invalidElapsed, extAmt, extElapsed, retrAmt, retrElapsed, retrBeforeAmt, retrSessionAmt, giveback, givebackElapsed, drRange, triggerElapsed, relIdx,
+          ruleHoldClose, invalidElapsedClose, ruleHoldWick, invalidElapsedWick, retrPrePeakAmt, retrPrePeakElapsed, invalidationMode: __invalidationMode, // Pas 21
           trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
           path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined,
           volDef, volDefN: hasVol ? cycle.volDefN : null, volPre, volPreN, volConfirmBar, volDisp: hasVol ? cycle.volDisp : null, volDispN: hasVol ? cycle.volDispN : null, // volDisp = toată faza disp (Pas 11; post-hoc, doar pentru baze istorice)
@@ -1396,14 +1417,19 @@ function computeSessionStats(rows, cfg, useIDR) {
           // minLowElapsed (task #146) tracks the elapsed time of the RUNNING minLowAfter itself (the level that
           // directly defines retrAmt below) — distinct from peakMinLowElapsed, which only tracks the pullback
           // that follows the session's OWN peak (giveback's own reference frame).
+          // Pas 21 — prePeakMinLow/prePeakMinLowElapsed: cel mai adânc low de la bara de confirmare (inclusiv) până la bara
+          // MAXIMULUI DE EXTENSIE (inclusiv) = „retracement DUPĂ confirmare" din limba comună (pre-vârf). Se re-eșantionează
+          // din minLowAfter de fiecare dată când extensia face un nou maxim. invalidatedWick/invalidWickElapsed = Regula 4 v3.
           cycle.tUp = { elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, minLowAfter: b.l, minLowElapsed: elapsed, peakMinLowAfter: b.l, peakMinLowElapsed: elapsed, triggerBarIdx: __rowIdx, preLowAtTrigger: cycle.dispLow, invalidated: false, invalidElapsed: null, volBar: b.v,
+                        prePeakMinLow: b.l, prePeakMinLowElapsed: elapsed, invalidatedWick: false, invalidWickElapsed: null, // invalidarea (close SAU fitil) se evaluează doar pe barele DE DUPĂ confirmare, ca la close
                         path: newPathTracker(cycle.drHigh - cycle.drLow) };
           pathStep(cycle.tUp.path, b.h - trigHigh, Math.max(0, trigHigh - b.l), Math.max(0, trigHigh - b.c), elapsed, b.c - trigHigh);
         } else if (cycle.tUp !== null) {
           if (b.l < cycle.tUp.minLowAfter) { cycle.tUp.minLowAfter = b.l; cycle.tUp.minLowElapsed = elapsed; }
-          if (b.h > cycle.tUp.maxHighAfter) { cycle.tUp.maxHighAfter = b.h; cycle.tUp.maxHighElapsed = elapsed; cycle.tUp.peakMinLowAfter = b.l; cycle.tUp.peakMinLowElapsed = elapsed; }
+          if (b.h > cycle.tUp.maxHighAfter) { cycle.tUp.maxHighAfter = b.h; cycle.tUp.maxHighElapsed = elapsed; cycle.tUp.peakMinLowAfter = b.l; cycle.tUp.peakMinLowElapsed = elapsed; cycle.tUp.prePeakMinLow = cycle.tUp.minLowAfter; cycle.tUp.prePeakMinLowElapsed = cycle.tUp.minLowElapsed; }
           else if (b.l < cycle.tUp.peakMinLowAfter) { cycle.tUp.peakMinLowAfter = b.l; cycle.tUp.peakMinLowElapsed = elapsed; }
           if (!cycle.tUp.invalidated && b.c < cycle.drLow) { cycle.tUp.invalidated = true; cycle.tUp.invalidElapsed = elapsed; }
+          if (!cycle.tUp.invalidatedWick && b.l < cycle.drLow) { cycle.tUp.invalidatedWick = true; cycle.tUp.invalidWickElapsed = elapsed; }
           pathStep(cycle.tUp.path, b.h - trigHigh, Math.max(0, trigHigh - b.l), Math.max(0, trigHigh - b.c), elapsed, b.c - trigHigh);
         }
         if (cycle.tDn === null && cycle.tUp === null && b.c < trigLow) {
@@ -1411,13 +1437,15 @@ function computeSessionStats(rows, cfg, useIDR) {
           // that directly defines retrAmt for a down-direction cycle) — symmetric addition to minLowElapsed
           // above; maxHighAfter's own VALUE is unchanged.
           cycle.tDn = { elapsed, minLowAfter: b.l, minLowElapsed: elapsed, maxHighAfter: b.h, maxHighElapsed: elapsed, peakMaxHighAfter: b.h, peakMaxHighElapsed: elapsed, triggerBarIdx: __rowIdx, preHighAtTrigger: cycle.dispHigh, invalidated: false, invalidElapsed: null, volBar: b.v,
+                        prePeakMaxHigh: b.h, prePeakMaxHighElapsed: elapsed, invalidatedWick: false, invalidWickElapsed: null, // Pas 21 (simetric cu tUp)
                         path: newPathTracker(cycle.drHigh - cycle.drLow) };
           pathStep(cycle.tDn.path, trigLow - b.l, Math.max(0, b.h - trigLow), Math.max(0, b.c - trigLow), elapsed, trigLow - b.c);
         } else if (cycle.tDn !== null) {
           if (b.h > cycle.tDn.maxHighAfter) { cycle.tDn.maxHighAfter = b.h; cycle.tDn.maxHighElapsed = elapsed; }
-          if (b.l < cycle.tDn.minLowAfter) { cycle.tDn.minLowAfter = b.l; cycle.tDn.minLowElapsed = elapsed; cycle.tDn.peakMaxHighAfter = b.h; cycle.tDn.peakMaxHighElapsed = elapsed; }
+          if (b.l < cycle.tDn.minLowAfter) { cycle.tDn.minLowAfter = b.l; cycle.tDn.minLowElapsed = elapsed; cycle.tDn.peakMaxHighAfter = b.h; cycle.tDn.peakMaxHighElapsed = elapsed; cycle.tDn.prePeakMaxHigh = cycle.tDn.maxHighAfter; cycle.tDn.prePeakMaxHighElapsed = cycle.tDn.maxHighElapsed; }
           else if (b.h > cycle.tDn.peakMaxHighAfter) { cycle.tDn.peakMaxHighAfter = b.h; cycle.tDn.peakMaxHighElapsed = elapsed; }
           if (!cycle.tDn.invalidated && b.c > cycle.drHigh) { cycle.tDn.invalidated = true; cycle.tDn.invalidElapsed = elapsed; }
+          if (!cycle.tDn.invalidatedWick && b.h > cycle.drHigh) { cycle.tDn.invalidatedWick = true; cycle.tDn.invalidWickElapsed = elapsed; }
           pathStep(cycle.tDn.path, trigLow - b.l, Math.max(0, b.h - trigLow), Math.max(0, b.c - trigLow), elapsed, trigLow - b.c);
         }
       }
@@ -1648,7 +1676,7 @@ function computeAllSessions(rows, useIDR) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { setPathBarsEnabled, PATH_TP_GRID, PATH_SL_GRID, EDGE_TP_GRID, EDGE_SL_GRID, EDGE_OFF_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
+  module.exports = { setPathBarsEnabled, setInvalidationMode, getInvalidationMode, PATH_TP_GRID, PATH_SL_GRID, EDGE_TP_GRID, EDGE_SL_GRID, EDGE_OFF_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
 }
 
 });
@@ -2280,6 +2308,10 @@ const TARGETS = [
     value: c => (conf(c) && c.extAmt != null && c.drRange) ? c.extAmt / c.drRange : null },
   { name: 'retrR', label: 'Retragere după confirmare (R, ≥0)', kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd',
     value: c => (conf(c) && c.retrAmt != null && c.drRange) ? -c.retrAmt / c.drRange : null },
+  { name: 'retrPeakR', label: 'Retragere după confirmare, până la vârf (R, ≥0)', kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd',
+    value: c => (conf(c) && c.retrPrePeakAmt != null && c.drRange) ? -c.retrPrePeakAmt / c.drRange : null },
+  { name: 'isTrueClose', label: 'True pe close (referință)', kind: 'binary', scope: 'confirmed', decidedAt: 'sessionEnd',
+    value: c => conf(c) ? c.ruleHoldClose === true : null },
   { name: 'retrBeforeR', label: 'Retragere înainte de confirmare (R, ≥0)', kind: 'continuous', scope: 'confirmed', decidedAt: 'confirm',
     value: c => (conf(c) && c.retrBeforeAmt != null && c.drRange) ? -c.retrBeforeAmt / c.drRange : null },
   { name: 'maeR', label: 'MAE pe fitil (R)', kind: 'continuous', scope: 'confirmed', decidedAt: 'sessionEnd',
@@ -2370,7 +2402,9 @@ const R_NOTE = ' 1 R = mărimea box-ului DR (high−low al orei PreBO); distanț
 const DESC = {
   confirmed: 'Sesiunea a avut o confirmare (o închidere de 5 min dincolo de DR high sau DR low) — spre deosebire de o sesiune Inside, care rămâne în box până la final. Cunoscut la confirmare.',
   dirUp: 'Confirmarea a fost Long (prima închidere dincolo de box a fost peste DR high). Doar pe sesiunile confirmate. Rata = P(Long); 50% = fără informație de direcție.',
-  isTrue: 'Sesiune True = după confirmare NU a existat nicio închidere de 5 min dincolo de marginea OPUSĂ a box-ului DR până la finalul sesiunii (regula v2, pe close, fără toleranță). False = a existat. Cunoscut la finalul sesiunii.',
+  isTrue: 'Sesiune True = după confirmare NU a existat nicio lumânare FULL (close de 5 min) dincolo de marginea OPUSĂ a box-ului DR până la finalul sesiunii (Regula 4, reconfirmată 12 sep 2026). False = a existat. Fitilul singur nu invalidează (pe BTC ar muta 4.4% din sesiuni, majoritatea zgomot < 0.1R). Cunoscut la finalul sesiunii.',
+  isTrueClose: 'Identic cu isTrue în modul implicit (close). Există pentru comparația cu modul strict „fitilul invalidează" (setInvalidationMode(\'wick\')), în care isTrue devine mai restrictiv iar isTrueClose rămâne pe close.',
+  retrPeakR: '„Retracement după confirmare" din limba comună: cea mai adâncă retragere (pe fitil) față de marginea de trigger, de la bara de confirmare (inclusiv) până la bara MAXIMULUI de extensie — NU până la finalul sesiunii (aceea e retrR). Baza pentru intrarea pe retracement și pentru SL-ul de invalidare.' + R_NOTE,
   extR: 'Extensia maximă: cât de departe a mers prețul (pe fitil) dincolo de marginea de trigger, în direcția confirmării, până la finalul sesiunii.' + R_NOTE,
   retrR: 'Retragerea maximă DUPĂ confirmare (MAE pe fitil): cât de mult s-a întors prețul împotriva direcției confirmării, măsurat de la marginea de trigger; ≥0, în R. Baza pentru stop loss.' + R_NOTE,
   retrBeforeR: 'Retragerea ÎNAINTE de confirmare: cât a mers prețul în interiorul box-ului în direcția opusă viitoarei confirmări, de la închiderea PreBO până la bara de confirmare inclusiv; ≥0, în R.',
@@ -3016,7 +3050,9 @@ const TGT = {
   outsideAfterIdrRetr: 'Dintre cele care au revenit în IDR, câte tot închid afară.\nDacă ≈ rata necondiționată ⇒ revenirea în IDR e ocazie de re-intrare, nu invalidare.\nDacă e mult mai mică ⇒ revenirea chiar prezice eșecul.',
   confirmed: 'Sesiunea a avut confirmare (nu a rămas Inside).\nRată mică într-un bucket ⇒ acel context dă mai multe sesiuni fără breakout.',
   dirUp: 'Confirmarea a fost Long.\n50% = fără informație de direcție. Dacă un bucket e la 65%+ cu n mare ⇒ predictor de direcție.',
-  isTrue: 'Sesiunea a fost True (după confirmare nu a închis dincolo de marginea opusă).\nDacă un bucket e clar peste rata globală ⇒ context cu mai puține invalidări.',
+  isTrue: 'Sesiunea a fost True (după confirmare nicio lumânare full nu a închis dincolo de marginea opusă; fitilul nu contează).\nDacă un bucket e clar peste rata globală ⇒ context cu mai puține invalidări.',
+  isTrueClose: 'True pe close — identic cu isTrue în modul implicit.\nDiferă doar dacă motorul e comutat pe „fitilul invalidează" (comparație).',
+  retrPeakR: 'Retragerea contra după confirmare, doar PÂNĂ LA maximul extensiei (R) — limba comună.\nAici intri cu limit și pui SL-ul de invalidare; retrR (până la final) include și retragerea de după vârf.',
   extR: 'Cât de departe a mers prețul după confirmare, în R (1 R = box-ul).\nMediana ≈ 1R e tipic. Buckets cu mediană mai mare ⇒ ținte mai departe.',
   retrR: 'Cât s-a întors prețul contra după confirmare (R). Baza pentru SL.\nDacă mediana e 0.6R ⇒ un stop de 0.5R e scos în peste jumătate din cazuri.',
   retrBeforeR: 'Cât a mers prețul contra ÎNAINTE de confirmare, în box (R).',
@@ -4104,7 +4140,7 @@ module.exports = { init, setData, render, state, tradeOf, summarize };
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, glossary: G, version: "0.15.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, glossary: G, version: "0.16.0" };
 })();
 
 </script>
