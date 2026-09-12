@@ -586,8 +586,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-11 17:49 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-11T17:49 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-12 07:07 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-12T07:07 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -3099,6 +3099,8 @@ const UI = {
   'sim.wfset': 'Al doilea CSV (ex. din ian 2025) pe care se APLICĂ configurația aleasă, fără să intre în căutare.\nDacă „WF extern" e pozitiv ⇒ configurația rezistă pe date nevăzute; dacă ≈ 0 ⇒ potrivire pe istoric.',
   'sim.bySession': 'Rezultatul pe RDR / ODR / ADR. Dacă una e negativă ⇒ exclude-o și verifică din nou.',
   'sim.dataset': 'principal = CSV-ul din „Sursă” (statistică); walk-forward = CSV-ul încărcat aici (verificare).\nAlege parametrii pe principal, apoi comută pe walk-forward și apasă Rulează ⇒ vezi cum se comportă pe date nevăzute.',
+  'sim.costSimple': 'O sumă dus-întors, fără diferență limit/market.',
+  'sim.costVenue': 'Comision per parte după tipul ordinului: fade intră limit (maker), confirmarea intră market (taker); TP = maker, SL/contra/final = taker.\nDacă R/trade trece pe plus doar aici ⇒ edge-ul depinde de comision, nu de regulă.',
   'sim.preset': 'WTI: 0.01 × 1.5 ticks. Cripto: 0.10% din preț. Costul rezultat în R e în detaliile de la R/trade.',
   'sim.filter': 'Păstrează doar ciclurile cu nivelurile bifate ale unui parametru cunoscut la intrare.\nAici verifici dacă un ACTIV din seria 2–3 schimbă banii.',
   'sim.n': 'Câte trade-uri (cicluri cu setup) după filtre. Sub ~200 ⇒ fragil.',
@@ -3217,7 +3219,9 @@ const UI = {
   'sim.wfset': { title: 'Set walk-forward extern', text: 'Un al doilea CSV (ex. datele din ianuarie 2025 încoace, din Data-Split/wf_2025+), procesat cu același motor, fus orar și toggle IDR. Nu intră în căutarea top 3 și nici în grila TP×SL — e folosit doar pentru a aplica configurația aleasă pe date pe care nu le-a văzut: rezultatul apare ca „WF extern" pe fiecare card și sub simularea manuală. Filtrele cu praguri (chintile) se calculează pe setul extern. Regula coerentă: statistica și alegerea parametrilor pe setul principal (până în dec 2024), verificarea pe setul extern (din ian 2025).' },
   'sim.bySession': { title: 'Pe sesiuni', text: 'Rezultatul defalcat pe RDR / ODR / ADR pentru configurația curentă. Dacă o sesiune e negativă sau are t mic ⇒ exclude-o (filtrul Sesiune) și vezi dacă walk-forward-ul se ține.' },
   'sim.dataset': { title: 'Pe ce set rulează simularea manuală', text: '„Setul principal” = CSV-ul încărcat în „⚙ Sursă și parametri” (statistica, ex. până în dec 2024) — pe el se aleg parametrii. „Setul walk-forward” = CSV-ul încărcat cu „📂 Încarcă CSV walk-forward” (ex. din ian 2025) — pe el se VERIFICĂ parametrii aleși: KPI-urile, curba de equity, anii, sesiunile și grila TP×SL se calculează atunci exclusiv pe el. Căutarea top 3 rămâne mereu pe setul principal (cardurile arată WF extern). Perioada lună–lună se aplică setului activ.' },
-  'sim.preset': { title: 'Preset costuri', text: 'WTI futures: tick 0.01 × 1.5 ticks (spread + comision, per dus-întors). Cripto spot: 0.10% din preț (2 × 0.05%, taker). Ajustează la brokerul tău; costul rezultat în R e afișat în detaliile de la R/trade.' },
+  'sim.costSimple': { title: 'Costuri — model simplu', text: 'O singură sumă dus-întors per trade: ticks × tick + procent × preț, împărțită la mărimea box-ului (⇒ R). Nu face diferența între ordin limit și market. Folosește-l când știi doar costul total mediu.' },
+  'sim.costVenue': { title: 'Costuri — maker / taker per parte', text: 'Comision pe fiecare parte a trade-ului după tipul ordinului: intrarea fade și fade-limit sunt ordine limit (maker); intrarea la confirmare e market la close (taker); ieșirea la TP e limit (maker); ieșirile la SL, la close contra și la finalul sesiunii sunt market (taker), cu slippage opțional în ticks. De ce contează: pe cripto costul spot taker de 0.10% per parte e 0.2–0.3 R per trade și mănâncă tot edge-ul fade-ului (brut +0.09…+0.13 R/trade pe 2025+, Pas 18); cu comisioane de futures maker 0.02% / taker 0.05% fade-ul rămâne pe plus. Pragul de break-even ≈ 0.06–0.08% dus-întors.' },
+  'sim.preset': { title: 'Preset costuri', text: 'Modelul maker/taker: „Futures 0.02 / 0.05" = comisioane tipice de perpetual futures (maker 0.02%, taker 0.05% per parte); „Spot 0.10 / 0.10" = spot fără reduceri; „Spot cu reducere 0.075". Modelul simplu: WTI futures: tick 0.01 × 1.5 ticks (spread + comision, per dus-întors). Cripto spot: 0.10% din preț (2 × 0.05%, taker). Ajustează la brokerul tău; costul rezultat în R e afișat în detaliile de la R/trade.' },
   'sim.filter': { title: 'Filtru din seria 1', text: 'Păstrează doar ciclurile în care parametrul ales are nivelurile bifate — ex. „Direcția barei de atingere = dinspre margine". Doar parametri cunoscuți la momentul intrării (anti-leakage). Aici se vede dacă o corelație ACTIVĂ din seria 2–3 chiar schimbă banii.' },
   'sim.n': { title: 'Trade-uri', text: 'Câte cicluri au avut setup (fade: test la margine; confirmare: sesiune confirmată) după filtre. Sub ~200 ⇒ rezultat fragil.' },
   'sim.mean': { title: 'R/trade după costuri', text: 'Expectancy-ul: media rezultatelor în R, cu costurile scăzute. Pozitiv cu t ≥ 2–3 ⇒ edge statistic; verifică și walk-forward-ul.' },
@@ -3761,7 +3765,7 @@ const E = require('../engine.js'), F = require('../features/index.js'), T = requ
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = v => v == null ? '–' : (100 * v).toFixed(1) + '%', f2 = v => v == null ? '–' : Number(v).toFixed(2), f3 = v => v == null ? '–' : Number(v).toFixed(3);
-const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null, from: '', to: '', auto: null, autoRunning: false, fillPad: 0, wf: null, dataset: 'main', off: 0.2 };
+const state = { strat: 'fade', tp: 0.65, sl: 1.5, exitContra: true, tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, session: 'ALL', dows: new Set(E.DOW), filtFeat: '', filtLevels: new Set(), chart: null, getCycles: null, res: null, from: '', to: '', auto: null, autoRunning: false, fillPad: 0, wf: null, dataset: 'main', off: 0.2, costMode: 'simple', maker: 0.0002, taker: 0.0005, slipTicks: 0 };
 const STRATS = { fade: { label: 'Fade la margine (primul test)', tpGrid: E.EDGE_TP_GRID, slGrid: E.EDGE_SL_GRID, stage: 'edgeTouch' }, fadeLimit: { label: 'Fade cu limit dincolo de margine', tpGrid: E.EDGE_TP_GRID, slGrid: E.EDGE_SL_GRID, stage: 'edgeTouch', offGrid: E.EDGE_OFF_GRID }, confirm: { label: 'Intrare la confirmare', tpGrid: E.PATH_TP_GRID, slGrid: E.PATH_SL_GRID, stage: 'confirm' } };
 const AUTO_MIN_N = 100;
 const DOW_RO = { Monday: 'Lu', Tuesday: 'Ma', Wednesday: 'Mi', Thursday: 'Jo', Friday: 'Vi' };
@@ -3780,7 +3784,9 @@ function markup() {
     ${state.strat === 'fadeLimit' ? `<div class="mod-filter"><label data-tip="ui:sim.off">Limit dincolo de margine (R)</label><div id="simOff" class="mod-row">${E.EDGE_OFF_GRID.map(v => `<button type="button" class="expl-grid-btn${v === state.off ? ' active' : ''}" data-v="${v}">${v}</button>`).join('')}</div></div>` : ''}
     ${state.strat === 'fade' ? `<div class="mod-filter"><label data-tip="ui:sim.fillPad">Fill</label><div id="simFill" class="mod-row">${[[0, 'la atingere'], [0.02, 'penetrare ≥ 0.02R'], [0.05, '≥ 0.05R']].map(([v, l]) => `<button type="button" class="expl-toggle-btn${state.fillPad === v ? ' active' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div><div class="mod-filter"><label data-tip="ui:sim.exitContra">Ieșire la close contra</label><div id="simExit" class="mod-row"><button type="button" class="expl-toggle-btn${state.exitContra ? ' active' : ''}" data-v="1">da</button><button type="button" class="expl-toggle-btn${state.exitContra ? '' : ' active'}" data-v="0">nu (până la final)</button></div></div>` : ''}
     ${state.strat === 'fadeLimit' ? `<div class="mod-filter"><label data-tip="ui:sim.exitContra">Ieșire la close contra</label><div id="simExit" class="mod-row"><button type="button" class="expl-toggle-btn${state.exitContra ? ' active' : ''}" data-v="1">da</button><button type="button" class="expl-toggle-btn${state.exitContra ? '' : ' active'}" data-v="0">nu (până la final)</button></div></div>` : ''}
-    <div class="mod-filter"><label data-tip="ui:sim.cost">Costuri (dus-întors)</label><div class="mod-row sim-cost">tick <input id="simTick" type="number" step="any" value="${state.tick}"> × <input id="simCostTicks" type="number" step="0.5" value="${state.costTicks}"> ticks + <input id="simCostPct" type="number" step="0.01" value="${(100 * state.costPct).toFixed(2)}">% din preț <span class="n">preset:</span> <button type="button" class="expl-grid-btn" data-preset="wti" data-tip="ui:sim.preset">WTI futures</button><button type="button" class="expl-grid-btn" data-preset="crypto" data-tip="ui:sim.preset">Cripto spot</button></div></div>
+    <div class="mod-filter mod-filter-wide"><label data-tip="ui:sim.cost">Costuri</label><div class="mod-row sim-cost"><span id="simCostMode"><button type="button" class="expl-toggle-btn${state.costMode === 'simple' ? ' active' : ''}" data-v="simple" data-tip="ui:sim.costSimple">simplu (dus-întors)</button><button type="button" class="expl-toggle-btn${state.costMode === 'venue' ? ' active' : ''}" data-v="venue" data-tip="ui:sim.costVenue">maker / taker (per parte)</button></span>
+      <span id="simCostSimple"${state.costMode === 'simple' ? '' : ' hidden'}>tick <input id="simTick" type="number" step="any" value="${state.tick}"> × <input id="simCostTicks" type="number" step="0.5" value="${state.costTicks}"> ticks + <input id="simCostPct" type="number" step="0.01" value="${(100 * state.costPct).toFixed(2)}">% din preț <span class="n">preset:</span> <button type="button" class="expl-grid-btn" data-preset="wti" data-tip="ui:sim.preset">WTI futures</button><button type="button" class="expl-grid-btn" data-preset="crypto" data-tip="ui:sim.preset">Cripto spot</button></span>
+      <span id="simCostVenue"${state.costMode === 'venue' ? '' : ' hidden'}>maker <input id="simMaker" type="number" step="0.005" value="${(100 * state.maker).toFixed(3)}">% · taker <input id="simTaker" type="number" step="0.005" value="${(100 * state.taker).toFixed(3)}">% · slippage taker <input id="simSlipTicks" type="number" step="0.5" value="${state.slipTicks}"> ticks × <input id="simTick2" type="number" step="any" value="${state.tick}"> <span class="n">preset:</span> <button type="button" class="expl-grid-btn" data-vpreset="fut" data-tip="ui:sim.preset">Futures 0.02 / 0.05</button><button type="button" class="expl-grid-btn" data-vpreset="spot" data-tip="ui:sim.preset">Spot 0.10 / 0.10</button><button type="button" class="expl-grid-btn" data-vpreset="spotd" data-tip="ui:sim.preset">Spot cu reducere 0.075</button></span></div></div>
     <div class="mod-filter"><label data-tip="ui:sim.period">Perioadă (de la – până la)</label><div class="mod-row sim-cost"><input id="simFrom" type="month" value="${state.from}"> – <input id="simTo" type="month" value="${state.to}"> <button type="button" class="expl-grid-btn" id="simAllPeriod">tot istoricul</button></div></div>
     <div class="mod-filter"><label data-tip="ui:filter.session">Sesiune</label><div id="simSession" class="mod-row">${['ALL', ...E.SESSIONS].map(s => `<button type="button" class="expl-toggle-btn${s === state.session ? ' active' : ''}" data-v="${s}">${s}</button>`).join('')}</div></div>
     <div class="mod-filter"><label data-tip="ui:filter.dow">Zile</label><div id="simDows" class="mod-row">${E.DOW.map(d => `<button type="button" class="expl-toggle-btn${state.dows.has(d) ? ' active' : ''}" data-v="${d}">${DOW_RO[d]}</button>`).join('')}</div></div>
@@ -3831,6 +3837,8 @@ function build() {
   grp('simExit', b => { state.exitContra = b.dataset.v === '1'; $('simExit').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simSession', b => { state.session = b.dataset.v; $('simSession').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); });
   grp('simDows', b => { b.classList.toggle('active'); state.dows = new Set([...$('simDows').querySelectorAll('button.active')].map(x => x.dataset.v)); });
+  grp('simCostMode', b => { readCosts(); state.costMode = b.dataset.v; $('simCostMode').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); $('simCostSimple').hidden = state.costMode !== 'simple'; $('simCostVenue').hidden = state.costMode !== 'venue'; });
+  root.querySelectorAll('[data-vpreset]').forEach(b => b.addEventListener('click', () => { const P = { fut: [0.02, 0.05], spot: [0.10, 0.10], spotd: [0.075, 0.075] }[b.dataset.vpreset]; $('simMaker').value = P[0].toFixed(3); $('simTaker').value = P[1].toFixed(3); }));
   root.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => { if (b.dataset.preset === 'wti') { $('simTick').value = 0.01; $('simCostTicks').value = 1.5; $('simCostPct').value = '0.00'; } else { $('simTick').value = 0; $('simCostTicks').value = 0; $('simCostPct').value = '0.10'; } }));
   $('simFiltFeat').onchange = ev => { state.filtFeat = ev.target.value; state.filtLevels = new Set(); renderLevels(); };
   $('simRun').onclick = () => run();
@@ -3864,7 +3872,14 @@ function filteredCycles() {
 }
 
 // ---------- simulare pe un ciclu ----------
-function costR(c, price) { return (state.costTicks * state.tick + state.costPct * price) / c.drRange; }
+// COSTURI (Pas 19): „simplu" = o sumă dus-întors (ticks × tick + % × preț), ca până acum; „maker/taker" = comision per parte în funcție de
+// tipul ordinului: intrarea fade / fade-limit = limit (maker), intrarea la confirmare = market la close (taker); ieșirea la TP = limit
+// (maker), la SL / close contra / final = market (taker) + slippage în ticks. Totul împărțit la drRange ⇒ R.
+function costR(c, price, entryKind, exitHow) {
+  if (state.costMode !== 'venue') return (state.costTicks * state.tick + state.costPct * price) / c.drRange;
+  const fee = kind => (kind === 'maker' ? state.maker : state.taker) * price + (kind === 'taker' ? state.slipTicks * state.tick : 0);
+  return (fee(entryKind || 'taker') + fee(exitHow === 'tp' ? 'maker' : 'taker')) / c.drRange;
+}
 // REGULI (Pas 14, verificate de test/verify_sim_rules.js):
 //  • fade: intrarea există doar dacă prima atingere e DUPĂ închiderea PreBO și ÎNAINTE de orice confirmare (garantat de motor:
 //    edgeTouch se setează doar în faza disp și doar cât nu există confirmare) și bara de atingere a închis în box; opțional
@@ -3889,7 +3904,7 @@ function tradeOf(c, tp, sl, strat, exitContra, fillPad, off) {
     const first = ev.filter(x => x[1] != null && x[1] >= fe).sort((a, b) => a[1] - b[1] || PRI[a[0]] - PRI[b[0]])[0];
     let r, how; if (!first) { r = (e.endR == null ? 0 : e.endR) + off; how = 'final'; } else if (first[0] === 'tp') { r = tp + off; how = 'tp'; } else if (first[0] === 'sl') { r = -(sl - off); how = 'sl'; } else { r = e.breakCloseR + off; how = 'contra'; }
     const price = e.side === 'top' ? c.drHigh : c.drLow;
-    return { r: r - costR(c, price), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: fe, exitT: first ? first[1] : null };
+    return { r: r - costR(c, price, 'maker', how), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: fe, exitT: first ? first[1] : null };
   }
   if (strat === 'fade') {
     const e = c.edge; if (!e || !e.touchClosedInside) return null;
@@ -3900,14 +3915,14 @@ function tradeOf(c, tp, sl, strat, exitContra, fillPad, off) {
     const first = ev.filter(x => x[1] != null).sort((a, b) => a[1] - b[1] || PRI[a[0]] - PRI[b[0]])[0];
     let r, how; if (!first) { r = e.endR == null ? 0 : e.endR; how = 'final'; } else if (first[0] === 'tp') { r = tp; how = 'tp'; } else if (first[0] === 'sl') { r = -sl; how = 'sl'; } else { r = e.breakCloseR; how = 'contra'; }
     const price = e.side === 'top' ? c.drHigh : c.drLow;
-    return { r: r - costR(c, price), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: e.touchElapsed, exitT: first ? first[1] : null };
+    return { r: r - costR(c, price, 'maker', how), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: e.touchElapsed, exitT: first ? first[1] : null };
   }
   if (!(c.direction === 'up' || c.direction === 'down') || !c.path || c.confirmClose == null) return null;
   const p = c.path, ti = E.PATH_TP_GRID.indexOf(tp), si = E.PATH_SL_GRID.indexOf(sl), slip = Math.max(0, c.confirmSlipR || 0);
   if (slip >= tp - 1e-9) return null; // close-ul confirmării e deja la/peste TP ⇒ nu există setup
   const t = (p.tpElapsedPost || p.tpElapsed)[ti], s = (p.slElapsedPost || p.slElapsed)[si];
   let r, how, exitT = null; if (t === null && s === null) { r = (p.endR == null ? 0 : p.endR) - slip; how = 'final'; } else if (s === null) { r = tp - slip; how = 'tp'; exitT = t; } else if (t === null) { r = -sl - slip; how = 'sl'; exitT = s; } else if (t < s) { r = tp - slip; how = 'tp'; exitT = t; } else { r = -sl - slip; how = 'sl'; exitT = s; }
-  return { r: r - costR(c, c.confirmClose), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: c.triggerElapsed, exitT };
+  return { r: r - costR(c, c.confirmClose, 'taker', how), gross: r, how, dateKey: c.dateKey, ses: c.srcSession, t: c.triggerElapsed, exitT };
 }
 function summarize(trades) {
   const n = trades.length; if (!n) return { n: 0 };
@@ -3917,7 +3932,12 @@ function summarize(trades) {
   const how = {}; for (const t of trades) how[t.how] = (how[t.how] || 0) + 1;
   return { n, sum, mean, t: sd ? mean / (sd / Math.sqrt(n)) : null, median: sorted[Math.floor(n / 2)], win: wins.length / n, pf: losses.length ? wins.reduce((a, b) => a + b, 0) / -losses.reduce((a, b) => a + b, 0) : null, maxDD: dd, curve, how, gross: trades.reduce((a, b) => a + b.gross, 0) / n };
 }
-function readCosts() { state.tick = Number($('simTick').value) || 0; state.costTicks = Number($('simCostTicks').value) || 0; state.costPct = (Number($('simCostPct').value) || 0) / 100; }
+function readCosts() {
+  if (!$('simTick')) return;
+  if (state.costMode === 'venue') { state.tick = Number($('simTick2').value) || 0; $('simTick').value = state.tick; } else { state.tick = Number($('simTick').value) || 0; if ($('simTick2')) $('simTick2').value = state.tick; }
+  state.costTicks = Number($('simCostTicks').value) || 0; state.costPct = (Number($('simCostPct').value) || 0) / 100;
+  state.maker = (Number($('simMaker').value) || 0) / 100; state.taker = (Number($('simTaker').value) || 0) / 100; state.slipTicks = Number($('simSlipTicks').value) || 0;
+}
 function run() {
   readCosts();
   const cyc = filteredCycles().slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
@@ -3937,7 +3957,7 @@ function run() {
   // pe ani și pe sesiuni (parametrii aleși)
   const byYear = {}, bySes = {}; for (const t of trades) { (byYear[t.dateKey.slice(0, 4)] = byYear[t.dateKey.slice(0, 4)] || []).push(t); (bySes[t.ses] = bySes[t.ses] || []).push(t); }
   const ext = (state.wf && state.dataset === 'main') ? wfExternResult({ tp: state.tp, sl: state.sl, strat, exitContra: state.exitContra }, state.session, state.filtFeat && state.filtLevels.size === 1 ? state.filtFeat : null, state.filtFeat && state.filtLevels.size === 1 ? [...state.filtLevels][0] : null, state.dows) : null;
-  state.res = { all, grid, wf, ext, byYear: Object.fromEntries(Object.entries(byYear).map(([k, v]) => [k, summarize(v)])), bySes: Object.fromEntries(Object.entries(bySes).map(([k, v]) => [k, summarize(v)])), nCycles: cyc.length, medCost: median(cyc.map(c => costR(c, strat !== 'confirm' ? c.drHigh : (c.confirmClose || c.drHigh))).filter(x => isFinite(x))) };
+  state.res = { all, grid, wf, ext, byYear: Object.fromEntries(Object.entries(byYear).map(([k, v]) => [k, summarize(v)])), bySes: Object.fromEntries(Object.entries(bySes).map(([k, v]) => [k, summarize(v)])), nCycles: cyc.length, medCost: median(cyc.map(c => costR(c, strat !== 'confirm' ? c.drHigh : (c.confirmClose || c.drHigh), strat !== 'confirm' ? 'maker' : 'taker', 'sl')).filter(x => isFinite(x))), costLabel: state.costMode === 'venue' ? `maker ${(100 * state.maker).toFixed(3)}% / taker ${(100 * state.taker).toFixed(3)}%${state.slipTicks ? ' + ' + state.slipTicks + ' ticks slippage' : ''}` : `${state.costTicks} ticks × ${state.tick} + ${(100 * state.costPct).toFixed(2)}%` };
   render();
 }
 const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
@@ -4051,7 +4071,7 @@ function render() {
   const a = R.all, cls = v => v > 0 ? 'sim-pos' : v < 0 ? 'sim-neg' : '';
   kp.innerHTML = [
     ['trade-uri', String(a.n), 'ui:sim.n', `${R.nCycles} cicluri după filtre în perioada ${periodLabel()}; ${a.n} au avut setup.`],
-    ['R/trade (după costuri)', a.n ? f3(a.mean) : '–', 'ui:sim.mean', a.n ? `t = ${a.t == null ? '–' : a.t.toFixed(1)}; brut (fără costuri) ${f3(a.gross)} R; cost median ${f3(R.medCost)} R/trade.` : ''],
+    ['R/trade (după costuri)', a.n ? f3(a.mean) : '–', 'ui:sim.mean', a.n ? `t = ${a.t == null ? '–' : a.t.toFixed(1)}; brut (fără costuri) ${f3(a.gross)} R; cost median (intrare + ieșire taker) ${f3(R.medCost)} R/trade; model: ${R.costLabel}.` : ''],
     ['t-stat', a.n && a.t != null ? a.t.toFixed(1) : '–', 'ui:sim.t'],
     ['win rate', a.n ? pct(a.win) : '–', 'ui:sim.win', a.n ? 'Ieșiri: ' + Object.entries(a.how).map(([k, v]) => `${k} ${v}`).join(', ') : ''],
     ['profit factor', a.n ? f2(a.pf) : '–', 'ui:sim.pf'],
