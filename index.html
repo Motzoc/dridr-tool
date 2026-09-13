@@ -589,8 +589,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-13 10:01 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-13T10:01 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-13 10:06 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-13T10:06 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -4536,13 +4536,14 @@ function render() {
   const head = $('dstHead'), banner = $('dstBanner'), grid = $('dstCharts'); if (!grid) return;
   for (const k of Object.keys(state.charts)) { state.charts[k].destroy(); delete state.charts[k]; }
   const a = state.assets[state.asset];
+  const nw = state.news; $('dstNewsInfo').innerHTML = `lista: ${nw ? `${nw.days.size} zile, ${nw.events} evenimente (${Object.entries(nw.types).map(([k, v]) => k + ' ' + v).join(', ')}), ${nw.from} → ${nw.to}` : 'lipsă'} · sursa: ${esc(state.newsSource)}`;
   if (!a || !a.hasVolume) { head.innerHTML = ''; banner.innerHTML = '<div class="dst-banner">Niciun asset cu volum încărcat. Încarcă un fișier OHLCV 5 min (Sursă și parametri sau „Adaugă fișiere OHLCV" din stânga).</div>'; grid.innerHTML = ''; for (let i = 0; i < 8; i++) { const n = $('dstN' + i); if (n) n.textContent = '–'; } return; }
   const h = D.applyHierarchy(a.records, selection(), state.tw, state.minN, state.news);
   // n și avertismente pe fiecare nivel
   h.steps.forEach((st, i) => {
     const n = $('dstN' + i); if (n) { n.textContent = st.n; n.classList.toggle('warn', st.warn); }
     const w = $('dstW' + i); if (w && i !== 0) w.textContent = st.warn ? `⚠ prea puține seturi de date după acest filtru (n = ${st.n} < ${state.minN}) — distribuția nu e de încredere` : '';
-    if (st.key === 'news') { const nw = state.news; $('dstNewsInfo').innerHTML = `${st.mode === 'exclude' ? `<b>${st.removed}</b> sesiuni pe news days excluse` : `<b>${st.newsDays}</b> sesiuni pe news days INCLUSE (la cerere)`} · lista: ${nw ? `${nw.days.size} zile, ${nw.events} evenimente (${Object.entries(nw.types).map(([k, v]) => k + ' ' + v).join(', ')}), ${nw.from} → ${nw.to}` : 'lipsă'} · sursa: ${esc(state.newsSource)}`; }
+    if (st.key === 'news') $('dstNewsInfo').innerHTML = `${st.mode === 'exclude' ? `<b>${st.removed}</b> sesiuni pe news days excluse` : `<b>${st.newsDays}</b> sesiuni pe news days INCLUSE (la cerere)`} · ` + $('dstNewsInfo').innerHTML;
   });
   const d = D.distributions(h.set, state.tw);
   const final = h.steps[h.steps.length - 1];
