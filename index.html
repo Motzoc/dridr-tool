@@ -589,8 +589,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-13 10:18 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-13T10:18 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-13 10:32 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-13T10:32 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -2848,7 +2848,13 @@ function applyHierarchy(records, sel, tw, minN = MIN_N, news = null) {
 
 // ---------- histograme ----------
 const EPS = 1e-9;
-const binPrice = v => Math.floor(v / 0.1 + EPS) * 0.1;         // [-0.1, 0) → -0.1 ; [0, 0.1) → 0 ; [1.0, 1.1) → 1.0
+// Bucket-urile de PREȚ se numără DE LA LINIA DR (0) SPRE EXTERIOR, simetric pentru extensie și retragere (utilizator, 13 sep 2026):
+//   extensie  : bucket „0.0" = [0, 0.1), „1.0" = [1.0, 1.1)  — eticheta = marginea dinspre 0
+//   retragere : bucket „0.0" = (−0.1, 0], „−0.2" = (−0.3, −0.2] — adică adâncimea 0.2…0.3 R față de linie; eticheta = marginea dinspre 0
+// (înainte, retragerile erau puse cu floor: −0.22 cădea în „−0.3" — histograma era deplasată cu un bucket spre exterior față de extensie.)
+const binExt = v => Math.floor(v * 10 + 1e-6) / 10;
+const binRetr = v => -Math.floor(-Math.min(v, 0) * 10 + 1e-6) / 10;
+const binPrice = (v, kind) => kind === 'retr' ? binRetr(v) : binExt(v);
 const binTime = (v, w) => Math.floor(v / w) * w;
 function sortNum(a) { return a.filter(x => x != null && isFinite(x)).slice().sort((x, y) => x - y); }
 function quant(s, q) { return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : null; }
@@ -2872,7 +2878,7 @@ function summary(values, kind, step, cap) {
   if (!s.length) return null;
   const isTime = kind === 'time';
   if (cap === undefined) cap = isTime ? null : CAP[kind];
-  const binFn = isTime ? (v => binTime(v, step)) : binPrice;
+  const binFn = isTime ? (v => binTime(v, step)) : (v => binPrice(v, kind));
   const norm = k => isTime ? k : Math.round(k * 10) / 10;               // cheie stabilă pentru bucket-urile de preț (fără 0.30000000004)
   const clamp = v => cap == null ? v : (kind === 'retr' ? Math.max(v, cap) : Math.min(v, cap));
   const m = new Map();
@@ -2917,7 +2923,7 @@ function distributions(set, tw) {
 // Bucket-urile de confirmare disponibile pentru o sesiune (0 … durata fazei disp), pentru grila de butoane din UI.
 function bucketsFor(dispDurMin, tw) { const out = []; for (let m = 0; m < dispDurMin; m += tw) out.push(m); return out; }
 
-const api = { MIN_N, CAP, LEVELS, NEWS_TYPES, parseNewsCSV, newsFromCalendar, isNewsDay, nextDateKey, DOWS, SESSIONS, isConfirmed, measure, fromStats, applyHierarchy, summary, distributions, bucketOf, binPrice, binTime, bucketsFor, quant, sortNum };
+const api = { MIN_N, CAP, LEVELS, binExt, binRetr, NEWS_TYPES, parseNewsCSV, newsFromCalendar, isNewsDay, nextDateKey, DOWS, SESSIONS, isConfirmed, measure, fromStats, applyHierarchy, summary, distributions, bucketOf, binPrice, binTime, bucketsFor, quant, sortNum };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
 });
@@ -4409,7 +4415,7 @@ function markup() {
         <div class="dst-head" id="dstHead"></div>
         <div id="dstBanner"></div>
         <div class="dst-charts" id="dstCharts"></div>
-        <div class="dst-legend">Convenții (limba comună): PRICE în R (0.1 R = un SD), 0 = linia DR spartă de confirmare; retragerile ≤ 0, extensia ≥ 0. Fiecare sesiune intră o singură dată, cu valoarea ei extremă (fără dublă numărare). Bucket-ul „−0.4" = [−0.4, −0.3); „1.0" = [1.0, 1.1). TOATE axele de timp au aceeași referință: minute de la sfârșitul PreBO (ultima lumânare de definire), cu același număr de bucket-uri — pentru retracementul dinainte, cel de după confirmare, cel maxim pe sesiune și extensie. Linia albă punctată = mediana; linia albastră = centila 70 (la retrageri: nivelul sub care rămân 70% din sesiuni; la extensie și timp: a 70-a centilă). Barele pline = blocul de vârf (cel mai scurt interval contiguu cu ≥ 50% din sesiuni). Regula 4: invalidare pe lumânare full (close). Zile: Luni–Vineri. NEWS DAYS (FOMC, CPI, NFP — US) sunt EXCLUSE implicit din statistică (regula: nu se face statistică și nu se tranzacționează în zilele de news days decât la cerere explicită): se exclud ODR și RDR din ziua cu news și cele două ADR care intră în ziua news (ADR-ul din seara precedentă) și ies din ea (ADR-ul din seara zilei news). Sesiunile selectate (RDR/ODR/ADR, oricâte) se cumulează.</div>
+        <div class="dst-legend">Convenții (limba comună): PRICE în R (0.1 R = un SD), 0 = linia DR spartă de confirmare; retragerile ≤ 0, extensia ≥ 0. Fiecare sesiune intră o singură dată, cu valoarea ei extremă (fără dublă numărare). Bucket-urile se numără DE LA LINIA DR (0) SPRE EXTERIOR, la fel pentru retrageri și extensie: „1.0" = extensie 1.0…1.1 R; „−0.2" = retragere de 0.2…0.3 R sub linie (adică valori −0.3 … −0.2]; „0.0" = primii 0.1 R de o parte sau alta a liniei. TOATE axele de timp au aceeași referință: minute de la sfârșitul PreBO (ultima lumânare de definire), cu același număr de bucket-uri — pentru retracementul dinainte, cel de după confirmare, cel maxim pe sesiune și extensie. Linia albă punctată = mediana; linia albastră = centila 70 (la retrageri: nivelul sub care rămân 70% din sesiuni; la extensie și timp: a 70-a centilă). Barele pline = blocul de vârf (cel mai scurt interval contiguu cu ≥ 50% din sesiuni). Regula 4: invalidare pe lumânare full (close). Zile: Luni–Vineri. NEWS DAYS (FOMC, CPI, NFP — US) sunt EXCLUSE implicit din statistică (regula: nu se face statistică și nu se tranzacționează în zilele de news days decât la cerere explicită): se exclud ODR și RDR din ziua cu news și cele două ADR care intră în ziua news (ADR-ul din seara precedentă) și ies din ea (ADR-ul din seara zilei news). Sesiunile selectate (RDR/ODR/ADR, oricâte) se cumulează.</div>
       </div>
     </div>
   </div>`;
@@ -4491,9 +4497,15 @@ const linesPlugin = {
 let pluginRegistered = false;
 
 // poziția (fracționară) a unei valori pe axa bucket-urilor: bucket-ul i acoperă [bin_i, bin_i + step) ⇒ centrul barei = i
+// bucket-urile se numără de la 0 spre exterior: ext „1.0" = [1.0, 1.1) (eticheta = marginea dinspre 0, stânga barei);
+// retr „−0.2" = (−0.3, −0.2] (eticheta = marginea dinspre 0, DREAPTA barei). Timp: [bin, bin+step).
 function idxOf(s, v) {
   if (v == null) return null;
   if (s.cap != null) v = s.kind === 'retr' ? Math.max(v, s.cap) : Math.min(v, s.cap);
+  if (s.kind === 'retr') {
+    const i = s.bins.findIndex(b => v > b.bin - s.step + 1e-9 && v <= b.bin + 1e-9); if (i < 0) return null;
+    return i + 0.5 - (s.bins[i].bin - v) / s.step;
+  }
   const i = s.bins.findIndex(b => v >= b.bin - 1e-9 && v < b.bin + s.step - 1e-9); if (i < 0) return null;
   return i - 0.5 + (v - s.bins[i].bin) / s.step;
 }
@@ -4526,7 +4538,7 @@ function drawChart(key, s, isTime) {
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: {
-          title: items => { const b = s.bins[items[0].dataIndex]; if (b.capped) return s.kind === 'retr' ? `≤ ${f2(b.bin + s.step)} (coada, plafon de afișare)` : `≥ ${f2(b.bin)} (coada, plafon de afișare)`; return isTime ? `${mm(b.bin)} – ${mm(b.bin + s.step)}` : `${f2(b.bin)} … ${f2(b.bin + s.step)}`; },
+          title: items => { const b = s.bins[items[0].dataIndex]; if (b.capped) return s.kind === 'retr' ? `≤ ${f2(b.bin)} (adâncime ≥ ${f2(-b.bin)} R, coada, plafon de afișare)` : `≥ ${f2(b.bin)} (coada, plafon de afișare)`; if (isTime) return `${mm(b.bin)} – ${mm(b.bin + s.step)}`; return s.kind === 'retr' ? `${f2(b.bin - s.step)} … ${f2(b.bin)}  (adâncime ${f2(-b.bin)}–${f2(-b.bin + s.step)} R de la linia DR)` : `${f2(b.bin)} … ${f2(b.bin + s.step)}`; },
           label: item => { const b = s.bins[item.dataIndex]; return [`Percentage: ${pct(b.pct)}`, `Percentage Total: ${pct(b.cum)}`, `Datasets: ${b.count}`, `Total Datasets: ${s.n}`]; },
         } },
       },
@@ -4540,7 +4552,7 @@ function drawChart(key, s, isTime) {
 
 function card(key, title, s, isTime, timeBase) {
   if (!s) return `<div class="dst-card"><h3>${esc(title)}</h3><div class="dst-empty">fără date</div></div>`;
-  const blk = s.block ? (isTime ? `${mm(s.block.lo)}–${mm(s.block.hi + s.step)}` : `${f2(s.block.lo)} … ${f2(s.block.hi + s.step)}`) + ` (${pct(s.block.share)})` : '–';
+  const blk = s.block ? (isTime ? `${mm(s.block.lo)}–${mm(s.block.hi + s.step)}` : (s.kind === 'retr' ? `${f2(s.block.lo - s.step)} … ${f2(s.block.hi)}` : `${f2(s.block.lo)} … ${f2(s.block.hi + s.step)}`)) + ` (${pct(s.block.share)})` : '–';
   const fmtV = v => isTime ? mm(v) : f2(v);
   const sub = isTime ? ' — minute de la sfârșitul PreBO' : ' — R (SD 0.1)';
   return `<div class="dst-card"><h3>${esc(title)}<span class="n">${esc(sub)} · n = ${s.n}</span></h3><div class="box"><canvas id="dstC_${key}"></canvas></div>
@@ -4634,7 +4646,7 @@ module.exports = { init, setData, addFiles, render, getState, assetNameFromFile,
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, DIST, glossary: G, version: "0.19.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, DIST, glossary: G, version: "0.19.1" };
 })();
 
 </script>
