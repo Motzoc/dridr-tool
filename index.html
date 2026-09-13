@@ -81,6 +81,11 @@
   .toptabbtn.active { background: var(--panel); color: #fff; border-color: var(--border); border-bottom-color: var(--panel); position: relative; top: 1px; }
   .toptab-content { display: none; }
   .toptab-content.active { display: block; }
+  .subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .subtabbtn { background: var(--panel2); border: 1px solid var(--border); color: var(--text2); border-radius: 8px; padding: 7px 16px; font-size: 12px; font-weight: 600; cursor: pointer; letter-spacing: .03em; }
+  .subtabbtn.active { color: #fff; background: var(--accent); border-color: transparent; }
+  .subtab-content { display: none; }
+  .subtab-content.active { display: block; }
   .subtabs { gap: 8px; margin-bottom: 0; }
   .subtabbtn { padding: 9px 22px; font-size: 13px; border-radius: 8px 8px 0 0; background: var(--panel2); }
   .subtabbtn.active { background: var(--panel); color: #fff; border-color: var(--border); border-bottom-color: var(--panel); position: relative; top: 1px; }
@@ -302,36 +307,39 @@
     <div class="sidebar" id="mainSidebar" tabindex="0">
       <div class="sidebar-collapsed">
         <button class="tabbtn toptabbtn active" data-toptab="overview" title="Overview">OV</button>
-        <button class="tabbtn toptabbtn" data-toptab="explorer" title="Price Statistics">STATS</button>
-        <button class="tabbtn toptabbtn" data-toptab="retracement" title="Retracement">RET</button>
-        <button class="tabbtn toptabbtn" data-toptab="prebo" title="PreBO">BO</button>
-        <button class="tabbtn toptabbtn" data-toptab="modules" title="Module (seria 1)">MOD</button>
-        <button class="tabbtn toptabbtn" data-toptab="correl" title="Corelații & testare (seria 2–3)">COR</button>
-        <button class="tabbtn toptabbtn" data-toptab="sim" title="Simulare (seria 4)">SIM</button>
-        <button class="tabbtn toptabbtn" data-toptab="dist" title="Distribuții DR (filtre ierarhice)">DIST</button>
+        <button class="tabbtn toptabbtn" data-toptab="concept" title="DR Concept — distribuții, price statistics, retracement (limba comună)">DR</button>
+        <button class="tabbtn toptabbtn" data-toptab="fade" title="Fade la Margine — module, corelații, simulare (strategia de fade la marginea DR)">FADE</button>
       </div>
       <div class="sidebar-expanded">
         <h2>Navigare</h2>
         <div class="tabs toptabs">
           <button class="tabbtn toptabbtn active" data-toptab="overview">OVERVIEW</button>
-          <button class="tabbtn toptabbtn" data-toptab="explorer">PRICE STATISTICS</button>
-          <button class="tabbtn toptabbtn" data-toptab="retracement">RETRACEMENT</button>
-          <button class="tabbtn toptabbtn" data-toptab="prebo">PREBO</button>
-          <button class="tabbtn toptabbtn" data-toptab="modules">MODULE · s1</button>
-          <button class="tabbtn toptabbtn" data-toptab="correl">CORELAȚII · s2–3</button>
-          <button class="tabbtn toptabbtn" data-toptab="sim">SIMULARE · s4</button>
-          <button class="tabbtn toptabbtn" data-toptab="dist">DISTRIBUȚII</button>
+          <button class="tabbtn toptabbtn" data-toptab="concept">DR CONCEPT</button>
+          <button class="tabbtn toptabbtn" data-toptab="fade">FADE LA MARGINE</button>
         </div>
-
+        <p class="note" style="margin:10px 4px 0; font-size:11px; line-height:1.45;">DR CONCEPT: Distribuții · Price Statistics · Retracement — statistica „limbii comune", cu filtre ierarhice.<br>FADE LA MARGINE: Module · Corelații · Simulare — strategia de fade la marginea DR.</p>
       </div>
     </div>
 
     <div class="main-content">
 
-  <div id="toptab-modules" class="toptab-content"></div>
-  <div id="toptab-correl" class="toptab-content"></div>
-  <div id="toptab-sim" class="toptab-content"></div>
-  <div id="toptab-dist" class="toptab-content"></div>
+  <!-- Pas 27: TAB „DR Concept" — sub-tab-urile Distribuții / Price Statistics / Retracement sunt randate de dridr-core/ui/dist_tab.js
+       din ACEEAȘI statistică (stats/dist.js) și același panou de filtre ierarhice. -->
+  <div id="toptab-concept" class="toptab-content"></div>
+  <!-- Pas 27: TAB „Fade la Margine" — fostele tab-uri Module (seria 1), Corelații (seria 2–3), Simulare (seria 4) ca sub-tab-uri. -->
+  <div id="toptab-fade" class="toptab-content">
+    <div class="subtabs" id="fadeSub">
+      <button type="button" class="subtabbtn active" data-v="modules">MODULE · s1</button>
+      <button type="button" class="subtabbtn" data-v="correl">CORELAȚII · s2–3</button>
+      <button type="button" class="subtabbtn" data-v="sim">SIMULARE · s4</button>
+    </div>
+    <div id="toptab-modules" class="subtab-content active"></div>
+    <div id="toptab-correl" class="subtab-content"></div>
+    <div id="toptab-sim" class="subtab-content"></div>
+  </div>
+  <!-- Fostele tab-uri PRICE STATISTICS, RETRACEMENT și PREBO (Pas 27): scoase din navigare, dar păstrate în DOM împreună cu codul lor
+       (statistica PreBO e folosită de fade la margine; Price Statistics / Retracement au echivalente în TAB-ul DR Concept, cu logica
+       din limba comună). Nu au buton, deci nu devin niciodată vizibile. -->
 
   <div id="toptab-overview" class="toptab-content active">
     <div class="panel">
@@ -589,8 +597,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-13 11:04 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-13T11:04 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-13 12:10 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-13T12:10 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -2853,9 +2861,46 @@ function applyHierarchy(records, sel, tw, minN = MIN_N, news = null) {
     else if (L.key === 'bucket') next = (Array.isArray(v) && v.length) ? set.filter(r => v.includes(bucketOf(r.trig, tw))) : set;
     else next = (Array.isArray(v) && v.length) ? set.filter(r => v.includes(r[L.key])) : set;
     set = next;
-    steps.push(Object.assign({ key: L.key, label: L.label, selected: v == null ? null : (Array.isArray(v) ? v.slice() : v), n: set.length, warn: set.length < minN }, extra || {}));
+    steps.push(Object.assign({ key: L.key, label: L.label, selected: v == null ? null : (Array.isArray(v) ? v.slice() : v), n: set.length, warn: set.length < minN, set }, extra || {}));
   }
   return { set, steps, tw, minN };
+}
+
+// ---------- rezumate pe GRUPURI (sub-tab-urile Price Statistics și Retracement) — aceeași ierarhie, aceleași măsuri ----------
+// Pas 27 (13 sep 2026): cele trei sub-tab-uri ale TAB-ului „DR Concept" trebuie să dea aceleași numere pentru același filtru.
+// groupBy(records, sel, tw, minN, news, key, confirmBar): aplică ierarhia cu nivelul `key` LĂSAT LIBER (el devine axa graficului),
+// apoi grupează setul final după acea axă. Pentru fiecare grup: n (setul final, ex. doar True), nConf / nTrue / pTrue (setul de
+// dinaintea filtrului True/False — rata True se raportează la TOATE sesiunile confirmate din grup, ca în Overview), și mediană + c70
+// pentru retrAfter (incl/excl), ext, retrBefore, retrMax și timpul extensiei. key ∈ 'bucket' | 'dow' | 'ses'.
+function groupBy(records, sel, tw, minN, news, key, confirmBar) {
+  tw = tw || 15; minN = minN == null ? MIN_N : minN; confirmBar = confirmBar || 'incl';
+  const free = Object.assign({}, sel || {}); free[key] = [];
+  const h = applyHierarchy(records, free, tw, minN, news);
+  const preHold = h.steps.find(s => s.key === 'hold'); const before = h.steps[h.steps.indexOf(preHold) - 1].set;
+  // filtrele de DUPĂ True/False (bucket, preBO) se aplică și setului „toate confirmate" ca rata True să fie pe același grup
+  const later = r => (key === 'bucket' || !(Array.isArray(free.bucket) && free.bucket.length) || free.bucket.includes(bucketOf(r.trig, tw)))
+    && (!(Array.isArray(free.preBO) && free.preBO.length) || free.preBO.includes(r.preBO));
+  const allConf = before.filter(later);
+  const kf = key === 'bucket' ? (r => bucketOf(r.trig, tw)) : (r => r[key]);
+  const groups = new Map();
+  for (const r of h.set) { const k = kf(r); if (!groups.has(k)) groups.set(k, { key: k, rows: [], all: [] }); groups.get(k).rows.push(r); }
+  for (const r of allConf) { const k = kf(r); if (!groups.has(k)) groups.set(k, { key: k, rows: [], all: [] }); groups.get(k).all.push(r); }
+  const q = (rows, f, kind) => { const s = sortNum(rows.map(r => r[f])); return { n: s.length, median: quant(s, 0.5), c70: kind === 'retr' ? quant(s, 0.30) : quant(s, 0.70) }; };
+  const out = [];
+  for (const g of groups.values()) {
+    const fA = confirmBar === 'excl' ? 'retrAfterX' : 'retrAfter';
+    const nTrue = g.all.filter(r => r.hold === 'True').length;
+    out.push({
+      key: g.key, n: g.rows.length, warn: g.rows.length < minN,
+      nConf: g.all.length, nTrue, pTrue: g.all.length ? nTrue / g.all.length : null,
+      retrAfter: q(g.rows, fA, 'retr'), retrAfterT: q(g.rows, confirmBar === 'excl' ? 'retrAfterXT' : 'retrAfterT', 'time'),
+      ext: q(g.rows, 'ext', 'ext'), extT: q(g.rows, 'extT', 'time'),
+      retrBefore: q(g.rows, 'retrBefore', 'retr'), retrMax: q(g.rows, 'retrMax', 'retr'),
+    });
+  }
+  const order = key === 'dow' ? DOWS : (key === 'ses' ? SESSIONS : null);
+  out.sort((a, b) => order ? order.indexOf(a.key) - order.indexOf(b.key) : a.key - b.key);
+  return { key, tw, confirmBar, groups: out, n: h.set.length, nConf: allConf.length, steps: h.steps };
 }
 
 // ---------- histograme ----------
@@ -2950,7 +2995,7 @@ function distributions(set, tw, confirmBar) {
 // Bucket-urile de confirmare disponibile pentru o sesiune (0 … durata fazei disp), pentru grila de butoane din UI.
 function bucketsFor(dispDurMin, tw) { const out = []; for (let m = 0; m < dispDurMin; m += tw) out.push(m); return out; }
 
-const api = { MIN_N, CAP, LEVELS, binExt, binRetr, bucketRange, NEWS_TYPES, parseNewsCSV, newsFromCalendar, isNewsDay, nextDateKey, DOWS, SESSIONS, isConfirmed, measure, fromStats, applyHierarchy, summary, distributions, bucketOf, binPrice, binTime, bucketsFor, quant, sortNum };
+const api = { MIN_N, CAP, LEVELS, binExt, binRetr, bucketRange, NEWS_TYPES, parseNewsCSV, newsFromCalendar, isNewsDay, nextDateKey, DOWS, SESSIONS, isConfirmed, measure, fromStats, applyHierarchy, groupBy, summary, distributions, bucketOf, binPrice, binTime, bucketsFor, quant, sortNum };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
 });
@@ -4362,7 +4407,9 @@ module.exports = { init, setData, render, state, tradeOf, summarize };
 
 });
 __define("/ui/dist_tab.js", function (module, exports, require) {
-// dridr-core/ui/dist_tab.js — Pas 23 (13 sep 2026): tab-ul „DISTRIBUȚII" — distribuțiile conceptului DR cu filtre IERARHICE, grafic, stil QuantX.
+// dridr-core/ui/dist_tab.js — Pas 23 (13 sep 2026): TAB-ul „DR CONCEPT" — distribuțiile conceptului DR cu filtre IERARHICE, grafic, stil QuantX.
+// Pas 27 (13 sep 2026): trei sub-tab-uri cu ACELAȘI panou de filtre și ACEEAȘI statistică (stats/dist.js): DISTRIBUȚII (histogramele),
+// PRICE STATISTICS (extensie / retracement / rata True pe ora confirmării) și RETRACEMENT (comparație RDR/ODR/ADR pe zile și pe ora confirmării).
 // Ordinea filtrelor (utilizator): 1 asset → 2 sesiune → 3 ziua → 4 Long/Short → 5 True/False (implicit True) → 6 time bucket (15/30) → 7 PreBO.
 // Fiecare nivel arată n-ul rămas și avertizează când n < MIN_N. Toată statistica vine din stats/dist.js (modul pur, testat) — aici e doar UI.
 // Asset-uri: cel încărcat în tool + oricâte fișiere OHLCV adăugate din tab (doar fișierele CU VOLUM intră în statistică; celelalte sunt listate ca excluse).
@@ -4382,6 +4429,8 @@ const state = {
   assets: {},                 // name → { records, hasVolume, rows, from, to, dispDur: {RDR,ODR,ADR} }
   asset: null, sess: new Set(['RDR']), dows: new Set(), dirs: new Set(), holds: new Set(['True']), tw: 15, buckets: new Set(), preBO: new Set(),
   news: D.newsFromCalendar(CAL), newsMode: 'exclude', newsSource: 'calendarul inclus (BLS + Fed)',
+  sub: 'dist',                  // sub-tab activ: 'dist' | 'price' | 'retr'
+  retrType: 'retrAfter', retrStat: 'median', // sub-tab RETRACEMENT: ce se compară și cu ce statistică
   confirmBar: 'incl',           // retracementul DUPĂ confirmare: 'incl' = bara de confirmare inclusă (limba comună) | 'excl' = strict după ea
   charts: {}, minN: D.MIN_N,
 };
@@ -4412,6 +4461,11 @@ const CSS = `
 .dst-kv .med{color:#fff}.dst-kv .c70{color:var(--accent)}.dst-kv .blk{color:#7fb2ff}
 .dst-empty{color:var(--text3);padding:30px;text-align:center}
 .dst-legend{font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5}
+.subtabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}.subtabbtn{background:var(--panel2);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.03em}.subtabbtn.active{color:#fff;background:var(--accent);border-color:transparent}
+.subtab-content{display:none}.subtab-content.active{display:block}
+.dst-card .box.tall{height:340px}.dst-stack{display:grid;gap:12px}
+.dst-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}.dst-table th,.dst-table td{padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}.dst-table th{color:var(--text2);font-weight:600;text-transform:uppercase;font-size:10px;letter-spacing:.03em}.dst-table td:first-child,.dst-table th:first-child{text-align:left;color:var(--text)}.dst-table td.warn{color:var(--whip)}.dst-table td.up{color:var(--up)}.dst-table td.down{color:var(--down)}
+.dst-tblwrap{overflow-x:auto}
 .dst-opt{grid-column:1 / -1}.dst-opt .dst-row{align-items:center}.dst-note{font-size:11px;color:var(--text3);margin-left:8px}.dst-opt-spacer{display:none}
 `;
 
@@ -4443,8 +4497,15 @@ function markup() {
       <div class="panel">
         <div class="dst-head" id="dstHead"></div>
         <div id="dstBanner"></div>
-        <div class="dst-charts" id="dstCharts"></div>
-        <div class="dst-legend">Convenții (limba comună): PRICE în R (0.1 R = un SD), 0 = linia DR spartă de confirmare; retragerile ≤ 0, extensia ≥ 0. Fiecare sesiune intră o singură dată, cu valoarea ei extremă (fără dublă numărare). Retragerile sunt SEMNATE față de linia DR spartă: negativ = sub linie, POZITIV (+SD) = cel mai adânc punct a rămas deasupra liniei — un retracement e retracement indiferent de zona SD în care ajunge. Graficele de retragere se citesc de la stânga (cel mai pozitiv) la dreapta (cel mai negativ); extensia 0 → +x. „Percentage Total" din tooltip = cât la sută din sesiuni au retras cel mult până la acel bucket (cumulat de la stânga). Bucket-uri de 0.1 R numărate de la linie spre exterior: „+0.2" = 0.2…0.3 R deasupra liniei, „−0.2" = 0.2…0.3 R sub linie, „0.0" = ±0.1 R în jurul liniei; extensie „1.0" = 1.0…1.1 R. TOATE axele de timp au aceeași referință: minute de la sfârșitul PreBO (ultima lumânare de definire), cu același număr de bucket-uri — pentru retracementul dinainte, cel de după confirmare, cel maxim pe sesiune și extensie. Linia albă punctată = mediana; linia albastră = centila 70 (la retrageri: nivelul sub care rămân 70% din sesiuni; la extensie și timp: a 70-a centilă). Barele pline = blocul de vârf (cel mai scurt interval contiguu cu ≥ 50% din sesiuni). Regula 4: invalidare pe lumânare full (close). Zile: Luni–Vineri. NEWS DAYS (FOMC, CPI, NFP — US) sunt EXCLUSE implicit din statistică (regula: nu se face statistică și nu se tranzacționează în zilele de news days decât la cerere explicită): se exclud ODR și RDR din ziua cu news și cele două ADR care intră în ziua news (ADR-ul din seara precedentă) și ies din ea (ADR-ul din seara zilei news). Sesiunile selectate (RDR/ODR/ADR, oricâte) se cumulează.</div>
+        <div class="subtabs" id="dstSub"><button type="button" class="subtabbtn active" data-v="dist">DISTRIBUȚII</button><button type="button" class="subtabbtn" data-v="price">PRICE STATISTICS</button><button type="button" class="subtabbtn" data-v="retr">RETRACEMENT</button></div>
+        <div class="dst-card dst-opt" id="dstCbCard" style="margin-bottom:12px"><h3>Retracement DUPĂ confirmare — bara de confirmare<span class="n"> — definiția din limba comună o include (implicit); „exclusă" = strict după ea (așa apar retragerile din zona +SD, ca la QuantX). Se aplică în toate cele trei sub-tab-uri.</span></h3>
+          <div class="dst-row"><button type="button" class="expl-toggle-btn active" id="dstCbIncl">inclusă</button><button type="button" class="expl-toggle-btn" id="dstCbExcl">exclusă (strict după)</button><span class="dst-note" id="dstCbNote"></span></div></div>
+        <div id="dstPaneDist" class="subtab-content active">
+          <div class="dst-charts" id="dstCharts"></div>
+          <div class="dst-legend">Convenții (limba comună): PRICE în R (0.1 R = un SD), 0 = linia DR spartă de confirmare; retragerile ≤ 0, extensia ≥ 0. Fiecare sesiune intră o singură dată, cu valoarea ei extremă (fără dublă numărare). Retragerile sunt SEMNATE față de linia DR spartă: negativ = sub linie, POZITIV (+SD) = cel mai adânc punct a rămas deasupra liniei — un retracement e retracement indiferent de zona SD în care ajunge. Graficele de retragere se citesc de la stânga (cel mai pozitiv) la dreapta (cel mai negativ); extensia 0 → +x. „Percentage Total" din tooltip = cât la sută din sesiuni au retras cel mult până la acel bucket (cumulat de la stânga). Bucket-uri de 0.1 R numărate de la linie spre exterior: „+0.2" = 0.2…0.3 R deasupra liniei, „−0.2" = 0.2…0.3 R sub linie, „0.0" = ±0.1 R în jurul liniei; extensie „1.0" = 1.0…1.1 R. TOATE axele de timp au aceeași referință: minute de la sfârșitul PreBO (ultima lumânare de definire), cu același număr de bucket-uri — pentru retracementul dinainte, cel de după confirmare, cel maxim pe sesiune și extensie. Linia albă punctată = mediana; linia albastră = centila 70 (la retrageri: nivelul sub care rămân 70% din sesiuni; la extensie și timp: a 70-a centilă). Barele pline = blocul de vârf (cel mai scurt interval contiguu cu ≥ 50% din sesiuni). Regula 4: invalidare pe lumânare full (close). Zile: Luni–Vineri. NEWS DAYS (FOMC, CPI, NFP — US) sunt EXCLUSE implicit din statistică (regula: nu se face statistică și nu se tranzacționează în zilele de news days decât la cerere explicită): se exclud ODR și RDR din ziua cu news și cele două ADR care intră în ziua news (ADR-ul din seara precedentă) și ies din ea (ADR-ul din seara zilei news). Sesiunile selectate (RDR/ODR/ADR, oricâte) se cumulează.</div>
+        </div>
+        <div id="dstPanePrice" class="subtab-content"></div>
+        <div id="dstPaneRetr" class="subtab-content"></div>
       </div>
     </div>
   </div>`;
@@ -4595,12 +4656,24 @@ function card(key, title, s, isTime, timeBase) {
     <div class="dst-kv"><span class="med">mediană <b>${fmtV(s.median)}</b></span><span class="c70">c70 <b>${fmtV(s.c70)}</b></span><span class="blk">bloc ≥50% <b>${blk}</b></span><span>mod <b>${fmtV(s.mode)}</b> (${pct(s.modeShare)})</span></div></div>`;
 }
 
+const SES_COLOR = { RDR: '#3f8cff', ODR: '#c974e0', ADR: '#38c2b0' };
+const UP = '#2fae6b', DOWN = '#e0554f', GRAY = 'rgba(154,162,177,.28)';
+function destroyCharts() { for (const k of Object.keys(state.charts)) { state.charts[k].destroy(); delete state.charts[k]; } }
+function sesDur() { const a = state.assets[state.asset]; return a ? Math.max(...D.SESSIONS.map(x => a.dispDur[x] || 0), 0) || 330 : 330; }
+function selDur() { const a = state.assets[state.asset]; return a ? Math.max(...[...state.sess].map(x => a.dispDur[x] || 0), 0) || sesDur() : 330; }
+function noChart(cv) { cv.parentElement.innerHTML = '<div class="dst-empty">Chart.js indisponibil</div>'; }
+const tick = { color: '#9aa2b1', font: { size: 10 } };
+
 function render() {
-  const head = $('dstHead'), banner = $('dstBanner'), grid = $('dstCharts'); if (!grid) return;
-  for (const k of Object.keys(state.charts)) { state.charts[k].destroy(); delete state.charts[k]; }
+  const head = $('dstHead'), banner = $('dstBanner'); if (!head) return;
+  destroyCharts();
   const a = state.assets[state.asset];
   const nw = state.news; $('dstNewsInfo').innerHTML = `lista: ${nw ? `${nw.days.size} zile, ${nw.events} evenimente (${Object.entries(nw.types).map(([k, v]) => k + ' ' + v).join(', ')}), ${nw.from} → ${nw.to}` : 'lipsă'} · sursa: ${esc(state.newsSource)}`;
-  if (!a || !a.hasVolume) { head.innerHTML = ''; banner.innerHTML = '<div class="dst-banner">Niciun asset cu volum încărcat. Încarcă un fișier OHLCV 5 min (Sursă și parametri sau „Adaugă fișiere OHLCV" din stânga).</div>'; grid.innerHTML = ''; for (let i = 0; i < 8; i++) { const n = $('dstN' + i); if (n) n.textContent = '–'; } return; }
+  $('dstCbIncl').classList.toggle('active', state.confirmBar === 'incl'); $('dstCbExcl').classList.toggle('active', state.confirmBar === 'excl');
+  document.querySelectorAll('#dstSub .subtabbtn').forEach(b => b.classList.toggle('active', b.dataset.v === state.sub));
+  for (const k of ['dist', 'price', 'retr']) { const el = $('dstPane' + k[0].toUpperCase() + k.slice(1)); if (el) el.classList.toggle('active', k === state.sub); }
+  const clear = () => { $('dstCharts').innerHTML = ''; $('dstPanePrice').innerHTML = ''; $('dstPaneRetr').innerHTML = ''; $('dstCbNote').textContent = ''; };
+  if (!a || !a.hasVolume) { head.innerHTML = ''; banner.innerHTML = '<div class="dst-banner">Niciun asset cu volum încărcat. Încarcă un fișier OHLCV 5 min (Sursă și parametri sau „Adaugă fișiere OHLCV" din stânga).</div>'; clear(); for (let i = 0; i < 8; i++) { const n = $('dstN' + i); if (n) n.textContent = '–'; } return; }
   const h = D.applyHierarchy(a.records, selection(), state.tw, state.minN, state.news);
   // n și avertismente pe fiecare nivel
   h.steps.forEach((st, i) => {
@@ -4608,28 +4681,125 @@ function render() {
     const w = $('dstW' + i); if (w && i !== 0) w.textContent = st.warn ? `⚠ prea puține seturi de date după acest filtru (n = ${st.n} < ${state.minN}) — distribuția nu e de încredere` : '';
     if (st.key === 'news') $('dstNewsInfo').innerHTML = `${st.mode === 'exclude' ? `<b>${st.removed}</b> sesiuni pe news days excluse` : `<b>${st.newsDays}</b> sesiuni pe news days INCLUSE (la cerere)`} · ` + $('dstNewsInfo').innerHTML;
   });
-  const d = D.distributions(h.set, state.tw, state.confirmBar);
   const final = h.steps[h.steps.length - 1];
   head.innerHTML = `<b>${esc(state.asset)}</b> <span>${state.sess.size ? [...state.sess].join('+') : 'toate sesiunile'}</span> <span>${state.newsMode === 'exclude' ? 'fără news days' : 'CU news days'}</span> <span>zile: ${state.dows.size ? [...state.dows].map(x => DOW_RO[x]).join(' ') : 'toate'}</span> <span>${state.dirs.size ? [...state.dirs].join('/') : 'Long+Short'}</span> <span>${state.holds.size ? [...state.holds].join('/') : 'True+False'}</span> <span>ora confirmării: ${state.buckets.size ? [...state.buckets].sort((x, y) => x - y).map(mm).join(', ') : 'toate'} (${state.tw} min)</span> <span>PreBO: ${state.preBO.size ? [...state.preBO].join('/') : 'ambele'}</span> <span>⇒ <b>n = ${final.n}</b> sesiuni</span>`;
   banner.innerHTML = final.warn ? `<div class="dst-banner">⚠ Prea puține seturi de date pentru filtrul curent: n = ${final.n} (prag ${state.minN}). Relaxează un filtru (ordinea: asset → news days → sesiune → zi → confirmare → True/False → oră → PreBO).</div>` : '';
-  if (!final.n) { grid.innerHTML = '<div class="dst-empty">0 sesiuni</div>'; return; }
+  if (!final.n && state.sub === 'dist') { clear(); $('dstCharts').innerHTML = '<div class="dst-empty">0 sesiuni</div>'; return; }
+  const d = D.distributions(h.set, state.tw, state.confirmBar);
+  $('dstCbNote').textContent = state.confirmBar === 'excl' ? `${d.retrAfter.noBars} sesiuni fără nicio bară între confirmare și vârf (vârful e chiar bara de confirmare) — nu au retracement „după" și nu intră în statistica „după confirmare"` : 'retragerile pozitive (+SD) apar rar cu bara inclusă: low-ul barei de confirmare e aproape mereu sub linie';
+  if (state.sub === 'dist') renderDist(d);
+  else if (state.sub === 'price') renderPrice(a);
+  else renderRetr(a);
+}
+
+// ---------- sub-tab DISTRIBUȚII ----------
+function renderDist(d) {
+  const grid = $('dstCharts'); $('dstPanePrice').innerHTML = ''; $('dstPaneRetr').innerHTML = '';
   grid.innerHTML = [
-    `<div class="dst-card dst-opt"><h3>Retracement DUPĂ confirmare — bara de confirmare<span class="n"> — definiția din limba comună o include (implicit); „exclusă" = strict după ea (așa apar retragerile din zona +SD, ca la QuantX)</span></h3>
-      <div class="dst-row"><button type="button" class="expl-toggle-btn${state.confirmBar === 'incl' ? ' active' : ''}" id="dstCbIncl">inclusă</button><button type="button" class="expl-toggle-btn${state.confirmBar === 'excl' ? ' active' : ''}" id="dstCbExcl">exclusă (strict după)</button>
-      <span class="dst-note">${state.confirmBar === 'excl' ? `${d.retrAfter.noBars} sesiuni fără nicio bară între confirmare și vârf (vârful e chiar bara de confirmare) — nu au retracement „după" și nu intră în aceste două grafice` : `retragerile pozitive (+SD) apar rar cu bara inclusă: low-ul barei de confirmare e aproape mereu sub linie`}</span></div></div>
-     <div class="dst-card dst-opt-spacer"></div>`,
     card('ra_p', 'Retracement DUPĂ confirmare (până la vârf)' + (state.confirmBar === 'excl' ? ' — strict după bara de confirmare' : ''), d.retrAfter.price, false), card('ra_t', 'Timp retracement DUPĂ confirmare' + (state.confirmBar === 'excl' ? ' — strict' : ''), d.retrAfter.time, true),
     card('ex_p', 'Extensie maximă', d.ext.price, false), card('ex_t', 'Timp extensie maximă', d.ext.time, true),
     card('rb_p', 'Retracement ÎNAINTE de confirmare', d.retrBefore.price, false), card('rb_t', 'Timp retracement ÎNAINTE de confirmare', d.retrBefore.time, true),
     card('rm_p', 'Retracement MAXIM pe sesiune', d.retrMax.price, false), card('rm_t', 'Timp retracement MAXIM pe sesiune', d.retrMax.time, true),
   ].join('');
-  $('dstCbIncl').onclick = () => { state.confirmBar = 'incl'; render(); };
-  $('dstCbExcl').onclick = () => { state.confirmBar = 'excl'; render(); };
   requestAnimationFrame(() => {
     drawChart('ra_p', d.retrAfter.price, false); drawChart('ra_t', d.retrAfter.time, true);
     drawChart('ex_p', d.ext.price, false); drawChart('ex_t', d.ext.time, true);
     drawChart('rb_p', d.retrBefore.price, false); drawChart('rb_t', d.retrBefore.time, true);
     drawChart('rm_p', d.retrMax.price, false); drawChart('rm_t', d.retrMax.time, true);
+  });
+}
+
+// ---------- sub-tab PRICE STATISTICS: extensie / retracement / rata True pe ORA CONFIRMĂRII (axa = bucket-ul de timp) ----------
+// Aceleași filtre ca DISTRIBUȚII, cu nivelul 6 (ora confirmării) lăsat liber — el e axa X. Toate valorile sunt medianele / c70 ale
+// ACELORAȘI măsuri per sesiune (D.groupBy ≡ D.distributions pe fiecare bucket). Rata True = True / (True+False) pe bucket, din toate confirmatele.
+function renderPrice(a) {
+  const pane = $('dstPanePrice'); $('dstCharts').innerHTML = ''; $('dstPaneRetr').innerHTML = '';
+  const g = D.groupBy(a.records, selection(), state.tw, state.minN, state.news, 'bucket', state.confirmBar);
+  const dur = selDur(); const buckets = D.bucketsFor(dur, state.tw); const by = new Map(g.groups.map(x => [x.key, x]));
+  const rows = buckets.map(b => by.get(b) || { key: b, n: 0, nConf: 0, nTrue: 0, pTrue: null, retrAfter: {}, ext: {}, retrBefore: {}, retrMax: {}, extT: {}, retrAfterT: {} });
+  const afterLbl = 'retracement DUPĂ confirmare' + (state.confirmBar === 'excl' ? ' (strict)' : '');
+  pane.innerHTML = `<div class="dst-stack">
+    <div class="dst-card"><h3>Extensie și ${esc(afterLbl)} pe ora confirmării<span class="n"> — R față de linia DR spartă; linie plină = mediană, punctată = c70; bare gri = n sesiuni în bucket (axa dreaptă) · sesiuni: ${esc([...state.sess].join('+') || 'toate')}, ${esc([...state.holds].join('/') || 'True+False')} · n = ${g.n}</span></h3><div class="box tall"><canvas id="dstC_ps_band"></canvas></div></div>
+    <div class="dst-card"><h3>Rata True pe ora confirmării<span class="n"> — True / (True + False) din TOATE sesiunile confirmate ale bucket-ului (filtrul True/False nu se aplică aici) · n confirmate = ${g.nConf}</span></h3><div class="box"><canvas id="dstC_ps_true"></canvas></div></div>
+    <div class="dst-card"><h3>Tabel pe ora confirmării<span class="n"> — aceleași numere ca histogramele din DISTRIBUȚII când selectezi bucket-ul respectiv la nivelul 6; galben = n &lt; ${state.minN}</span></h3><div class="dst-tblwrap"><table class="dst-table"><thead><tr><th>Bucket</th><th>n</th><th>Confirmate</th><th>Rata True</th><th>Retr după · med</th><th>c70</th><th>Ext · med</th><th>c70</th><th>Retr înainte · med</th><th>Retr max · med</th><th>Timp ext · med</th><th>Timp retr după · med</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${mm(r.key)}–${mm(r.key + state.tw)}</td><td class="${r.n < state.minN ? 'warn' : ''}">${r.n}</td><td>${r.nConf}</td><td class="${r.pTrue == null ? '' : (r.pTrue >= 0.5 ? 'up' : 'down')}">${pct(r.pTrue)}</td><td class="down">${f2(r.retrAfter.median)}</td><td class="down">${f2(r.retrAfter.c70)}</td><td class="up">${f2(r.ext.median)}</td><td class="up">${f2(r.ext.c70)}</td><td>${f2(r.retrBefore.median)}</td><td>${f2(r.retrMax.median)}</td><td>${r.extT.median == null ? '–' : mm(r.extT.median)}</td><td>${r.retrAfterT.median == null ? '–' : mm(r.retrAfterT.median)}</td></tr>`).join('')}
+    </tbody></table></div></div>
+    <div class="dst-legend">Bucket-ul „0:00" = sesiunile confirmate de barele deschise la 0:00, 0:05, 0:10 (interval 15 min) de la sfârșitul PreBO. Filtrul „6 · Ora confirmării" din stânga NU se aplică în acest sub-tab (ora e axa graficului); toate celelalte filtre (news, sesiune, zi, Long/Short, True/False, PreBO) se aplică identic cu DISTRIBUȚII. Retracementul după confirmare e SEMNAT (pozitiv = a rămas deasupra liniei) și se măsoară până la bara vârfului de extensie; c70 la retracement = nivelul sub care rămân 70% din sesiuni, la extensie = a 70-a centilă.</div>
+  </div>`;
+  requestAnimationFrame(() => {
+    const cv = $('dstC_ps_band'), cv2 = $('dstC_ps_true'); if (!cv) return;
+    if (typeof Chart === 'undefined') { noChart(cv); noChart(cv2); return; }
+    const labels = rows.map(r => mm(r.key));
+    const v = (r, f, k) => r.n && r[f][k] != null ? r[f][k] : null;
+    state.charts.ps_band = new Chart(cv, {
+      type: 'bar',
+      data: { labels, datasets: [
+        { type: 'line', label: 'Extensie · mediană', data: rows.map(r => v(r, 'ext', 'median')), borderColor: UP, backgroundColor: UP, pointRadius: 3, tension: .2, yAxisID: 'y', spanGaps: false },
+        { type: 'line', label: 'Extensie · c70', data: rows.map(r => v(r, 'ext', 'c70')), borderColor: UP, borderDash: [5, 4], pointRadius: 2, tension: .2, yAxisID: 'y' },
+        { type: 'line', label: 'Retr după · mediană', data: rows.map(r => v(r, 'retrAfter', 'median')), borderColor: DOWN, backgroundColor: DOWN, pointRadius: 3, tension: .2, yAxisID: 'y' },
+        { type: 'line', label: 'Retr după · c70', data: rows.map(r => v(r, 'retrAfter', 'c70')), borderColor: DOWN, borderDash: [5, 4], pointRadius: 2, tension: .2, yAxisID: 'y' },
+        { type: 'bar', label: 'n sesiuni', data: rows.map(r => r.n), backgroundColor: rows.map(r => r.n < state.minN ? 'rgba(224,166,63,.35)' : GRAY), yAxisID: 'y1', order: 10 },
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#9aa2b1', font: { size: 10 }, boxWidth: 12 } }, tooltip: { callbacks: { title: it => { const r = rows[it[0].dataIndex]; return `${mm(r.key)} – ${mm(r.key + state.tw)} · n = ${r.n} · rata True ${pct(r.pTrue)} (din ${r.nConf})`; }, label: it => `${it.dataset.label}: ${it.dataset.yAxisID === 'y1' ? it.raw : f2(it.raw)}` } } },
+        scales: { x: { grid: { display: false }, ticks: Object.assign({ maxRotation: 0, autoSkip: true, maxTicksLimit: 24 }, tick), title: { display: true, text: 'ora confirmării — minute de la sfârșitul PreBO', color: '#6b7383', font: { size: 10 } } },
+          y: { grid: { color: 'rgba(255,255,255,.06)' }, ticks: Object.assign({ callback: v => f2(v) }, tick), title: { display: true, text: 'R', color: '#6b7383', font: { size: 10 } } },
+          y1: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: Object.assign({ precision: 0 }, tick), title: { display: true, text: 'n', color: '#6b7383', font: { size: 10 } } } } },
+    });
+    state.charts.ps_true = new Chart(cv2, {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Rata True', data: rows.map(r => r.pTrue == null ? null : 100 * r.pTrue), backgroundColor: rows.map(r => r.nConf < state.minN ? 'rgba(224,166,63,.55)' : (r.pTrue >= 0.5 ? 'rgba(47,174,107,.8)' : 'rgba(224,85,79,.8)')), borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => { const r = rows[it[0].dataIndex]; return `${mm(r.key)} – ${mm(r.key + state.tw)}`; }, label: it => { const r = rows[it.dataIndex]; return [`Rata True: ${pct(r.pTrue)}`, `True: ${r.nTrue}`, `False: ${r.nConf - r.nTrue}`, `Confirmate: ${r.nConf}`]; } } } },
+        scales: { x: { grid: { display: false }, ticks: Object.assign({ maxRotation: 0, autoSkip: true, maxTicksLimit: 24 }, tick) }, y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,.06)' }, ticks: Object.assign({ callback: v => v + '%' }, tick) } } },
+    });
+  });
+}
+
+// ---------- sub-tab RETRACEMENT: comparație RDR / ODR / ADR pe zilele săptămânii și pe ora confirmării ----------
+// Aceleași filtre (news, Long/Short, True/False, bucket, PreBO), cu sesiunea și axa (ziua sau ora) lăsate libere — fiecare sesiune
+// se calculează separat prin aceeași ierarhie (D.groupBy cu ses = [s]). Măsura aleasă: retracement după confirmare (incl/excl, semnat),
+// înainte de confirmare, maxim pe sesiune sau extensia; statistica: mediană sau c70. Valorile coincid cu DISTRIBUȚII pentru același filtru.
+const RETR_TYPES = [['retrAfter', 'Retracement DUPĂ confirmare'], ['retrBefore', 'Retracement ÎNAINTE de confirmare'], ['retrMax', 'Retracement MAXIM pe sesiune'], ['ext', 'Extensie maximă']];
+function renderRetr(a) {
+  const pane = $('dstPaneRetr'); $('dstCharts').innerHTML = ''; $('dstPanePrice').innerHTML = '';
+  const T = state.retrType, S = state.retrStat, isExt = T === 'ext';
+  const tLabel = RETR_TYPES.find(x => x[0] === T)[1] + (T === 'retrAfter' && state.confirmBar === 'excl' ? ' (strict)' : '');
+  const sLabel = S === 'median' ? 'mediană' : 'c70';
+  const byDow = {}, byBk = {};
+  for (const s of D.SESSIONS) { const sel = Object.assign(selection(), { ses: [s] }); byDow[s] = D.groupBy(a.records, sel, state.tw, state.minN, state.news, 'dow', state.confirmBar); byBk[s] = D.groupBy(a.records, sel, state.tw, state.minN, state.news, 'bucket', state.confirmBar); }
+  const dur = sesDur(); const buckets = D.bucketsFor(dur, state.tw);
+  const get = (g, k) => { const x = g.groups.find(y => y.key === k); return x && x.n ? x : null; };
+  const val = x => x ? x[T][S] : null;
+  pane.innerHTML = `<div class="dst-stack">
+    <div class="dst-card dst-opt"><div class="dst-row" style="gap:14px"><span class="dst-note" style="margin:0">Măsura:</span><span class="dst-row" id="dstRtType">${RETR_TYPES.map(([k, l]) => `<button type="button" class="expl-toggle-btn${k === T ? ' active' : ''}" data-v="${k}">${l}</button>`).join('')}</span><span class="dst-note">Statistica:</span><span class="dst-row" id="dstRtStat"><button type="button" class="expl-toggle-btn${S === 'median' ? ' active' : ''}" data-v="median">mediană</button><button type="button" class="expl-toggle-btn${S === 'c70' ? ' active' : ''}" data-v="c70">c70</button></span></div></div>
+    <div class="dst-card"><h3>${esc(tLabel)} pe zilele săptămânii<span class="n"> — ${sLabel} (R), RDR vs ODR vs ADR · filtrele de sesiune și zi din stânga nu se aplică aici (sunt axele); restul da</span></h3><div class="box tall"><canvas id="dstC_rt_dow"></canvas></div>
+      <div class="dst-tblwrap"><table class="dst-table"><thead><tr><th>Sesiune</th>${D.DOWS.map(d => `<th>${DOW_RO[d]}</th>`).join('')}<th>Toate zilele</th></tr></thead><tbody>
+      ${D.SESSIONS.map(s => { const all = D.groupBy(a.records, Object.assign(selection(), { dow: [] }), state.tw, state.minN, state.news, 'ses', state.confirmBar).groups.find(x => x.key === s); return `<tr><td style="color:${SES_COLOR[s]}">${s}</td>${D.DOWS.map(d => { const x = get(byDow[s], d); return `<td class="${x && x.n < state.minN ? 'warn' : ''}">${x ? f2(val(x)) + ' <span style="color:var(--text3)">(' + x.n + ')</span>' : '–'}</td>`; }).join('')}<td class="${all && all.n < state.minN ? 'warn' : ''}">${all && all.n ? f2(all[T][S]) + ' <span style="color:var(--text3)">(' + all.n + ')</span>' : '–'}</td></tr>`; }).join('')}
+      </tbody></table></div></div>
+    <div class="dst-card"><h3>${esc(tLabel)} pe ora confirmării<span class="n"> — ${sLabel} (R) în funcție de bucket-ul de confirmare (minute de la sfârșitul PreBO, ${state.tw} min); ODR are mai puține bucket-uri (4,5 h) · punct gol = n &lt; ${state.minN}</span></h3><div class="box tall"><canvas id="dstC_rt_bk"></canvas></div></div>
+    <div class="dst-legend">Retragerile sunt SEMNATE față de linia DR spartă (negativ = sub linie; pozitiv = a rămas deasupra, zona +SD) și în multipli ai range-ului DR (R). „După confirmare" = de la bara de confirmare (inclusă/exclusă după comutatorul de sus) până la bara vârfului de extensie; „înainte" = după PreBO până la bara de confirmare inclusiv; „maxim" = pe toată sesiunea. c70 la retracement = nivelul sub care rămân 70% din sesiuni (a 30-a centilă); la extensie a 70-a centilă. Aceeași statistică, aceleași sesiuni ca în DISTRIBUȚII și PRICE STATISTICS.</div>
+  </div>`;
+  $('dstRtType').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.retrType = b.dataset.v; render(); };
+  $('dstRtStat').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.retrStat = b.dataset.v; render(); };
+  requestAnimationFrame(() => {
+    const cv = $('dstC_rt_dow'), cv2 = $('dstC_rt_bk'); if (!cv) return;
+    if (typeof Chart === 'undefined') { noChart(cv); noChart(cv2); return; }
+    const yTitle = { display: true, text: 'R', color: '#6b7383', font: { size: 10 } };
+    state.charts.rt_dow = new Chart(cv, {
+      type: 'bar',
+      data: { labels: D.DOWS.map(d => DOW_RO[d]), datasets: D.SESSIONS.map(s => ({ label: s, data: D.DOWS.map(d => val(get(byDow[s], d))), backgroundColor: D.DOWS.map(d => { const x = get(byDow[s], d); return x && x.n < state.minN ? SES_COLOR[s] + '55' : SES_COLOR[s]; }), borderWidth: 0 })) },
+      options: { responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { labels: { color: '#9aa2b1', font: { size: 10 }, boxWidth: 12 } }, tooltip: { callbacks: { label: it => { const x = get(byDow[it.dataset.label], D.DOWS[it.dataIndex]); return x ? [`${it.dataset.label}: ${sLabel} ${f2(val(x))} R`, `n = ${x.n}${x.n < state.minN ? ' (⚠ sub prag)' : ''}`, `rata True ${pct(x.pTrue)} (din ${x.nConf})`] : `${it.dataset.label}: –`; } } } },
+        scales: { x: { grid: { display: false }, ticks: tick }, y: { grid: { color: 'rgba(255,255,255,.06)' }, ticks: Object.assign({ callback: v => f2(v) }, tick), title: yTitle, reverse: false } } },
+    });
+    state.charts.rt_bk = new Chart(cv2, {
+      type: 'line',
+      data: { labels: buckets.map(mm), datasets: D.SESSIONS.map(s => ({ label: s, data: buckets.map(b => val(get(byBk[s], b))), borderColor: SES_COLOR[s], backgroundColor: SES_COLOR[s], pointRadius: 3, pointBackgroundColor: buckets.map(b => { const x = get(byBk[s], b); return x && x.n < state.minN ? '#0f1115' : SES_COLOR[s]; }), tension: .2, spanGaps: true })) },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#9aa2b1', font: { size: 10 }, boxWidth: 12 } }, tooltip: { callbacks: { title: it => `${mm(buckets[it[0].dataIndex])} – ${mm(buckets[it[0].dataIndex] + state.tw)}`, label: it => { const x = get(byBk[it.dataset.label], buckets[it.dataIndex]); return x ? `${it.dataset.label}: ${f2(val(x))} R · n = ${x.n}${x.n < state.minN ? ' ⚠' : ''} · True ${pct(x.pTrue)}` : `${it.dataset.label}: –`; } } } },
+        scales: { x: { grid: { display: false }, ticks: Object.assign({ maxRotation: 0, autoSkip: true, maxTicksLimit: 24 }, tick), title: { display: true, text: 'ora confirmării — minute de la sfârșitul PreBO', color: '#6b7383', font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,.06)' }, ticks: Object.assign({ callback: v => f2(v) }, tick), title: yTitle } } },
+    });
   });
 }
 
@@ -4649,6 +4819,9 @@ function init(containerId) {
   bindToggle('dstHold', state.holds, false, () => {});
   bindToggle('dstPreBO', state.preBO, false, () => {});
   $('dstTw').onchange = e => { state.tw = Number(e.target.value); state.buckets.clear(); buildBuckets(); render(); };
+  $('dstSub').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.sub = b.dataset.v; render(); };
+  $('dstCbIncl').onclick = () => { state.confirmBar = 'incl'; render(); };
+  $('dstCbExcl').onclick = () => { state.confirmBar = 'excl'; render(); };
   $('dstClear').onclick = () => {
     state.dows.clear(); state.dirs.clear(); state.holds = new Set(['True']); state.buckets.clear(); state.preBO.clear(); state.sess = new Set(['RDR']); state.newsMode = 'exclude'; $('dstNewsBtn').classList.add('active');
     root.querySelectorAll('#dstDow button,#dstDir button,#dstPreBO button').forEach(b => b.classList.remove('active'));
@@ -4681,14 +4854,15 @@ async function updateNews() {
   } catch (e) { render(); $('dstBanner').innerHTML = `<div class="dst-banner err">Nu am putut actualiza lista de news days (${esc(e.message)}). Rămâne lista curentă: ${esc(state.newsSource)}.</div>`; }
 }
 function getState() { return state; }
-module.exports = { init, setData, addFiles, render, getState, assetNameFromFile, setNews, updateNews };
+function setSub(v) { if (['dist', 'price', 'retr'].includes(v)) { state.sub = v; render(); } }
+module.exports = { init, setData, addFiles, render, getState, setSub, assetNameFromFile, setNews, updateNews };
 
 });
   const req = __makeRequire('/');
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, DIST, glossary: G, version: "0.20.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, DIST, glossary: G, version: "0.21.0" };
 })();
 
 </script>
@@ -6931,31 +7105,27 @@ function switchTab(s) {
   }
 }
 
+let activeFadeSub = 'modules';
+function switchFadeSub(v) {
+  activeFadeSub = v;
+  document.querySelectorAll('#fadeSub .subtabbtn').forEach(b => b.classList.toggle('active', b.dataset.v === v));
+  for (const k of ['modules', 'correl', 'sim']) document.getElementById('toptab-' + k).classList.toggle('active', k === v);
+  if (window.DRIDR) { if (v === 'modules') DRIDR.ui.render(); if (v === 'correl') DRIDR.correl.render(); if (v === 'sim') DRIDR.sim.render(); }
+}
 function switchTopTab(t) {
+  // Pas 27: trei TAB-uri — overview | concept (DR Concept: Distribuții / Price Statistics / Retracement) | fade (Fade la Margine: Module / Corelații / Simulare)
+  if (t === 'dist') t = 'concept';
+  if (t === 'modules' || t === 'correl' || t === 'sim') { switchFadeSub(t); t = 'fade'; }
   activeTopTab = t;
   document.querySelectorAll('.toptabbtn').forEach(b => b.classList.toggle('active', b.dataset.toptab === t));
-  document.getElementById('toptab-overview').classList.toggle('active', t === 'overview');
-  document.getElementById('toptab-retracement').classList.toggle('active', t === 'retracement');
-  document.getElementById('toptab-explorer').classList.toggle('active', t === 'explorer');
-  document.getElementById('toptab-prebo').classList.toggle('active', t === 'prebo');
-  document.getElementById('toptab-modules').classList.toggle('active', t === 'modules');
-  document.getElementById('toptab-correl').classList.toggle('active', t === 'correl');
-  document.getElementById('toptab-sim').classList.toggle('active', t === 'sim');
-  document.getElementById('toptab-dist').classList.toggle('active', t === 'dist');
-  if (t === 'modules' && window.DRIDR) DRIDR.ui.render();
-  if (t === 'correl' && window.DRIDR) DRIDR.correl.render();
-  if (t === 'sim' && window.DRIDR) DRIDR.sim.render();
-  if (t === 'dist' && window.DRIDR && DRIDR.dist) DRIDR.dist.render();
+  for (const k of ['overview', 'concept', 'fade']) document.getElementById('toptab-' + k).classList.toggle('active', k === t);
+  if (t === 'fade' && window.DRIDR) switchFadeSub(activeFadeSub);
+  if (t === 'concept' && window.DRIDR && DRIDR.dist) DRIDR.dist.render();
   document.getElementById('badgesOverview').style.display = (t === 'overview') ? 'flex' : 'none';
-  document.getElementById('badgesRetracement').style.display = (t === 'retracement') ? 'flex' : 'none';
-  document.getElementById('globalSessionBar').style.display = (t === 'overview') ? 'flex' : 'none'; // task #153: în Retracement selecția e în panoul de filtre
-  // Charts created while their tab was hidden (display:none) can end up stuck at a stale/zero size in some
-  // browsers, since a resize-observer doesn't always catch a display:none -> block transition. Force a fresh
-  // re-render whenever the user (re)visits Price Statistics/PreBO so charts are always built while visible and
-  // reflect whatever filters are currently active (existing dow/dir/conf/timeBuckets selections are preserved
-  // — only explRenderAll()/preboRenderAll() runs here, not explBuildTimeGrid()/preboBuildTimeGrid(), which would reset them).
-  if (t === 'explorer' && allStats) explRenderAll();
-  if (t === 'prebo' && allStats) preboRenderAll();
+  document.getElementById('badgesRetracement').style.display = 'none';
+  document.getElementById('globalSessionBar').style.display = (t === 'overview') ? 'flex' : 'none';
+  // Charts created while their tab was hidden (display:none) can end up stuck at a stale/zero size — force a fresh layout pass.
+  requestAnimationFrame(() => { Object.values(charts).forEach(c => { try { c.resize(); } catch (e) {} }); });
 }
 
 function renderAll(stats) {
@@ -7207,6 +7377,7 @@ document.getElementById('sessionSelect').addEventListener('change', (e) => switc
 document.querySelectorAll('.toptabbtn').forEach(btn => {
   btn.addEventListener('click', () => switchTopTab(btn.dataset.toptab));
 });
+document.getElementById('fadeSub').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) switchFadeSub(b.dataset.v); });
 document.getElementById('compareDow').addEventListener('change', renderCompareRel);
 document.getElementById('compareDowRetr').addEventListener('change', renderCompareRetr);
 document.getElementById('evoGranularity').addEventListener('change', renderEvoChart);
@@ -7232,7 +7403,7 @@ renderAll(DEMO_MULTI.sessions);
 setStatus('Set demo: ' + DEMO_MULTI.meta.ticker + ' · RDR ' + DEMO_MULTI.sessions.RDR.nDays + ' zile, ODR ' + DEMO_MULTI.sessions.ODR.nDays + ' zile, ADR ' + DEMO_MULTI.sessions.ADR.nDays + ' zile. Alege alt folder/fișier pentru alt ticker/sursă.');
 
 // Seria 1 — tab-ul generic de module (dridr-core/ui/modules_tab.js)
-if (window.DRIDR) { try { DRIDR.ui.init('toptab-modules'); DRIDR.correl.init('toptab-correl', DRIDR.ui.getCycles); DRIDR.sim.init('toptab-sim', DRIDR.ui.getCycles); if (DRIDR.dist) DRIDR.dist.init('toptab-dist'); } catch (e) { console.error('v3 tabs init', e); } }
+if (window.DRIDR) { try { DRIDR.ui.init('toptab-modules'); DRIDR.correl.init('toptab-correl', DRIDR.ui.getCycles); DRIDR.sim.init('toptab-sim', DRIDR.ui.getCycles); if (DRIDR.dist) DRIDR.dist.init('toptab-concept'); } catch (e) { console.error('v3 tabs init', e); } }
 </script>
 </body>
 </html>
