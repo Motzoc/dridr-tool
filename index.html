@@ -597,8 +597,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-15 13:17 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-15T13:17 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-15 14:58 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-15T14:58 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -1166,6 +1166,21 @@ function setPathBarsEnabled(v) { __pathBarsEnabled = !!v; }
 //             cu fitil < 0.1R dincolo și 32% cu extensia continuând după fitil ⇒ zgomot, nu invalidare; efectul scade an de an.
 //   'wick'  = varianta strictă (QuantX): orice fitil dincolo de marginea opusă după confirmare ⇒ False. Păstrată pentru comparație.
 // Motorul calculează MEREU ambele etichete (ruleHoldClose / ruleHoldWick) și le expune în rawCycle; `ruleHold` = eticheta modului activ.
+// Pas 37 (15 sep 2026): RSI(14) Wilder pe seria de 5 min, calculat O SINGURĂ DATĂ per set de rânduri (cache slab).
+// Folosit doar ca MARCAJ la închiderea box-ului (`rsiBox` / `rsiBand` în rawCycle).
+const __rsiCache = new WeakMap();
+function rsiSeries(rows) {
+  let a = __rsiCache.get(rows); if (a) return a;
+  const n = rows.length, out = new Float64Array(n).fill(NaN), p = 14;
+  if (n > p) {
+    let ag = 0, al = 0;
+    for (let i = 1; i <= p; i++) { const d = rows[i].c - rows[i - 1].c; ag += Math.max(d, 0); al += Math.max(-d, 0); }
+    ag /= p; al /= p; out[p] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+    for (let i = p + 1; i < n; i++) { const d = rows[i].c - rows[i - 1].c; ag = (ag * (p - 1) + Math.max(d, 0)) / p; al = (al * (p - 1) + Math.max(-d, 0)) / p; out[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al); }
+  }
+  __rsiCache.set(rows, out); return out;
+}
+
 let __invalidationMode = 'close';
 function setInvalidationMode(m) { if (m !== 'wick' && m !== 'close') throw new Error('invalidation mode: wick|close'); __invalidationMode = m; }
 function getInvalidationMode() { return __invalidationMode; }
@@ -1329,6 +1344,19 @@ function computeSessionStats(rows, cfg, useIDR) {
         // PreBO ("PreDefined BO"): direction of the defining-range hour itself, Close vs Open, independent of
         // breakout/confirmation — fixed for the whole session. 'Flat' is the rare defClose === defOpen edge case.
         const preBO = cycle.defClose > cycle.defOpen ? 'Long' : (cycle.defClose < cycle.defOpen ? 'Short' : 'Flat');
+        // Pas 37 (15 sep 2026) — POZIȚIA CLOSE-ULUI ÎN BOX, care ÎNLOCUIEȘTE PreBO ca filtru în limba comună.
+        // boxClosePos = (close-ul ultimei lumânări de definire − DR low) / range DR ∈ [0, 1]; boxQ = sfertul (Q1 jos … Q4 sus).
+        // Măsurat la ÎNCHIDEREA BOX-ULUI ⇒ nu depinde de nimic din sesiunea care urmează (fără repaint).
+        // Măsurat pe ETH + BTC (Pas 34–36): prezice direcția confirmării cu 69–72% (toate sesiunile) și 79–81% pe sferturile
+        // extreme, față de 65–67% pentru PreBO; la corp de box mic (|close − open| < 0.1 R) PreBO cade la ~50%, poziția ține ~65%.
+        const __boxR = cycle.drHigh - cycle.drLow;
+        const boxClosePos = __boxR > 0 ? Math.max(0, Math.min(1, (cycle.defClose - cycle.drLow) / __boxR)) : null;
+        const boxQ = boxClosePos == null ? null : (boxClosePos < 0.25 ? 'Q1' : (boxClosePos < 0.5 ? 'Q2' : (boxClosePos < 0.75 ? 'Q3' : 'Q4')));
+        // MARCAJ RSI (Pas 37): RSI(14) Wilder pe 5 min la închiderea box-ului. Extremele (≤ 30 / ≥ 70) apar pe ~8% din box-uri
+        // și INTENSIFICĂ direcția dată de poziție (P(Long) 79–80% → 84–89% în sfertul 4 cu RSI ≥ 70); nu e semnal de sine stătător.
+        const __rsiB = cycle.lastDefBarIdx != null ? rsiSeries(rows)[cycle.lastDefBarIdx] : NaN;
+        const rsiBox = isFinite(__rsiB) ? __rsiB : null;
+        const rsiBand = rsiBox == null ? null : (rsiBox <= 30 ? 'Oversold' : (rsiBox >= 70 ? 'Overbought' : 'Normal'));
         // Trend metric (task #115): 60-min trailing momentum (12 bars of 5 min) measured AT box-close
         // (cycle.lastDefBarIdx), normalized by drRange. null if there isn't a full hour of prior bars yet
         // (e.g. right at the very start of the loaded CSV).
@@ -1344,6 +1372,7 @@ function computeSessionStats(rows, cfg, useIDR) {
           ruleHoldClose, invalidElapsedClose, ruleHoldWick, invalidElapsedWick, retrPrePeakAmt, retrPrePeakElapsed, invalidationMode: __invalidationMode, // Pas 21
           retrBeforeElapsed, retrSessionElapsed, retrPostAmt, retrPostElapsed, // Pas 23 / 25 / 26
           trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
+          defOpen: cycle.defOpen, defClose: cycle.defClose, boxClosePos, boxQ, rsiBox, rsiBand, // Pas 37 — poziția close-ului în box (înlocuiește PreBO) + marcajul RSI
           path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined,
           volDef, volDefN: hasVol ? cycle.volDefN : null, volPre, volPreN, volConfirmBar, volDisp: hasVol ? cycle.volDisp : null, volDispN: hasVol ? cycle.volDispN : null, // volDisp = toată faza disp (Pas 11; post-hoc, doar pentru baze istorice)
           // Pasul 8: indexul barei de închidere a box-ului — permite features de context calculate din barele DINAINTEA
@@ -1701,7 +1730,7 @@ function computeAllSessions(rows, useIDR) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { setPathBarsEnabled, setInvalidationMode, getInvalidationMode, PATH_TP_GRID, PATH_SL_GRID, EDGE_TP_GRID, EDGE_SL_GRID, EDGE_OFF_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
+  module.exports = { rsiSeries, setPathBarsEnabled, setInvalidationMode, getInvalidationMode, PATH_TP_GRID, PATH_SL_GRID, EDGE_TP_GRID, EDGE_SL_GRID, EDGE_OFF_GRID, DOW, DOW_RO, DOW_MAP, SESSIONS, TICK_SIZE, CFGS, timeToHM, inWin, hmToMin, minToHM, hmLabel, elapsedLabel, parseCSV, enrich, statsCycleOK, computeSessionStats, median, mean, stdev, classifyStructure, attachStructureModel, computeAllSessions, setIncludeFalseProvider };
 }
 
 });
@@ -2759,7 +2788,8 @@ __define("/stats/dist.js", function (module, exports, require) {
 // Modul PUR (fără DOM, fără I/O) — folosit de tab-ul DISTRIBUȚII din tool (ui/dist_tab.js), de research/ și de teste.
 //
 // Ordinea filtrelor (cerută explicit de utilizator): 1 asset → 2 sesiune (RDR/ODR/ADR) → 3 ziua săptămânii → 4 Long/Short →
-// 5 True/False (implicit doar True) → 6 time bucket-ul confirmării (15/30 min de la sfârșitul PreBO) → 7 PreBO (Green/Red).
+// 5 True/False (implicit doar True) → 6 time bucket-ul confirmării (15/30 min de la sfârșitul PreBO) → 7 POZIȚIA CLOSE-ULUI ÎN BOX
+// (sferturi Q1–Q4, care înlocuiesc PreBO din Pas 37) → 8 marcajul RSI la închiderea box-ului (≤30 / 30–70 / ≥70).
 // Fiecare nivel îngustează setul rămas de la nivelul anterior; pentru fiecare nivel se raportează n și un avertisment dacă n < MIN_N.
 //
 // Măsurile per sesiune confirmată (fiecare sesiune intră O SINGURĂ DATĂ, cu valoarea ei extremă — fără dublă numărare):
@@ -2789,8 +2819,17 @@ const LEVELS = [
   { key: 'dir', label: 'Confirmare', values: ['Long', 'Short'] },
   { key: 'hold', label: 'True / False', values: ['True', 'False'], defaultSel: ['True'] },
   { key: 'bucket', label: 'Ora confirmării (time bucket)' },
-  { key: 'preBO', label: 'PreBO', values: ['Green', 'Red'] },
+  // Pas 37 (15 sep 2026) — „PreBO Red/Green" ÎNLOCUIT cu POZIȚIA CLOSE-ULUI ÎN BOX, pe SFERTURI (decizia utilizatorului după
+  // măsurătorile din Pas 34–36 pe ETH + BTC): prezice direcția confirmării cu 69–72% (față de 65–67% PreBO), 79–81% pe sferturile
+  // extreme, stabil în fiecare an și pe toate sesiunile; PreBO cade la ~50% când corpul box-ului e mic, poziția ține ~65%.
+  { key: 'boxQ', label: 'Poziția close-ului în box', values: ['Q1', 'Q2', 'Q3', 'Q4'] },
+  // MARCAJ RSI (opțional): RSI(14) pe 5 min la închiderea box-ului. Extremele apar pe ~8% din box-uri (~16–18 pe sesiune pe an)
+  // și INTENSIFICĂ direcția dată de poziție; nu e semnal separat (91–93% cad în sfertul extrem corespunzător).
+  { key: 'rsi', label: 'RSI la închiderea box-ului', values: ['Oversold', 'Normal', 'Overbought'] },
 ];
+// etichetele sferturilor, pentru UI și rapoarte
+const BOX_Q = { Q1: '0–25% (jos)', Q2: '25–50%', Q3: '50–75%', Q4: '75–100% (sus)' };
+const RSI_BAND = { Oversold: 'RSI ≤ 30', Normal: 'RSI 30–70', Overbought: 'RSI ≥ 70' };
 
 function isConfirmed(c) { return (c.direction === 'up' || c.direction === 'down') && c.ruleHold != null && c.drRange > 0; }
 
@@ -2801,7 +2840,9 @@ function measure(c, asset, ses) {
     asset, ses, dateKey: c.dateKey, dow: c.dow,
     dir: c.direction === 'up' ? 'Long' : 'Short',
     hold: c.ruleHold ? 'True' : 'False',
-    preBO: c.preBO === 'Long' ? 'Green' : (c.preBO === 'Short' ? 'Red' : 'Flat'),
+    preBO: c.preBO === 'Long' ? 'Green' : (c.preBO === 'Short' ? 'Red' : 'Flat'),   // păstrat pentru research/compatibilitate; NU mai e filtru
+    boxQ: c.boxQ || null, boxPos: c.boxClosePos == null ? null : c.boxClosePos,      // Pas 37: poziția close-ului în box (filtru)
+    rsi: c.rsiBand || null, rsiBox: c.rsiBox == null ? null : c.rsiBox,              // Pas 37: marcajul RSI la închiderea box-ului
     trig: c.triggerElapsed,                                  // minute de la sfârșitul PreBO la bara de confirmare
     retrBefore: c.retrBeforeAmt / R, retrBeforeT: c.retrBeforeElapsed != null ? c.retrBeforeElapsed : null,
     retrAfter: c.retrPrePeakAmt / R, retrAfterT: c.retrPrePeakElapsed,
@@ -2846,7 +2887,7 @@ function newsFromCalendar(cal) {
 function nextDateKey(d) { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); }
 const isNewsDay = (r, news) => !!(news && news.days && (news.days.has(r.dateKey) || (r.ses === 'ADR' && news.days.has(nextDateKey(r.dateKey)))));
 
-// Aplică ierarhia. sel = { asset: 'BTC', news: 'exclude'|'include', ses: ['RDR','ODR'], dow: [...], dir: [...], hold: ['True'], bucket: [0, 15], preBO: [...] }, tw = 15|30.
+// Aplică ierarhia. sel = { asset: 'BTC', news: 'exclude'|'include', ses: ['RDR','ODR'], dow: [...], dir: [...], hold: ['True'], bucket: [0, 15], boxQ: ['Q4'], rsi: [...] }, tw = 15|30.
 // O listă goală/absentă la un nivel = „toate valorile" (nivelul nu îngustează). Întoarce setul final și n-ul după fiecare nivel.
 // opts.news = { days: Set } (lista de news days); opts.minN = pragul de avertizare.
 function applyHierarchy(records, sel, tw, minN = MIN_N, news = null) {
@@ -2879,7 +2920,8 @@ function groupBy(records, sel, tw, minN, news, key, confirmBar) {
   const preHold = h.steps.find(s => s.key === 'hold'); const before = h.steps[h.steps.indexOf(preHold) - 1].set;
   // filtrele de DUPĂ True/False (bucket, preBO) se aplică și setului „toate confirmate" ca rata True să fie pe același grup
   const later = r => (key === 'bucket' || !(Array.isArray(free.bucket) && free.bucket.length) || free.bucket.includes(bucketOf(r.trig, tw)))
-    && (!(Array.isArray(free.preBO) && free.preBO.length) || free.preBO.includes(r.preBO));
+    && (!(Array.isArray(free.boxQ) && free.boxQ.length) || free.boxQ.includes(r.boxQ))
+    && (!(Array.isArray(free.rsi) && free.rsi.length) || free.rsi.includes(r.rsi));
   const allConf = before.filter(later);
   const kf = key === 'bucket' ? (r => bucketOf(r.trig, tw)) : (r => r[key]);
   const groups = new Map();
@@ -2995,7 +3037,7 @@ function distributions(set, tw, confirmBar) {
 // Bucket-urile de confirmare disponibile pentru o sesiune (0 … durata fazei disp), pentru grila de butoane din UI.
 function bucketsFor(dispDurMin, tw) { const out = []; for (let m = 0; m < dispDurMin; m += tw) out.push(m); return out; }
 
-const api = { MIN_N, CAP, LEVELS, binExt, binRetr, bucketRange, NEWS_TYPES, parseNewsCSV, newsFromCalendar, isNewsDay, nextDateKey, DOWS, SESSIONS, isConfirmed, measure, fromStats, applyHierarchy, groupBy, summary, distributions, bucketOf, binPrice, binTime, bucketsFor, quant, sortNum };
+const api = { MIN_N, CAP, LEVELS, BOX_Q, RSI_BAND, binExt, binRetr, bucketRange, NEWS_TYPES, parseNewsCSV, newsFromCalendar, isNewsDay, nextDateKey, DOWS, SESSIONS, isConfirmed, measure, fromStats, applyHierarchy, groupBy, summary, distributions, bucketOf, binPrice, binTime, bucketsFor, quant, sortNum };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
 });
@@ -4410,7 +4452,8 @@ __define("/ui/dist_tab.js", function (module, exports, require) {
 // dridr-core/ui/dist_tab.js — Pas 23 (13 sep 2026): TAB-ul „DR CONCEPT" — distribuțiile conceptului DR cu filtre IERARHICE, grafic, stil QuantX.
 // Pas 27 (13 sep 2026): trei sub-tab-uri cu ACELAȘI panou de filtre și ACEEAȘI statistică (stats/dist.js): DISTRIBUȚII (histogramele),
 // PRICE STATISTICS (extensie / retracement / rata True pe ora confirmării) și RETRACEMENT (comparație RDR/ODR/ADR pe zile și pe ora confirmării).
-// Ordinea filtrelor (utilizator): 1 asset → 2 sesiune → 3 ziua → 4 Long/Short → 5 True/False (implicit True) → 6 time bucket (15/30) → 7 PreBO.
+// Ordinea filtrelor (utilizator): 1 asset → 2 sesiune → 3 ziua → 4 Long/Short → 5 True/False (implicit True) → 6 time bucket (15/30) →
+// 7 POZIȚIA CLOSE-ULUI ÎN BOX pe sferturi (Pas 37, 15 sep 2026 — înlocuiește PreBO) → 8 marcajul RSI la închiderea box-ului.
 // Fiecare nivel arată n-ul rămas și avertizează când n < MIN_N. Toată statistica vine din stats/dist.js (modul pur, testat) — aici e doar UI.
 // Asset-uri: cel încărcat în tool + oricâte fișiere OHLCV adăugate din tab (doar fișierele CU VOLUM intră în statistică; celelalte sunt listate ca excluse).
 // Grafice: Chart.js (global). Bare = bucket-uri (0.1 R / 15–30 min), blocul de vârf colorat plin, mediana (linie punctată albă) și c70 (albastră).
@@ -4441,7 +4484,7 @@ const timeAxisNote = () => { const ses = soleSession(); return ses ? `ora New Yo
 
 const state = {
   assets: {},                 // name → { records, hasVolume, rows, from, to, dispDur: {RDR,ODR,ADR} }
-  asset: null, sess: new Set(['RDR']), dows: new Set(), dirs: new Set(), holds: new Set(['True']), tw: 15, buckets: new Set(), preBO: new Set(),
+  asset: null, sess: new Set(['RDR']), dows: new Set(), dirs: new Set(), holds: new Set(['True']), tw: 15, buckets: new Set(), boxQ: new Set(), rsiB: new Set(),
   news: D.newsFromCalendar(CAL), newsMode: 'exclude', newsSource: 'calendarul inclus (BLS + Fed)',
   sub: 'dist',                  // sub-tab activ: 'dist' | 'price' | 'retr'
   retrType: 'retrAfter', retrStat: 'median', // sub-tab RETRACEMENT: ce se compară și cu ce statistică
@@ -4504,7 +4547,14 @@ function markup() {
       <div class="dst-lvl"><label>6 · Ora confirmării <span class="num" id="dstN6">–</span></label>
         <select id="dstTw" class="dst-select" style="margin-bottom:6px"><option value="15">Time interval: 15 min</option><option value="30">Time interval: 30 min</option></select>
         <div class="dst-grid" id="dstBuckets"></div><div class="dst-warn" id="dstW6"></div></div>
-      <div class="dst-lvl"><label>7 · PreBO <span class="num" id="dstN7">–</span></label><div class="dst-row" id="dstPreBO"><button type="button" class="expl-toggle-btn" data-v="Green">Green</button><button type="button" class="expl-toggle-btn" data-v="Red">Red</button></div><div class="dst-warn" id="dstW7"></div></div>
+      <div class="dst-lvl"><label>7 · Poziția close în box <span class="num" id="dstN7">–</span></label>
+        <div class="dst-grid" id="dstBoxQ">${['Q1', 'Q2', 'Q3', 'Q4'].map(q => `<button type="button" class="expl-toggle-btn" data-v="${q}" title="${esc(D.BOX_Q[q])}">${q}</button>`).join('')}</div>
+        <div class="dst-note" style="margin:6px 0 0">Q1 = close-ul box-ului în prima pătrime (jos), Q4 = ultima pătrime (sus). Înlocuiește PreBO.</div>
+        <div class="dst-warn" id="dstW7"></div></div>
+      <div class="dst-lvl"><label>8 · RSI la închiderea box <span class="num" id="dstN8">–</span></label>
+        <div class="dst-row" id="dstRsi">${['Oversold', 'Normal', 'Overbought'].map(b => `<button type="button" class="expl-toggle-btn" data-v="${b}">${esc(D.RSI_BAND[b])}</button>`).join('')}</div>
+        <div class="dst-note" style="margin:6px 0 0">Marcaj: extremele apar pe ~8% din box-uri și întăresc direcția dată de poziție.</div>
+        <div class="dst-warn" id="dstW8"></div></div>
       <button type="button" class="dst-clear" id="dstClear">Clear filter</button>
     </div>
     <div>
@@ -4516,7 +4566,7 @@ function markup() {
           <div class="dst-row"><button type="button" class="expl-toggle-btn active" id="dstCbIncl">inclusă</button><button type="button" class="expl-toggle-btn" id="dstCbExcl">exclusă (strict după)</button><span class="dst-note" id="dstCbNote"></span></div></div>
         <div id="dstPaneDist" class="subtab-content active">
           <div class="dst-charts" id="dstCharts"></div>
-          <div class="dst-legend">Convenții (limba comună): PRICE în R (0.1 R = un SD), 0 = linia DR spartă de confirmare; retragerile ≤ 0, extensia ≥ 0. Fiecare sesiune intră o singură dată, cu valoarea ei extremă (fără dublă numărare). Retragerile sunt SEMNATE față de linia DR spartă: negativ = sub linie, POZITIV (+SD) = cel mai adânc punct a rămas deasupra liniei — un retracement e retracement indiferent de zona SD în care ajunge. Graficele de retragere se citesc de la stânga (cel mai pozitiv) la dreapta (cel mai negativ); extensia 0 → +x. „Percentage Total" din tooltip = cât la sută din sesiuni au retras cel mult până la acel bucket (cumulat de la stânga). Bucket-uri de 0.1 R numărate de la linie spre exterior: „+0.2" = 0.2…0.3 R deasupra liniei, „−0.2" = 0.2…0.3 R sub linie, „0.0" = ±0.1 R în jurul liniei; extensie „1.0" = 1.0…1.1 R. TOATE axele de timp au aceeași referință: minute de la sfârșitul PreBO (ultima lumânare de definire) — afișate ca ORA REALĂ (New York) când e selectată o singură sesiune (RDR 10:30, ODR 04:00, ADR 20:30 = momentul 0) și ca timp scurs (h:mm) când sunt selectate mai multe sesiuni, pentru că atunci referința diferă de la o sesiune la alta —, cu același număr de bucket-uri — pentru retracementul dinainte, cel de după confirmare, cel maxim pe sesiune și extensie. Linia albă punctată = mediana; linia albastră = centila 70 (la retrageri: nivelul sub care rămân 70% din sesiuni; la extensie și timp: a 70-a centilă). Barele pline = blocul de vârf (cel mai scurt interval contiguu cu ≥ 50% din sesiuni). Regula 4: invalidare pe lumânare full (close). Zile: Luni–Vineri. NEWS DAYS (FOMC, CPI, NFP — US) sunt EXCLUSE implicit din statistică (regula: nu se face statistică și nu se tranzacționează în zilele de news days decât la cerere explicită): se exclud ODR și RDR din ziua cu news și cele două ADR care intră în ziua news (ADR-ul din seara precedentă) și ies din ea (ADR-ul din seara zilei news). Sesiunile selectate (RDR/ODR/ADR, oricâte) se cumulează.</div>
+          <div class="dst-legend">Convenții (limba comună): PRICE în R (0.1 R = un SD), 0 = linia DR spartă de confirmare; retragerile ≤ 0, extensia ≥ 0. Fiecare sesiune intră o singură dată, cu valoarea ei extremă (fără dublă numărare). Retragerile sunt SEMNATE față de linia DR spartă: negativ = sub linie, POZITIV (+SD) = cel mai adânc punct a rămas deasupra liniei — un retracement e retracement indiferent de zona SD în care ajunge. Graficele de retragere se citesc de la stânga (cel mai pozitiv) la dreapta (cel mai negativ); extensia 0 → +x. „Percentage Total" din tooltip = cât la sută din sesiuni au retras cel mult până la acel bucket (cumulat de la stânga). Bucket-uri de 0.1 R numărate de la linie spre exterior: „+0.2" = 0.2…0.3 R deasupra liniei, „−0.2" = 0.2…0.3 R sub linie, „0.0" = ±0.1 R în jurul liniei; extensie „1.0" = 1.0…1.1 R. TOATE axele de timp au aceeași referință: minute de la sfârșitul PreBO (ultima lumânare de definire) — afișate ca ORA REALĂ (New York) când e selectată o singură sesiune (RDR 10:30, ODR 04:00, ADR 20:30 = momentul 0) și ca timp scurs (h:mm) când sunt selectate mai multe sesiuni, pentru că atunci referința diferă de la o sesiune la alta —, cu același număr de bucket-uri — pentru retracementul dinainte, cel de după confirmare, cel maxim pe sesiune și extensie. Linia albă punctată = mediana; linia albastră = centila 70 (la retrageri: nivelul sub care rămân 70% din sesiuni; la extensie și timp: a 70-a centilă). Barele pline = blocul de vârf (cel mai scurt interval contiguu cu ≥ 50% din sesiuni). Regula 4: invalidare pe lumânare full (close). Zile: Luni–Vineri. NEWS DAYS (FOMC, CPI, NFP — US) sunt EXCLUSE implicit din statistică (regula: nu se face statistică și nu se tranzacționează în zilele de news days decât la cerere explicită): se exclud ODR și RDR din ziua cu news și cele două ADR care intră în ziua news (ADR-ul din seara precedentă) și ies din ea (ADR-ul din seara zilei news). Sesiunile selectate (RDR/ODR/ADR, oricâte) se cumulează. POZIȚIA CLOSE-ULUI ÎN BOX (nivelul 7, din 15 sep 2026 în locul filtrului „PreBO"): (close-ul ultimei lumânări de definire − DR low) / range DR, pe sferturi — Q1 = 0–25% (jos) … Q4 = 75–100% (sus). Măsurată pe ETH și BTC, prezice direcția confirmării în 69–72% din cazuri (79–81% pe sferturile extreme), față de 65–67% pentru PreBO, stabil în fiecare an și pe toate sesiunile; când corpul box-ului e mic (close aproape de open) PreBO scade la ~50%, iar poziția rămâne la ~65%. RSI (nivelul 8) e un MARCAJ, nu un semnal separat: RSI(14) pe 5 min la închiderea box-ului, extremele (≤ 30 / ≥ 70) apar pe ~8% din box-uri (~16–18 pe sesiune pe an) și ridică probabilitatea direcției deja indicate de poziție (în sfertul 4 cu RSI ≥ 70: P(Long) 84–89% față de ~79%); 91–93% din extreme cad oricum în sfertul corespunzător.</div>
         </div>
         <div id="dstPanePrice" class="subtab-content"></div>
         <div id="dstPaneRetr" class="subtab-content"></div>
@@ -4575,7 +4625,7 @@ function buildBuckets() {
   el.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; const v = Number(b.dataset.v); if (state.buckets.has(v)) state.buckets.delete(v); else state.buckets.add(v); b.classList.toggle('active'); render(); };
 }
 function selection() {
-  return { asset: state.asset, news: state.newsMode, ses: [...state.sess], dow: [...state.dows], dir: [...state.dirs], hold: [...state.holds], bucket: [...state.buckets], preBO: [...state.preBO] };
+  return { asset: state.asset, news: state.newsMode, ses: [...state.sess], dow: [...state.dows], dir: [...state.dirs], hold: [...state.holds], bucket: [...state.buckets], boxQ: [...state.boxQ], rsi: [...state.rsiB] };
 }
 
 // ---------- grafice ----------
@@ -4687,7 +4737,7 @@ function render() {
   document.querySelectorAll('#dstSub .subtabbtn').forEach(b => b.classList.toggle('active', b.dataset.v === state.sub));
   for (const k of ['dist', 'price', 'retr']) { const el = $('dstPane' + k[0].toUpperCase() + k.slice(1)); if (el) el.classList.toggle('active', k === state.sub); }
   const clear = () => { $('dstCharts').innerHTML = ''; $('dstPanePrice').innerHTML = ''; $('dstPaneRetr').innerHTML = ''; $('dstCbNote').textContent = ''; };
-  if (!a || !a.hasVolume) { head.innerHTML = ''; banner.innerHTML = '<div class="dst-banner">Niciun asset cu volum încărcat. Încarcă un fișier OHLCV 5 min (Sursă și parametri sau „Adaugă fișiere OHLCV" din stânga).</div>'; clear(); for (let i = 0; i < 8; i++) { const n = $('dstN' + i); if (n) n.textContent = '–'; } return; }
+  if (!a || !a.hasVolume) { head.innerHTML = ''; banner.innerHTML = '<div class="dst-banner">Niciun asset cu volum încărcat. Încarcă un fișier OHLCV 5 min (Sursă și parametri sau „Adaugă fișiere OHLCV" din stânga).</div>'; clear(); for (let i = 0; i < 9; i++) { const n = $('dstN' + i); if (n) n.textContent = '–'; } return; }
   const h = D.applyHierarchy(a.records, selection(), state.tw, state.minN, state.news);
   // n și avertismente pe fiecare nivel
   h.steps.forEach((st, i) => {
@@ -4696,14 +4746,21 @@ function render() {
     if (st.key === 'news') $('dstNewsInfo').innerHTML = `${st.mode === 'exclude' ? `<b>${st.removed}</b> sesiuni pe news days excluse` : `<b>${st.newsDays}</b> sesiuni pe news days INCLUSE (la cerere)`} · ` + $('dstNewsInfo').innerHTML;
   });
   const final = h.steps[h.steps.length - 1];
-  head.innerHTML = `<b>${esc(state.asset)}</b> <span>${state.sess.size ? [...state.sess].join('+') : 'toate sesiunile'}</span> <span>${state.newsMode === 'exclude' ? 'fără news days' : 'CU news days'}</span> <span>zile: ${state.dows.size ? [...state.dows].map(x => DOW_RO[x]).join(' ') : 'toate'}</span> <span>${state.dirs.size ? [...state.dirs].join('/') : 'Long+Short'}</span> <span>${state.holds.size ? [...state.holds].join('/') : 'True+False'}</span> <span>ora confirmării: ${state.buckets.size ? [...state.buckets].sort((x, y) => x - y).map(tm).join(', ') : 'toate'} (${state.tw} min)</span> <span>PreBO: ${state.preBO.size ? [...state.preBO].join('/') : 'ambele'}</span> <span>⇒ <b>n = ${final.n}</b> sesiuni</span>`;
-  banner.innerHTML = final.warn ? `<div class="dst-banner">⚠ Prea puține seturi de date pentru filtrul curent: n = ${final.n} (prag ${state.minN}). Relaxează un filtru (ordinea: asset → news days → sesiune → zi → confirmare → True/False → oră → PreBO).</div>` : '';
+  head.innerHTML = `<b>${esc(state.asset)}</b> <span>${state.sess.size ? [...state.sess].join('+') : 'toate sesiunile'}</span> <span>${state.newsMode === 'exclude' ? 'fără news days' : 'CU news days'}</span> <span>zile: ${state.dows.size ? [...state.dows].map(x => DOW_RO[x]).join(' ') : 'toate'}</span> <span>${state.dirs.size ? [...state.dirs].join('/') : 'Long+Short'}</span> <span>${state.holds.size ? [...state.holds].join('/') : 'True+False'}</span> <span>ora confirmării: ${state.buckets.size ? [...state.buckets].sort((x, y) => x - y).map(tm).join(', ') : 'toate'} (${state.tw} min)</span> <span>poziție în box: ${state.boxQ.size ? [...state.boxQ].sort().join('/') : 'toate sferturile'}</span> <span>RSI: ${state.rsiB.size ? [...state.rsiB].map(b => D.RSI_BAND[b]).join('/') : 'toate'}${rsiInfo(h.set)}</span> <span>⇒ <b>n = ${final.n}</b> sesiuni</span>`;
+  banner.innerHTML = final.warn ? `<div class="dst-banner">⚠ Prea puține seturi de date pentru filtrul curent: n = ${final.n} (prag ${state.minN}). Relaxează un filtru (ordinea: asset → news days → sesiune → zi → confirmare → True/False → oră → poziția în box → RSI).</div>` : '';
   if (!final.n && state.sub === 'dist') { clear(); $('dstCharts').innerHTML = '<div class="dst-empty">0 sesiuni</div>'; return; }
   const d = D.distributions(h.set, state.tw, state.confirmBar);
   $('dstCbNote').textContent = state.confirmBar === 'excl' ? `${d.retrAfter.noBars} sesiuni fără nicio bară între confirmare și vârf (vârful e chiar bara de confirmare) — nu au retracement „după" și nu intră în statistica „după confirmare"` : 'retragerile pozitive (+SD) apar rar cu bara inclusă: low-ul barei de confirmare e aproape mereu sub linie';
   if (state.sub === 'dist') renderDist(d);
   else if (state.sub === 'price') renderPrice(a);
   else renderRetr(a);
+}
+
+// câte sesiuni din selecția curentă au RSI extrem la închiderea box-ului (marcajul cerut de utilizator, Pas 37)
+function rsiInfo(set) {
+  if (!set || !set.length) return '';
+  const lo = set.filter(r => r.rsi === 'Oversold').length, hi = set.filter(r => r.rsi === 'Overbought').length;
+  return (lo + hi) ? ` <b title="RSI(14) 5 min la închiderea box-ului: extremele intensifică direcția dată de poziția close-ului">(${hi} ≥70 · ${lo} ≤30 = ${Math.round(100 * (lo + hi) / set.length)}% extrem)</b>` : ' (niciun extrem)';
 }
 
 // ---------- sub-tab DISTRIBUȚII ----------
@@ -4831,14 +4888,15 @@ function init(containerId) {
   bindToggle('dstDow', state.dows, false, () => {});
   bindToggle('dstDir', state.dirs, false, () => {});
   bindToggle('dstHold', state.holds, false, () => {});
-  bindToggle('dstPreBO', state.preBO, false, () => {});
+  bindToggle('dstBoxQ', state.boxQ, false, () => {});
+  bindToggle('dstRsi', state.rsiB, false, () => {});
   $('dstTw').onchange = e => { state.tw = Number(e.target.value); state.buckets.clear(); buildBuckets(); render(); };
   $('dstSub').onclick = ev => { const b = ev.target.closest('button'); if (!b) return; state.sub = b.dataset.v; render(); };
   $('dstCbIncl').onclick = () => { state.confirmBar = 'incl'; render(); };
   $('dstCbExcl').onclick = () => { state.confirmBar = 'excl'; render(); };
   $('dstClear').onclick = () => {
-    state.dows.clear(); state.dirs.clear(); state.holds = new Set(['True']); state.buckets.clear(); state.preBO.clear(); state.sess = new Set(['RDR']); state.newsMode = 'exclude'; $('dstNewsBtn').classList.add('active');
-    root.querySelectorAll('#dstDow button,#dstDir button,#dstPreBO button').forEach(b => b.classList.remove('active'));
+    state.dows.clear(); state.dirs.clear(); state.holds = new Set(['True']); state.buckets.clear(); state.boxQ.clear(); state.rsiB.clear(); state.sess = new Set(['RDR']); state.newsMode = 'exclude'; $('dstNewsBtn').classList.add('active');
+    root.querySelectorAll('#dstDow button,#dstDir button,#dstBoxQ button,#dstRsi button').forEach(b => b.classList.remove('active'));
     root.querySelectorAll('#dstHold button').forEach(b => b.classList.toggle('active', b.dataset.v === 'True'));
     root.querySelectorAll('#dstSes button').forEach(b => b.classList.toggle('active', b.dataset.v === 'RDR'));
     buildBuckets(); render();
@@ -4876,7 +4934,7 @@ module.exports = { init, setData, addFiles, render, getState, setSub, assetNameF
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, DIST, glossary: G, version: "0.22.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, DIST, glossary: G, version: "0.23.0" };
 })();
 
 </script>
