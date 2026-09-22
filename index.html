@@ -597,8 +597,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-15 14:58 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-15T14:58 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-22 15:24 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-22T15:24 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -1373,7 +1373,7 @@ function computeSessionStats(rows, cfg, useIDR) {
           retrBeforeElapsed, retrSessionElapsed, retrPostAmt, retrPostElapsed, // Pas 23 / 25 / 26
           trigHigh, trigLow, drHigh: cycle.drHigh, drLow: cycle.drLow, idrHigh: cycle.idrHigh, idrLow: cycle.idrLow, triggerBarIdx, preBO, mom60Raw,
           defOpen: cycle.defOpen, defClose: cycle.defClose, boxClosePos, boxQ, rsiBox, rsiBand, // Pas 37 — poziția close-ului în box (înlocuiește PreBO) + marcajul RSI
-          path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined,
+          path, confirmClose, confirmT, confirmSlipR, bars: __pathBarsEnabled ? cycle.bars : undefined, defBars: __pathBarsEnabled ? cycle.defBars : undefined, // Pas 65
           volDef, volDefN: hasVol ? cycle.volDefN : null, volPre, volPreN, volConfirmBar, volDisp: hasVol ? cycle.volDisp : null, volDispN: hasVol ? cycle.volDispN : null, // volDisp = toată faza disp (Pas 11; post-hoc, doar pentru baze istorice)
           // Pasul 8: indexul barei de închidere a box-ului — permite features de context calculate din barele DINAINTEA
           // orei PreBO (trend independent: momentum 4h/1d, ASS 1H/4H/D), fără să depindă de mom60Raw.
@@ -1414,10 +1414,13 @@ function computeSessionStats(rows, cfg, useIDR) {
                 // this measure, taken right as the DR/IDR box finishes forming, predicts the session's eventual
                 // breakout direction with real, monotonic, out-of-sample-stable accuracy; nothing at or before
                 // this index depends on anything that happens later in the session, so it's fully non-repaint).
-                lastDefBarIdx: null };
+                lastDefBarIdx: null,
+                // Pas 65 (22 sep 2026) — barele orei de definire, DOAR când path-bars e pornit (cercetare volum vs preț în box).
+                defBars: __pathBarsEnabled ? [] : undefined };
     }
     if (inDef && cycle) {
       cycle.defClose = b.c;
+      if (__pathBarsEnabled) cycle.defBars.push([b.h, b.l, b.c, b.o, b.v]); // [h,l,c,o,v], în ordinea barelor de 5 min ale box-ului
       if (b.v != null) { cycle.volDef += b.v; cycle.volDefN++; }
       cycle.lastDefBarIdx = __rowIdx;
       if (b.h > cycle.drHigh) cycle.drHigh = b.h;
@@ -4486,7 +4489,8 @@ const state = {
   assets: {},                 // name → { records, hasVolume, rows, from, to, dispDur: {RDR,ODR,ADR} }
   asset: null, sess: new Set(['RDR']), dows: new Set(), dirs: new Set(), holds: new Set(['True']), tw: 15, buckets: new Set(), boxQ: new Set(), rsiB: new Set(),
   news: D.newsFromCalendar(CAL), newsMode: 'exclude', newsSource: 'calendarul inclus (BLS + Fed)',
-  sub: 'dist',                  // sub-tab activ: 'dist' | 'price' | 'retr'
+  sub: 'dist',                  // sub-tab activ: 'dist' | 'price' | 'retr' | 'kpi'
+  kpi: null,                    // parametrii sub-tab-ului KPI (simulare + bani) — inițializați din kpiDefaults() la init
   retrType: 'retrAfter', retrStat: 'median', // sub-tab RETRACEMENT: ce se compară și cu ce statistică
   confirmBar: 'incl',           // retracementul DUPĂ confirmare: 'incl' = bara de confirmare inclusă (limba comună) | 'excl' = strict după ea
   charts: {}, minN: D.MIN_N,
@@ -4523,6 +4527,19 @@ const CSS = `
 .dst-card .box.tall{height:340px}.dst-stack{display:grid;gap:12px}
 .dst-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}.dst-table th,.dst-table td{padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}.dst-table th{color:var(--text2);font-weight:600;text-transform:uppercase;font-size:10px;letter-spacing:.03em}.dst-table td:first-child,.dst-table th:first-child{text-align:left;color:var(--text)}.dst-table td.warn{color:var(--whip)}.dst-table td.up{color:var(--up)}.dst-table td.down{color:var(--down)}
 .dst-tblwrap{overflow-x:auto}
+.kpi-form{display:grid;grid-template-columns:repeat(2,minmax(280px,1fr));gap:10px 18px}@media (max-width:900px){.kpi-form{grid-template-columns:1fr}}
+.kpi-f label{display:block;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.kpi-f .dst-row{align-items:center}
+.kpi-inl{gap:6px;color:var(--text2);font-size:12px;flex-wrap:wrap}.kpi-inl b{color:var(--text)}
+.kpi-in{width:76px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font:inherit;font-size:12px}.kpi-in.wide{width:120px}
+.kpi-run{grid-column:1 / -1}.kpi-btn-run{background:var(--accent);color:#fff;border-color:transparent}
+.kpi-state{font-size:11px;color:var(--whip);margin-left:4px;line-height:1.4}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media (max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}@media (max-width:620px){.kpi-grid{grid-template-columns:1fr}}
+.kpi-tile{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 11px}
+.kpi-lbl{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.03em}
+.kpi-val{font-size:22px;font-weight:700;color:var(--text);margin:4px 0 2px;line-height:1.15}
+.kpi-val.up{color:var(--up)}.kpi-val.down{color:var(--down)}.kpi-val.na{color:var(--text3)}
+.kpi-sub{font-size:10px;color:var(--text3);line-height:1.4}
 .dst-opt{grid-column:1 / -1}.dst-opt .dst-row{align-items:center}.dst-note{font-size:11px;color:var(--text3);margin-left:8px}.dst-opt-spacer{display:none}
 `;
 
@@ -4561,7 +4578,7 @@ function markup() {
       <div class="panel">
         <div class="dst-head" id="dstHead"></div>
         <div id="dstBanner"></div>
-        <div class="subtabs" id="dstSub"><button type="button" class="subtabbtn active" data-v="dist">DISTRIBUȚII</button><button type="button" class="subtabbtn" data-v="price">PRICE STATISTICS</button><button type="button" class="subtabbtn" data-v="retr">RETRACEMENT</button></div>
+        <div class="subtabs" id="dstSub"><button type="button" class="subtabbtn active" data-v="dist">DISTRIBUȚII</button><button type="button" class="subtabbtn" data-v="price">PRICE STATISTICS</button><button type="button" class="subtabbtn" data-v="retr">RETRACEMENT</button><button type="button" class="subtabbtn" data-v="kpi">KPI</button></div>
         <div class="dst-card dst-opt" id="dstCbCard" style="margin-bottom:12px"><h3>Retracement DUPĂ confirmare — bara de confirmare<span class="n"> — definiția din limba comună o include (implicit); „exclusă" = strict după ea (așa apar retragerile din zona +SD, ca la QuantX). Se aplică în toate cele trei sub-tab-uri.</span></h3>
           <div class="dst-row"><button type="button" class="expl-toggle-btn active" id="dstCbIncl">inclusă</button><button type="button" class="expl-toggle-btn" id="dstCbExcl">exclusă (strict după)</button><span class="dst-note" id="dstCbNote"></span></div></div>
         <div id="dstPaneDist" class="subtab-content active">
@@ -4570,6 +4587,7 @@ function markup() {
         </div>
         <div id="dstPanePrice" class="subtab-content"></div>
         <div id="dstPaneRetr" class="subtab-content"></div>
+        <div id="dstPaneKpi" class="subtab-content"></div>
       </div>
     </div>
   </div>`;
@@ -4735,9 +4753,11 @@ function render() {
   const nw = state.news; $('dstNewsInfo').innerHTML = `lista: ${nw ? `${nw.days.size} zile, ${nw.events} evenimente (${Object.entries(nw.types).map(([k, v]) => k + ' ' + v).join(', ')}), ${nw.from} → ${nw.to}` : 'lipsă'} · sursa: ${esc(state.newsSource)}`;
   $('dstCbIncl').classList.toggle('active', state.confirmBar === 'incl'); $('dstCbExcl').classList.toggle('active', state.confirmBar === 'excl');
   document.querySelectorAll('#dstSub .subtabbtn').forEach(b => b.classList.toggle('active', b.dataset.v === state.sub));
-  for (const k of ['dist', 'price', 'retr']) { const el = $('dstPane' + k[0].toUpperCase() + k.slice(1)); if (el) el.classList.toggle('active', k === state.sub); }
+  for (const k of ['dist', 'price', 'retr', 'kpi']) { const el = $('dstPane' + k[0].toUpperCase() + k.slice(1)); if (el) el.classList.toggle('active', k === state.sub); }
+  // comutatorul „bara de confirmare" nu are sens în KPI (acolo ieșirile sunt date de TP/SL), deci se ascunde acolo
+  if ($('dstCbCard')) $('dstCbCard').hidden = state.sub === 'kpi';
   const clear = () => { $('dstCharts').innerHTML = ''; $('dstPanePrice').innerHTML = ''; $('dstPaneRetr').innerHTML = ''; $('dstCbNote').textContent = ''; };
-  if (!a || !a.hasVolume) { head.innerHTML = ''; banner.innerHTML = '<div class="dst-banner">Niciun asset cu volum încărcat. Încarcă un fișier OHLCV 5 min (Sursă și parametri sau „Adaugă fișiere OHLCV" din stânga).</div>'; clear(); for (let i = 0; i < 9; i++) { const n = $('dstN' + i); if (n) n.textContent = '–'; } return; }
+  if (!a || !a.hasVolume) { head.innerHTML = ''; banner.innerHTML = '<div class="dst-banner">Niciun asset cu volum încărcat. Încarcă un fișier OHLCV 5 min (Sursă și parametri sau „Adaugă fișiere OHLCV" din stânga).</div>'; clear(); for (let i = 0; i < 9; i++) { const n = $('dstN' + i); if (n) n.textContent = '–'; } if (state.sub === 'kpi') { banner.innerHTML = ''; renderKpi(null, null); } return; }
   const h = D.applyHierarchy(a.records, selection(), state.tw, state.minN, state.news);
   // n și avertismente pe fiecare nivel
   h.steps.forEach((st, i) => {
@@ -4748,11 +4768,13 @@ function render() {
   const final = h.steps[h.steps.length - 1];
   head.innerHTML = `<b>${esc(state.asset)}</b> <span>${state.sess.size ? [...state.sess].join('+') : 'toate sesiunile'}</span> <span>${state.newsMode === 'exclude' ? 'fără news days' : 'CU news days'}</span> <span>zile: ${state.dows.size ? [...state.dows].map(x => DOW_RO[x]).join(' ') : 'toate'}</span> <span>${state.dirs.size ? [...state.dirs].join('/') : 'Long+Short'}</span> <span>${state.holds.size ? [...state.holds].join('/') : 'True+False'}</span> <span>ora confirmării: ${state.buckets.size ? [...state.buckets].sort((x, y) => x - y).map(tm).join(', ') : 'toate'} (${state.tw} min)</span> <span>poziție în box: ${state.boxQ.size ? [...state.boxQ].sort().join('/') : 'toate sferturile'}</span> <span>RSI: ${state.rsiB.size ? [...state.rsiB].map(b => D.RSI_BAND[b]).join('/') : 'toate'}${rsiInfo(h.set)}</span> <span>⇒ <b>n = ${final.n}</b> sesiuni</span>`;
   banner.innerHTML = final.warn ? `<div class="dst-banner">⚠ Prea puține seturi de date pentru filtrul curent: n = ${final.n} (prag ${state.minN}). Relaxează un filtru (ordinea: asset → news days → sesiune → zi → confirmare → True/False → oră → poziția în box → RSI).</div>` : '';
+  if (!final.n && state.sub === 'kpi') { renderKpi(a, 0); return; }
   if (!final.n && state.sub === 'dist') { clear(); $('dstCharts').innerHTML = '<div class="dst-empty">0 sesiuni</div>'; return; }
   const d = D.distributions(h.set, state.tw, state.confirmBar);
   $('dstCbNote').textContent = state.confirmBar === 'excl' ? `${d.retrAfter.noBars} sesiuni fără nicio bară între confirmare și vârf (vârful e chiar bara de confirmare) — nu au retracement „după" și nu intră în statistica „după confirmare"` : 'retragerile pozitive (+SD) apar rar cu bara inclusă: low-ul barei de confirmare e aproape mereu sub linie';
   if (state.sub === 'dist') renderDist(d);
   else if (state.sub === 'price') renderPrice(a);
+  else if (state.sub === 'kpi') renderKpi(a, final.n);
   else renderRetr(a);
 }
 
@@ -4874,10 +4896,100 @@ function renderRetr(a) {
   });
 }
 
+
+// ---------- sub-tab KPI (Pas 41, 22 sep 2026): KPI de trading + panoul de SIMULARE ----------
+// STARE: UI-ul e complet (butoane, inputuri, carduri, grafice goale), dar NU e conectat la motorul de backtest — toate valorile
+// afișează „–". Conectarea (tradeOf/summarize din ui/sim_tab.js, rulate pe setul filtrat de ierarhia DR Concept) se face ulterior.
+// Convenția banilor (aleasă de utilizator): capital inițial + risc % per tranzacție ⇒ 1 R = riscul în valută; Net Profit, ROI,
+// Max DD, VaR, Sharpe/Sortino se exprimă în valută, iar Expectancy și R/R rămân în R.
+const KPI_STRATS = [['confirm', 'Intrare la confirmare'], ['fade', 'Fade la marginea DR'], ['retest', 'Re-intrare la revenirea în IDR']];
+const KPI_EXITS = [['tpsl', 'TP / SL fix'], ['contra', 'TP / SL + close contra'], ['sessionEnd', 'La finalul sesiunii']];
+const KPI_SIZING = [['fixed', 'Poziție fixă'], ['compound', 'Compusă (risc % din equity)']];
+const KPI_GROUPS = [
+  { id: 'prof', title: '1 · Profitabilitate / Randament', items: [
+    { id: 'netProfit', label: 'Profit Net', unit: 'val', desc: 'Total câștigat după scăderea pierderilor, comisioanelor și taxelor.' },
+    { id: 'winRate', label: 'Rata de Câștig', unit: '%', desc: '(Tranzacții pe profit / total tranzacții) × 100.' },
+    { id: 'profitFactor', label: 'Factorul de Profit', unit: 'x', desc: 'Profit brut / pierdere brută. Peste 1.5 ⇒ strategie solidă.' },
+    { id: 'roi', label: 'ROI', unit: '%', desc: 'Câștig raportat la capitalul inițial al contului.' } ] },
+  { id: 'risk', title: '2 · Managementul riscului', items: [
+    { id: 'maxDD', label: 'Drawdown Maxim', unit: '%', desc: 'Cea mai mare scădere de la un vârf (peak) la minimul următor (trough).' },
+    { id: 'avgRR', label: 'Risc / Recompensă mediu', unit: 'ratio', desc: 'Suma riscată vs profitul țintit per tranzacție (1:2, 1:3…).' },
+    { id: 'winLoss', label: 'Raport Câștig / Pierdere', unit: 'x', desc: 'Câștigul mediu împărțit la pierderea medie.' },
+    { id: 'var', label: 'Value at Risk (VaR)', unit: 'val', desc: 'Pierderea maximă estimată statistic pe orizontul ales.' } ] },
+  { id: 'eff', title: '3 · Eficiență și ajustare la risc', items: [
+    { id: 'sharpe', label: 'Raportul Sharpe', unit: 'x', desc: 'Randament în exces raportat la volatilitatea totală. Mai mare = mai bine.' },
+    { id: 'sortino', label: 'Raportul Sortino', unit: 'x', desc: 'Ca Sharpe, dar numai cu volatilitatea negativă (pierderile).' },
+    { id: 'expectancy', label: 'Speranța Matematică', unit: 'R', desc: 'Câștigul mediu așteptat per tranzacție (win rate × câștig mediu − loss rate × pierdere medie).' } ] },
+  { id: 'exec', title: '4 · Execuție și activitate', items: [
+    { id: 'nTrades', label: 'Număr total de tranzacții', unit: 'n', desc: 'Volumul de activitate în perioadă — semnalează overtrading.' },
+    { id: 'holdTime', label: 'Timp mediu de deținere', unit: 'time', desc: 'Durata medie a unei tranzacții — verifică stilul (scalping / day / swing).' },
+    { id: 'slippage', label: 'Slippage mediu', unit: 'ticks', desc: 'Diferența dintre prețul cerut și cel executat. Mare ⇒ lichiditate / execuție slabă.' } ] },
+];
+const kpiTile = it => `<div class="kpi-tile" id="kpiT_${it.id}" title="${esc(it.desc)}"><div class="kpi-lbl">${esc(it.label)}</div><div class="kpi-val" id="kpiV_${it.id}">–</div><div class="kpi-sub" id="kpiS_${it.id}">${esc(it.desc)}</div></div>`;
+
+function renderKpi(a, n) {
+  const pane = $('dstPaneKpi'); if (!pane) return;
+  $('dstCharts').innerHTML = ''; $('dstPanePrice').innerHTML = ''; $('dstPaneRetr').innerHTML = '';
+  const k = state.kpi;
+  const btns = (list, cur, id) => `<span class="dst-row" id="${id}">${list.map(([v, l]) => `<button type="button" class="expl-toggle-btn${v === cur ? ' active' : ''}" data-v="${v}">${esc(l)}</button>`).join('')}</span>`;
+  pane.innerHTML = `<div class="dst-stack">
+    <div class="dst-card">
+      <h3>Simulare <span class="n">— parametrii backtest-ului din care se calculează KPI-urile; se aplică peste filtrele ierarhice din stânga (asset → news → sesiune → zi → direcție → True/False → oră → sfert box → RSI) · n = ${n == null ? '–' : n} sesiuni</span></h3>
+      <div class="kpi-form">
+        <div class="kpi-f"><label>Strategie</label>${btns(KPI_STRATS, k.strat, 'kpiStrat')}</div>
+        <div class="kpi-f"><label>Ieșire</label>${btns(KPI_EXITS, k.exit, 'kpiExit')}</div>
+        <div class="kpi-f"><label>TP / SL (în R)</label><div class="dst-row kpi-inl">TP <input class="kpi-in" id="kpiTp" type="number" step="0.05" value="${k.tp}"> R · SL <input class="kpi-in" id="kpiSl" type="number" step="0.05" value="${k.sl}"> R</div></div>
+        <div class="kpi-f"><label>Perioadă (de la – până la)</label><div class="dst-row kpi-inl"><input class="kpi-in wide" id="kpiFrom" type="month" value="${k.from}"> – <input class="kpi-in wide" id="kpiTo" type="month" value="${k.to}"> <button type="button" class="expl-grid-btn" id="kpiAllPeriod">tot istoricul</button></div></div>
+        <div class="kpi-f"><label>Capital inițial · risc per tranzacție</label><div class="dst-row kpi-inl"><input class="kpi-in wide" id="kpiCap" type="number" step="100" value="${k.capital}"> ${esc(k.ccy)} · risc <input class="kpi-in" id="kpiRisk" type="number" step="0.1" value="${k.riskPct}">% ⇒ 1 R = <b id="kpiRVal">${(k.capital * k.riskPct / 100).toFixed(2)}</b> ${esc(k.ccy)}</div></div>
+        <div class="kpi-f"><label>Mărimea poziției</label>${btns(KPI_SIZING, k.sizing, 'kpiSizing')}</div>
+        <div class="kpi-f"><label>Costuri</label><div class="dst-row kpi-inl">${['simple', 'venue'].map(m => `<button type="button" class="expl-toggle-btn${k.costMode === m ? ' active' : ''}" data-v="${m}" data-costmode="1">${m === 'simple' ? 'simplu (dus-întors)' : 'maker / taker (per parte)'}</button>`).join('')}</div>
+          <div class="dst-row kpi-inl" id="kpiCostSimple"${k.costMode === 'simple' ? '' : ' hidden'}>tick <input class="kpi-in" id="kpiTick" type="number" step="any" value="${k.tick}"> × <input class="kpi-in" id="kpiCostTicks" type="number" step="0.5" value="${k.costTicks}"> ticks + <input class="kpi-in" id="kpiCostPct" type="number" step="0.01" value="${(100 * k.costPct).toFixed(2)}">% din preț</div>
+          <div class="dst-row kpi-inl" id="kpiCostVenue"${k.costMode === 'venue' ? '' : ' hidden'}>maker <input class="kpi-in" id="kpiMaker" type="number" step="0.005" value="${(100 * k.maker).toFixed(3)}">% · taker <input class="kpi-in" id="kpiTaker" type="number" step="0.005" value="${(100 * k.taker).toFixed(3)}">% · slippage <input class="kpi-in" id="kpiSlip" type="number" step="0.5" value="${k.slipTicks}"> ticks</div></div>
+        <div class="kpi-f"><label>VaR · rată fără risc (Sharpe)</label><div class="dst-row kpi-inl">încredere <input class="kpi-in" id="kpiVarConf" type="number" step="1" value="${k.varConf}">% · orizont <input class="kpi-in" id="kpiVarDays" type="number" step="1" value="${k.varDays}"> zile · rf <input class="kpi-in" id="kpiRf" type="number" step="0.1" value="${k.rf}">% / an</div></div>
+        <div class="kpi-f kpi-run"><label>&nbsp;</label><div class="dst-row kpi-inl"><button type="button" class="expl-toggle-btn kpi-btn-run" id="kpiRun">▶ Rulează simularea</button><button type="button" class="expl-toggle-btn" id="kpiReset">Reset parametri</button><span class="kpi-state" id="kpiState">neconectat la motor — butoanele salvează parametrii, calculul se conectează ulterior</span></div></div>
+      </div>
+    </div>
+    ${KPI_GROUPS.map(g => `<div class="dst-card"><h3>${esc(g.title)}</h3><div class="kpi-grid">${g.items.map(kpiTile).join('')}</div></div>`).join('')}
+    <div class="dst-charts">
+      <div class="dst-card"><h3>Curba de equity <span class="n">— capital cumulat după costuri</span></h3><div class="box"><div class="dst-empty" id="kpiEqBox">se completează după conectarea motorului</div></div></div>
+      <div class="dst-card"><h3>Drawdown <span class="n">— % sub vârful anterior</span></h3><div class="box"><div class="dst-empty" id="kpiDdBox">se completează după conectarea motorului</div></div></div>
+      <div class="dst-card"><h3>Distribuția rezultatelor per tranzacție <span class="n">— histogramă în R</span></h3><div class="box"><div class="dst-empty">se completează după conectarea motorului</div></div></div>
+      <div class="dst-card"><h3>Tranzacții pe lună <span class="n">— activitate și overtrading</span></h3><div class="box"><div class="dst-empty">se completează după conectarea motorului</div></div></div>
+    </div>
+    <div class="dst-legend">Toate KPI-urile se calculează pe ACELAȘI set de sesiuni ca celelalte sub-tab-uri din DR Concept (filtrele ierarhice din stânga), transformate în tranzacții de simulare. Convenția banilor: 1 R = capital × risc% (implicit ${k.capital} × ${k.riskPct}% = ${(k.capital * k.riskPct / 100).toFixed(2)} ${esc(k.ccy)}); rezultatele motorului sunt în R și se înmulțesc cu 1 R pentru Profit Net, ROI, Max Drawdown și VaR, în timp ce Expectancy și raportul risc/recompensă rămân în R. Profit Factor = Σ câștiguri / |Σ pierderi| (peste 1.5 = solid). Max Drawdown se măsoară pe curba de equity după costuri (peak → trough). VaR = centila (100 − încredere) a randamentelor pe orizontul ales, estimare istorică. Sharpe = (randament mediu − rf) / abaterea standard a randamentelor; Sortino folosește doar abaterea randamentelor negative. Speranța matematică = rata de câștig × câștigul mediu − rata de pierdere × pierderea medie, în R. Timpul mediu de deținere se măsoară de la bara de intrare la bara de ieșire (minute de la sfârșitul PreBO). Slippage-ul mediu e parametru de execuție (ticks), nu măsurat din date — intră în costuri. NEWS DAYS rămân excluse implicit, ca în restul tab-ului. ATENȚIE: câtă vreme motorul nu e conectat, toate cifrele afișează „–"; parametrii de mai sus sunt deja păstrați în starea tab-ului.</div>
+  </div>`;
+  bindKpi();
+}
+
+function bindKpi() {
+  const k = state.kpi;
+  const grp = (id, fn) => { const el = $(id); if (el) el.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; fn(b); el.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); }; };
+  grp('kpiStrat', b => { k.strat = b.dataset.v; });
+  grp('kpiExit', b => { k.exit = b.dataset.v; });
+  grp('kpiSizing', b => { k.sizing = b.dataset.v; });
+  const cmRow = $('dstPaneKpi').querySelector('[data-costmode]') ? $('dstPaneKpi') : null;
+  if (cmRow) cmRow.querySelectorAll('button[data-costmode]').forEach(b => { b.onclick = () => { k.costMode = b.dataset.v; cmRow.querySelectorAll('button[data-costmode]').forEach(x => x.classList.toggle('active', x === b)); $('kpiCostSimple').hidden = k.costMode !== 'simple'; $('kpiCostVenue').hidden = k.costMode !== 'venue'; }; });
+  const num = (id, set) => { const el = $(id); if (el) el.onchange = () => { set(Number(el.value)); refreshR(); }; };
+  num('kpiTp', v => k.tp = v); num('kpiSl', v => k.sl = v);
+  num('kpiCap', v => k.capital = v); num('kpiRisk', v => k.riskPct = v);
+  num('kpiTick', v => k.tick = v); num('kpiCostTicks', v => k.costTicks = v); num('kpiCostPct', v => k.costPct = v / 100);
+  num('kpiMaker', v => k.maker = v / 100); num('kpiTaker', v => k.taker = v / 100); num('kpiSlip', v => k.slipTicks = v);
+  num('kpiVarConf', v => k.varConf = v); num('kpiVarDays', v => k.varDays = v); num('kpiRf', v => k.rf = v);
+  const txt = (id, set) => { const el = $(id); if (el) el.onchange = () => set(el.value); };
+  txt('kpiFrom', v => k.from = v); txt('kpiTo', v => k.to = v);
+  if ($('kpiAllPeriod')) $('kpiAllPeriod').onclick = () => { k.from = ''; k.to = ''; $('kpiFrom').value = ''; $('kpiTo').value = ''; };
+  if ($('kpiRun')) $('kpiRun').onclick = () => { $('kpiState').textContent = 'motorul de backtest nu e încă conectat la acest tab — parametrii au fost salvați (strategie ' + k.strat + ', TP ' + k.tp + ' R, SL ' + k.sl + ' R, 1 R = ' + (k.capital * k.riskPct / 100).toFixed(2) + ' ' + k.ccy + ')'; };
+  if ($('kpiReset')) $('kpiReset').onclick = () => { state.kpi = kpiDefaults(); render(); };
+  refreshR();
+}
+function refreshR() { const el = $('kpiRVal'); if (el) el.textContent = (state.kpi.capital * state.kpi.riskPct / 100).toFixed(2); }
+function kpiDefaults() { return { strat: 'confirm', exit: 'tpsl', tp: 1, sl: 1, from: '', to: '', capital: 10000, riskPct: 1, ccy: 'USD', sizing: 'fixed', costMode: 'simple', tick: E.TICK_SIZE, costTicks: 1.5, costPct: 0, maker: 0.0002, taker: 0.0005, slipTicks: 0, varConf: 95, varDays: 1, rf: 0 }; }
+
 // ---------- API ----------
 function init(containerId) {
   const root = $(containerId); if (!root) return;
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+  if (!state.kpi) state.kpi = kpiDefaults();
   root.innerHTML = markup();
   $('dstAsset').onchange = e => { state.asset = e.target.value || null; buildBuckets(); render(); };
   $('dstFiles').onchange = e => { if (e.target.files && e.target.files.length) addFiles([...e.target.files]); };
@@ -4926,7 +5038,7 @@ async function updateNews() {
   } catch (e) { render(); $('dstBanner').innerHTML = `<div class="dst-banner err">Nu am putut actualiza lista de news days (${esc(e.message)}). Rămâne lista curentă: ${esc(state.newsSource)}.</div>`; }
 }
 function getState() { return state; }
-function setSub(v) { if (['dist', 'price', 'retr'].includes(v)) { state.sub = v; render(); } }
+function setSub(v) { if (['dist', 'price', 'retr', 'kpi'].includes(v)) { state.sub = v; render(); } }
 module.exports = { init, setData, addFiles, render, getState, setSub, assetNameFromFile, setNews, updateNews };
 
 });
