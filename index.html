@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-23 08:17 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-23T08:17 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-23 08:28 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-23T08:28 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5437,8 +5437,10 @@ function buildHelpOverlay(box, d) {
     const c = KIND[n.kind] || KIND.open;
     pop.innerHTML = `<div class="man-pop-head" style="color:${c.head}"><span>${esc(n.head)}</span>${long ? '<button type="button" class="man-pop-x" title="Închide">×</button>' : '<span class="man-pop-hint">click pentru explicații</span>'}</div>${codeRows(n.codes, long)}`;
     pop.classList.toggle('man-pop-long-mode', !!long);
-    const right = (n.x + n.w / 2) > W / 2; // sub badge; aliniată la stânga nodului, sau la dreapta lui dacă nodul e în jumătatea dreaptă
-    pop.style.top = py(n.y + 20);
+    // ÎN AFARA casetei (cerere utilizator): sub casetă dacă e în jumătatea de sus a diagramei, deasupra ei dacă e în jumătatea de jos;
+    // aliniată la marginea stângă a casetei, sau la cea dreaptă dacă caseta e în jumătatea dreaptă a diagramei
+    const right = (n.x + n.w / 2) > W / 2, below = (n.y + n.h / 2) < lay.height / 2;
+    if (below) { pop.style.bottom = 'auto'; pop.style.top = py(n.y + n.h + 8); } else { pop.style.top = 'auto'; pop.style.bottom = (100 - 100 * (n.y - 8) / lay.height).toFixed(3) + '%'; }
     if (right) { pop.style.left = 'auto'; pop.style.right = (100 - 100 * (n.x + n.w) / W).toFixed(3) + '%'; } else { pop.style.right = 'auto'; pop.style.left = px(n.x); }
     pop.hidden = false;
     const x = pop.querySelector('.man-pop-x'); if (x) x.addEventListener('click', e => { e.stopPropagation(); hide(true); });
@@ -5465,7 +5467,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, DI
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.25.1" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.25.2" };
 })();
 
 </script>
