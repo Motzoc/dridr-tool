@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-23 07:18 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-23T07:18 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-23 08:17 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-23T08:17 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5129,6 +5129,38 @@ const LEGEND = [['data', 'date'], ['engine', 'motor'], ['measure', 'măsuri'], [
 
 // O diagramă = straturi (rânduri) de noduri; fiecare nod: { id, kind, head, lines[] (rânduri de text), w? (lățime relativă), tip? (titlu la hover) }.
 // Săgețile: `flow: true` pe strat = săgeată groasă de la stratul anterior; `edges: [[from, to, label?]]` = săgeți punctuale între noduri.
+
+// ───────────────────────────── CODURILE F / I — explicații în limbaj comun ─────────────────────────────
+// short = un rând (apare la hover); long = explicația pe larg (apare la click). Sursa cifrelor: MANUAL_DR_CONCEPT.md.
+const CODES = {
+  F1: { short: 'Rata True e ~72%, nu 80%', long: 'Din sesiunile care confirmă, cam 7 din 10 țin până la final (RDR ceva mai curat, 76%). „True" se știe doar la sfârșit — nu poate fi folosit ca filtru de intrare: aproape 3 poziții din 10 pornesc într-o sesiune care se va invalida.' },
+  F2: { short: 'Unde închide box-ul spune ÎNCOTRO merge confirmarea', long: 'Împărțim box-ul în 4 sferturi. Dacă ultima lumânare a box-ului închide în sfertul de sus, confirmarea vine în sus în ~79% din cazuri; în sfertul de jos, în jos. În mijloc e aproape monedă (60/40). Ține pe toate cele 21 de active, inclusiv pe petrol, în fiecare an.' },
+  F3: { short: 'Contează POZIȚIA close-ului, nu volumul', long: 'VWAP-ul (prețul ponderat cu volumul) părea să prezică direcția, dar media simplă și mijlocul box-ului dau exact la fel. Deci informația e unde a închis prețul în box, nu cât volum a fost.' },
+  F4: { short: 'RSI extrem întărește direcția (+7 pp), niciodată contra', long: 'Când RSI(14) pe 5 min e sub 30 sau peste 70 la închiderea box-ului, direcția dată de sfert devine ~85%. RSI extrem cade MEREU în sfertul care spune același lucru (0 conflicte din 94.451 sesiuni) — e un amplificator, nu un al doilea vot.' },
+  F5: { short: 'RSI extrem prezice și CALITATEA: True 71% → 85%', long: 'Singurul filtru găsit până acum care spune dacă sesiunea ȚINE, nu doar încotro merge: la RSI extrem rata True urcă cu ~14 puncte procentuale, pe 20 din 20 active. Apare în ~8% din sesiuni.' },
+  F6: { short: 'Sfertul NU spune dacă sesiunea ține', long: 'Rata True diferă între sferturi cu doar ~3 puncte. Poziția close-ului îți spune direcția, nu calitatea.' },
+  F7: { short: 'Corp mic al box-ului ⇒ vechiul PreBO devine monedă', long: 'Când open-ul și close-ul box-ului sunt aproape (corp sub 0.1 R), culoarea lumânării (PreBO Red/Green) nu mai spune nimic (48–52%), dar poziția close-ului în box încă ține (62–74%). De aceea PreBO a fost înlocuit cu sferturile.' },
+  F8: { short: 'Retracementul după confirmare e aproape același oriunde', long: 'După confirmare prețul se retrage tipic 0.1–0.4 R înapoi spre box, indiferent de sesiune, zi, direcție sau ora confirmării. Singurul lucru care îl mișcă e mărimea box-ului, și aceea mecanic (R e la numitor).' },
+  F9: { short: 'La RSI extrem box-ul e cu 61% mai mare — cifrele „în R" înșală', long: 'Când RSI e extrem, box-ul e de 1.6× mai mare decât de obicei. Extensia și retracementul PAR mai mici în R, dar în preț absolut sunt MAI MARI. Lecția: orice comparație în R între regimuri cu box-uri diferite trebuie controlată pe mărimea box-ului.' },
+  F10: { short: 'Structura RX ⇒ rata True +14…15 pp', long: 'RX = box-ul de acum îl înghite pe cel al sesiunii de referință (mai sus ȘI mai jos). Se știe la închiderea box-ului. La aceeași oră de confirmare, RX ține în ~80% față de ~65%. Controlat pe mărimea box-ului, 18–20 din 20 active. Apare în ~5% din sesiuni.' },
+  F11: { short: 'Structura Contraction ⇒ extensie ×1.4–1.5, risc neschimbat', long: 'Contraction = box-ul de acum stă complet înăuntrul celui de referință. După confirmare, prețul merge cu 40–50% mai departe, dar retracementul rămâne același. Ținta crește, riscul nu. 19 din 20 active. ~6.5% din sesiuni.' },
+  F12: { short: 'Din mijlocul box-ului, prima excursie ≥ 2 DSD dă direcția în ~75%', long: 'Când close-ul e în mijloc (Q2/Q3), sfertul singur e slab. Urmărim bară cu bară, înainte de confirmare, prima dată când prețul se depărtează de close-ul box-ului cu ≥ 2 DSD (0.2 R). Dacă direcția aceea e de acord cu înclinarea sfertului, confirmarea vine în aceeași direcție în ~75% (dacă bara chiar ÎNCHIDE dincolo, ~81%). La extreme nu se folosește. 19/19 active + petrol. Direcția corectă nu înseamnă încă profit (vezi I17).' },
+  F13: { short: 'După semnal prețul retestează close-ul: stopul de referință = close − 1.5 DSD', long: 'După semnalul F12, prețul se întoarce de obicei la close-ul box-ului și trece puțin sub el (median 0.6 DSD, în 70% din cazuri sub 1.5 DSD). Un stop la nivelul de declanșare ar fi lovit aproape mereu; unul la close − 1.5 DSD ține ~70% din retesturi. Dar retracementul de după confirmare (F8) trece prin același loc — de aici I17.' },
+  I1: { short: 'Intrarea la confirmare (sau pe pullback) nu câștigă nimic', long: 'Cumpăr când prima bară închide peste box (sau pe prima retragere) ⇒ speranța de câștig ≈ 0 pe WTI și BTC, în toate variantele de TP/SL. Direcția e bună, dar retracementul normal lovește stopul sau ținta e prea aproape.' },
+  I2: { short: 'Intrările în zone SD (înainte / după confirmare): negative', long: 'Ordine limit la nivelurile de 0.1 R de la linia DR, înainte sau după confirmare — negative pe datele nevăzute.' },
+  I3: { short: 'Trendul de pe timeframe-uri mari NU prezice direcția', long: 'Momentum pe 4h / 24h și structura ASS pe 1H/4H/zilnic, calculate ÎNAINTE de box: 50–51% pe direcție. În DR/IDR trendul mare nu ajută.' },
+  I4: { short: 'Zonele de rezistență din ultimele 24h nu schimbă nimic', long: 'Nivelurile de suport/rezistență din ziua precedentă nu îmbunătățesc rezultatul net al fade-ului.' },
+  I5: { short: '„Fade cu limit dincolo de margine": selecție adversă', long: 'Dacă pun ordinul limit puțin DINCOLO de marginea box-ului ca să prind un preț mai bun, mi se execută exact în sesiunile care se vor invalida. Prețul mai bun e semnul că mișcarea e reală.' },
+  I6: { short: 'Volumul PreBO pe jumătăți — abandonat la cererea utilizatorului', long: 'Efect slab, deja conținut în PreBO. Nu se reia și nu se propune.' },
+  I10: { short: 'EMA, VWAP zilnic, RSI pe 1H: 49–62% = zgomot', long: 'Indicatorii clasici la închiderea box-ului nu prezic direcția confirmării mai bine decât moneda sau decât poziția close-ului.' },
+  I11: { short: 'Niciun indicator nu prezicea rata True — până la RSI extrem (F5)', long: 'Nici VWAP, nici EMA, nici RSI simplu nu separă sesiunile care țin de cele care se invalidează. Singura excepție găsită ulterior: RSI extrem (F5).' },
+  I12: { short: 'Divergențele RSI vs preț la închiderea box-ului nu prezic nimic', long: 'Divergențele regulate (preț face maxim nou, RSI nu) nu schimbă direcția, adâncimea retracementului sau extensia: 1–2 puncte, sub prag. Pe ferestre scurte semnul se inversează între ETH și BTC ⇒ zgomot.' },
+  I14: { short: 'Istoricul structurilor (ultimele 3 sesiuni) e indistinct de placebo', long: 'Lanțul de structuri al sesiunilor anterioare nu prezice nimic util — nu se distinge de o etichetă trasă la întâmplare. Informația e în structura PROPRIE a sesiunii (F10/F11), nu în ce a fost înainte.' },
+  I15: { short: 'Divergențele de 5 min ca semnal de întoarcere: sub 50%', long: 'Rețeta clasică (RSI + confluență pe timeframe mai mare + pin bar) pe toate barele de 5 min: 49%, ca și controlul aleator. Costul unui tur-retur (36% dintr-un ATR) ar mânca orice edge mic.' },
+  I16: { short: 'RSI vs media lui RSI: ce vede ochiul e trecutul, nu viitorul', long: 'Maximul prețului NU coincide cu întoarcerea RSI la media sa; traversarea e mecanică și explicată mai bine de prețul însuși; „RSI peste MA ⇒ urcă" e adevărat doar pe randamentul trecut, pe viitor semnul e invers.' },
+  I17: { short: 'Intrare la piață pe semnalul F12 + stop fix sub close: pierdere netă', long: 'Chiar cu direcția corectă în 75%, intrarea la piață pe semnal cu stop sub close-ul box-ului și țintă la linia DR + 1 R pierde după costuri în toate variantele: stopul e lovit în 72% (retestul de dinainte de confirmare + retracementul de după), câștigul e mic, costurile mari la risc mic. Faptul F12 rămâne — lipsește un stop care supraviețuiește ambelor faze.' },
+};
+
 const DIAG_CONCEPT = {
   title: 'Structura logică a statisticii DR Concept',
   subtitle: 'De la fișierul OHLCV la ce știm sigur (F1–F13), ce am infirmat (I1–I17) și ce lipsește pentru o simulare cinstită. Sursa: MANUAL_DR_CONCEPT.md v1.13 (22 sep 2026). Hover pe noduri = trimiterea la pasul de research.',
@@ -5161,15 +5193,15 @@ const DIAG_CONCEPT = {
       { id: 'measures', kind: 'stat', head: 'Măsuri comparabile', lines: ['acuratețe + ACOPERIRE · Brier score / log-loss între granularități', 'control mecanic obligatoriu: R e la numitorul lui ext / retr'], tip: 'regula #10 · capcana F9' },
     ] },
     { label: '5 · CE ȘTIM SIGUR (F1–F13)', flow: true, nodes: [
-      { id: 'dir', kind: 'fact', head: 'DIRECȚIA confirmării', lines: ['F2 sfertul: Q1/Q4 → 79% (acoperire ~50%), P(Long) monoton pe 21/21', 'F4 RSI extrem: +7 pp, intensificator simetric, 0 conflicte', 'F12 din mijloc: prima excursie ≥ 2 DSD de acord cu sfertul → 75%', '      (bara închide dincolo → 80.7%; doar fitil → 69.7%)', 'F3 e poziția, nu volumul'], tip: 'Pas 34–39, 63–64b, 67' },
-      { id: 'qual', kind: 'fact', head: 'CALITATEA (rata True)', lines: ['F1 baza ~72% (RDR 75.7 · ODR 70.8 · ADR 68.3), Long ≡ Short', 'F5 RSI extrem: 71% → 85%, +14 pp pe 20/20', 'F10 structura RX: +14…15 pp la aceeași oră, 18–20/20', 'F6 sfertul NU prezice True (2.7 pp)'], tip: 'Pas 39, 59' },
-      { id: 'ampl', kind: 'fact', head: 'AMPLITUDINEA', lines: ['F8 retracementul post-confirmare INVARIANT: bloc −0.4…−0.1 R', 'F9 RSI extrem ⇒ box 1.61×; ext și retr MAI MARI în preț', 'F11 Contraction ⇒ extensie ×1.4–1.5, retracement neschimbat', 'F7 corp mic ⇒ PreBO monedă, poziția ține'], tip: 'Pas 22, 36, 40, 59' },
-      { id: 'stop', kind: 'fact', head: 'RETESTUL / referința de STOP', lines: ['F13 după semnalul F12 prețul retestează close-ul box-ului', 'mediană −0.6 DSD · c70 −1.5 DSD sub close (19 active, WTI −1.7)', 'pe close dincolo: c70 −1.0 · doar fitil: −2.1 DSD', '⚠ e referința PRE-confirmare; retracementul F8 trece prin ea'], tip: 'Pas 63–64b, 67' },
+      { id: 'dir', kind: 'fact', codes: ['F2', 'F4', 'F12', 'F3'], head: 'DIRECȚIA confirmării', lines: ['F2 sfertul: Q1/Q4 → 79% (acoperire ~50%), P(Long) monoton pe 21/21', 'F4 RSI extrem: +7 pp, intensificator simetric, 0 conflicte', 'F12 din mijloc: prima excursie ≥ 2 DSD de acord cu sfertul → 75%', '      (bara închide dincolo → 80.7%; doar fitil → 69.7%)', 'F3 e poziția, nu volumul'], tip: 'Pas 34–39, 63–64b, 67' },
+      { id: 'qual', kind: 'fact', codes: ['F1', 'F5', 'F10', 'F6'], head: 'CALITATEA (rata True)', lines: ['F1 baza ~72% (RDR 75.7 · ODR 70.8 · ADR 68.3), Long ≡ Short', 'F5 RSI extrem: 71% → 85%, +14 pp pe 20/20', 'F10 structura RX: +14…15 pp la aceeași oră, 18–20/20', 'F6 sfertul NU prezice True (2.7 pp)'], tip: 'Pas 39, 59' },
+      { id: 'ampl', kind: 'fact', codes: ['F8', 'F9', 'F11', 'F7'], head: 'AMPLITUDINEA', lines: ['F8 retracementul post-confirmare INVARIANT: bloc −0.4…−0.1 R', 'F9 RSI extrem ⇒ box 1.61×; ext și retr MAI MARI în preț', 'F11 Contraction ⇒ extensie ×1.4–1.5, retracement neschimbat', 'F7 corp mic ⇒ PreBO monedă, poziția ține'], tip: 'Pas 22, 36, 40, 59' },
+      { id: 'stop', kind: 'fact', codes: ['F13'], head: 'RETESTUL / referința de STOP', lines: ['F13 după semnalul F12 prețul retestează close-ul box-ului', 'mediană −0.6 DSD · c70 −1.5 DSD sub close (19 active, WTI −1.7)', 'pe close dincolo: c70 −1.0 · doar fitil: −2.1 DSD', '⚠ e referința PRE-confirmare; retracementul F8 trece prin ea'], tip: 'Pas 63–64b, 67' },
     ] },
     { label: '6 · CE AM INFIRMAT (I1–I17)', flow: true, nodes: [
-      { id: 'i-entry', kind: 'falsified', head: 'Intrări testate', lines: ['I1 la confirmare / pullback: expectancy ≈ 0 (toate variantele)', 'I2 zone SD pre/post · I5 limit dincolo de margine (selecție adversă)', 'I17 la piață pe F12, stop fix sub close: RR net < 0 pe toată grila', '      brut +0.21 / net −0.16 · SL 72% · direcția adaugă doar +0.07'], tip: 'Pas 6, 7, 17, 67' },
-      { id: 'i-ind', kind: 'falsified', head: 'Indicatori', lines: ['I3 trendul HTF · I10 EMA / VWAP zilnic / RSI 1H (49–62%)', 'I12 divergențe RSI la close-ul box · I15 divergențe 5m (≤ 50%)', 'I16 RSI vs RSI-MA · I6 volumul PreBO (abandonat)', 'I11 niciun indicator pentru True — până la F5'], tip: 'Pas 8, 29, 34, 40, 60–61' },
-      { id: 'i-hist', kind: 'falsified', head: 'Context și istoric', lines: ['I4 zonele de rezistență din 24h nu schimbă net-ul', 'I14 lanțul ultimelor 3 sesiuni: indistinct de placebo', '⇒ informația e în structura PROPRIE (F10/F11), nu în istoric'], tip: 'Pas 17, 59' },
+      { id: 'i-entry', kind: 'falsified', codes: ['I1', 'I2', 'I5', 'I17'], head: 'Intrări testate', lines: ['I1 la confirmare / pullback: expectancy ≈ 0 (toate variantele)', 'I2 zone SD pre/post · I5 limit dincolo de margine (selecție adversă)', 'I17 la piață pe F12, stop fix sub close: RR net < 0 pe toată grila', '      brut +0.21 / net −0.16 · SL 72% · direcția adaugă doar +0.07'], tip: 'Pas 6, 7, 17, 67' },
+      { id: 'i-ind', kind: 'falsified', codes: ['I3', 'I10', 'I12', 'I15', 'I16', 'I6', 'I11'], head: 'Indicatori', lines: ['I3 trendul HTF · I10 EMA / VWAP zilnic / RSI 1H (49–62%)', 'I12 divergențe RSI la close-ul box · I15 divergențe 5m (≤ 50%)', 'I16 RSI vs RSI-MA · I6 volumul PreBO (abandonat)', 'I11 niciun indicator pentru True — până la F5'], tip: 'Pas 8, 29, 34, 40, 60–61' },
+      { id: 'i-hist', kind: 'falsified', codes: ['I4', 'I14'], head: 'Context și istoric', lines: ['I4 zonele de rezistență din 24h nu schimbă net-ul', 'I14 lanțul ultimelor 3 sesiuni: indistinct de placebo', '⇒ informația e în structura PROPRIE (F10/F11), nu în istoric'], tip: 'Pas 17, 59' },
       { id: 'causes', kind: 'warn', head: 'Cele 3 cauze recurente', lines: ['1 selecție adversă la fill (fill-urile cad ~43% în False vs 28%)', '2 SL de ordinul unui SD stă SUB zgomotul de 5 min (88–90% stop)', '3 TP din bucket-ul modal prea aproape (~0.1 R) — nu acoperă costul', 'orice idee nouă trebuie să atace cel puțin una'], tip: 'Partea III' },
     ] },
     { label: '7 · METODĂ și RISC', flow: true, nodes: [
@@ -5177,7 +5209,7 @@ const DIAG_CONCEPT = {
       { id: 'risk', kind: 'method', w: 1.5, head: 'Partea VII — cadrul de risc și RR', lines: ['risc fix 1% din cont · q = B / (s + c·P) ⇒ pierderea la SL = exact B', 'costul e % din NOTIONAL: cost/risc = 0.07% / d ⇒ la SL 0.2 R mănâncă 38% din risc', 'RR brut necesar (p = 50%): 1.75 la SL 0.2 R · 1.30 la 0.5 R · 1.15 la 1 R', 'R nu e risc constant între regimuri (F9: box 1.61× la RSI extrem)'], tip: 'Pas 41 · research/rr_cost_sizing.js' },
     ] },
     { label: '8 · SPRE SIMULAREA DR CONCEPT', flow: true, nodes: [
-      { id: 'known', kind: 'stat', head: 'Ce știm la t = 0 (fără lookahead)', lines: ['direcția: sfert 20/40/60/79% · + RSI extrem ~85% · + F12 în mijloc 75–81%', 'calitatea: baza sesiunii ~72% · RSI extrem ~85% · RX ~80%', 'referința de stop F13; amplitudinea din F8/F11'] },
+      { id: 'known', kind: 'stat', codes: ['F2', 'F4', 'F12', 'F1', 'F5', 'F10', 'F13'], head: 'Ce știm la t = 0 (fără lookahead)', lines: ['direcția: sfert 20/40/60/79% · + RSI extrem ~85% · + F12 în mijloc 75–81%', 'calitatea: baza sesiunii ~72% · RSI extrem ~85% · RX ~80%', 'referința de stop F13; amplitudinea din F8/F11'] },
       { id: 'axes', kind: 'method', head: 'Cele 3 axe ale oricărei idei noi', lines: ['1 intrare fără selecție adversă (fill necorelat cu invalidarea)', '2 SL peste zgomot — optimul nu e la 0 (costurile cresc sub 0.3 R)', '3 cursă mai lungă spre TP / ieșiri pe timp-structură, nu preț fix'], tip: 'Partea VI–VII' },
       { id: 'state', kind: 'open', head: 'STAREA ACTUALĂ (23 sep 2026)', lines: ['nicio regulă de intrare DR Concept cu expectanță > 0 după costuri', 'ce lipsește: un stop care supraviețuiește retestului PRE- și retracementului POST-confirmare', 'deschise D1–D6 (D5 = RSI extrem → edge după costuri?) · TAB KPI de conectat'], tip: 'Partea V · Pas 66–67' },
     ] },
@@ -5200,7 +5232,7 @@ const DIAG_FADE = {
     ] },
     { label: 'C · BARA DE ATINGERE', flow: true, nodes: [
       { id: 'test', kind: 'fact', head: 'TEST (~50%): bara închide ÎN box', lines: ['⇒ FADE: fill la margine, cu penetrare ≥ 0.02 R (fillPad)', 'stage `edgeTouch` — doar informația disponibilă la atingere'], tip: 'Pas 12, 14' },
-      { id: 'brk', kind: 'falsified', head: 'SPARGERE DIRECTĂ (~50%): close dincolo', lines: ['= confirmarea prin acea margine ⇒ FĂRĂ fade', 'intrarea la confirmare are expectancy ≈ 0 (I1)'], tip: 'Pas 6, 12' },
+      { id: 'brk', kind: 'falsified', codes: ['I1'], head: 'SPARGERE DIRECTĂ (~50%): close dincolo', lines: ['= confirmarea prin acea margine ⇒ FĂRĂ fade', 'intrarea la confirmare are expectancy ≈ 0 (I1)'], tip: 'Pas 6, 12' },
     ] },
     { label: 'D · POZIȚIA', flow: true, nodes: [
       { id: 'entry', kind: 'engine', head: 'Intrarea', lines: ['la marginea atinsă, contra mișcării (fade)', 'bara de atingere: adversul contează, TP-ul NU se creditează pe ea'], tip: 'Pas 14 (verify_sim_rules)' },
@@ -5224,7 +5256,7 @@ const DIAG_FADE = {
     ] },
     { label: 'H · STATUT și CE LIPSEȘTE', flow: true, nodes: [
       { id: 'status', kind: 'result', head: 'Statut per activ (registry R4)', lines: ['ACTIV: WTI / futures cu costuri mici', 'INACTIV: cripto (testat, respins pe costuri)', 'activarea expiră la re-rularea profilului (regimuri)'], tip: 'project_tool_v3_structure · R4' },
-      { id: 'filters', kind: 'stat', head: 'Ce mișcă și ce nu mișcă ținerea marginii', lines: ['bara „dinspre margine" ⇒ +8–17 pp ținere · atingere târzie ⇒ ține mai des (buget de timp)', 'WTI RDR 23% > ODR 16% · PreBO / trend 24h / adâncimea în box: NIMIC', 'I5: limit DINCOLO de margine = selecție adversă, infirmat'], tip: 'Pas 12, 17' },
+      { id: 'filters', kind: 'stat', codes: ['I5', 'I4'], head: 'Ce mișcă și ce nu mișcă ținerea marginii', lines: ['bara „dinspre margine" ⇒ +8–17 pp ținere · atingere târzie ⇒ ține mai des (buget de timp)', 'WTI RDR 23% > ODR 16% · PreBO / trend 24h / adâncimea în box: NIMIC', 'I5: limit DINCOLO de margine = selecție adversă, infirmat'], tip: 'Pas 12, 17' },
       { id: 'todo', kind: 'open', head: 'NEFĂCUT', lines: ['paper trading (stadiul intermediar) · s5 execuție realtime (feed, stare live, ordine)', 'slippage variabil · fill-uri parțiale · dimensionarea poziției cu Partea VII', 'ODR pe cripto negativ — de înțeles sau de exclus'], tip: 'R1–R3 · Pas 9' },
     ] },
   ],
@@ -5265,7 +5297,7 @@ function renderDiagram(d) {
   out.push(`<defs><marker id="man-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa2b1"/></marker>
     <marker id="man-arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e0a63f"/></marker></defs>`);
   // stilurile stau ÎN SVG, ca fișierul exportat (TO_CHECK_figuri/diagrama_*.svg) să arate la fel și în afara paginii
-  out.push(`<style>text{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif}.man-t1{fill:#e7e9ee;font-size:20px;font-weight:600}.man-t2{fill:#9aa2b1;font-size:11.5px}.man-leg{fill:#9aa2b1;font-size:10.5px}.man-lbl{fill:#6b7383;font-size:11px;font-weight:700;letter-spacing:.06em}.man-head{font-size:13px;font-weight:700}.man-line{fill:#d7dde8;font-size:12px}.man-cont{fill:#9aa2b1}.man-flow{stroke:#9aa2b1;stroke-width:2.2;stroke-dasharray:6 4;opacity:.75}.man-edge{fill:none;stroke:#e0a63f;stroke-width:1.6;opacity:.85}.man-elbl{fill:#f0cf8f;font-size:10.5px}.man-node:hover rect{filter:brightness(1.25)}</style>`);
+  out.push(`<style>text{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif}.man-t1{fill:#e7e9ee;font-size:20px;font-weight:600}.man-t2{fill:#9aa2b1;font-size:11.5px}.man-leg{fill:#9aa2b1;font-size:10.5px}.man-lbl{fill:#6b7383;font-size:11px;font-weight:700;letter-spacing:.06em}.man-head{font-size:13px;font-weight:700}.man-line{fill:#d7dde8;font-size:12px}.man-cont{fill:#9aa2b1}.man-flow{stroke:#9aa2b1;stroke-width:2.2;stroke-dasharray:6 4;opacity:.75}.man-edge{fill:none;stroke:#e0a63f;stroke-width:1.6;opacity:.85}.man-elbl{fill:#f0cf8f;font-size:10.5px}.man-node:hover rect{filter:brightness(1.25)}.man-qt{fill:#9aa2b1;font-size:8.5px;font-weight:700}</style>`);
   out.push(`<rect x="0" y="0" width="${W}" height="${lay.height}" fill="#0f1115"/>`);
   out.push(svgText(PAD, 30, d.title, 'man-t1'));
   for (const [i, s] of wrapLine(d.subtitle, 210).entries()) out.push(svgText(PAD, 50 + i * 14, s, 'man-t2'));
@@ -5281,9 +5313,11 @@ function renderDiagram(d) {
       const c = KIND[n.kind] || KIND.open;
       out.push(`<g class="man-node"><title>${esc((n.head + (n.tip ? ' — ' + n.tip : '')))}</title><rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="8" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.3"/>`);
       let ty = n.y + NODE_PAD + 13;
-      for (const s of n.headLines) { out.push(`<text x="${n.x + NODE_PAD}" y="${ty}" class="man-head" fill="${c.head}">${esc(s)}</text>`); ty += HEAD_H; }
+      const hx = n.x + NODE_PAD + (n.codes && n.codes.length ? 12 : 0); // loc pentru badge-ul „?"
+      for (const s of n.headLines) { out.push(`<text x="${hx}" y="${ty}" class="man-head" fill="${c.head}">${esc(s)}</text>`); ty += HEAD_H; }
       ty -= 3;
       for (const s of n.lines) { out.push(svgText(n.x + NODE_PAD, ty, s, /^\s{3,}/.test(s) ? 'man-line man-cont' : 'man-line')); ty += LINE_H; }
+      if (n.codes && n.codes.length) out.push(`<g class="man-q"><circle cx="${n.x + 9}" cy="${n.y + 9}" r="6" fill="#0f1115" stroke="${c.stroke}" stroke-width="1" opacity=".9"/><text x="${n.x + 9}" y="${n.y + 12.3}" text-anchor="middle" class="man-qt">?</text></g>`);
       out.push('</g>');
     }
   }
@@ -5326,6 +5360,18 @@ const CSS = `
 .man-svg .man-flow{stroke:#9aa2b1;stroke-width:2.2;stroke-dasharray:6 4;opacity:.75} .man-svg .man-edge{fill:none;stroke:#e0a63f;stroke-width:1.6;opacity:.85}
 .man-svg .man-elbl{fill:#f0cf8f;font-size:10.5px} .man-svg .man-node:hover rect{filter:brightness(1.25)}
 .man-diag .note{margin:8px 2px 0}
+.man-svghost{position:relative}
+.man-ov{position:absolute;inset:0;pointer-events:none}
+.man-qb{pointer-events:auto;position:absolute;width:14px;height:14px;padding:0;border-radius:50%;border:1px solid rgba(154,162,177,.7);background:rgba(15,17,21,.85);color:#c7cdd8;font-size:9px;font-weight:700;line-height:12px;cursor:help;transition:transform .12s,background .12s}
+.man-qb:hover{background:var(--accent);border-color:var(--accent);color:#fff;transform:scale(1.35)}
+.man-pop{pointer-events:auto;position:absolute;z-index:5;min-width:280px;max-width:min(440px,60%);padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(20,23,30,.6);backdrop-filter:blur(7px) saturate(1.2);-webkit-backdrop-filter:blur(7px) saturate(1.2);box-shadow:0 10px 30px rgba(0,0,0,.45);color:#e7e9ee;font-size:12px;line-height:1.4;text-align:left}
+.man-pop.man-pop-long-mode{max-width:min(640px,70%);background:rgba(20,23,30,.7)}
+.man-pop-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:700;font-size:12.5px;margin-bottom:6px}
+.man-pop-hint{font-weight:400;font-size:10.5px;color:var(--text3)}
+.man-pop-x{background:transparent;border:none;color:var(--text2);font-size:16px;line-height:1;padding:0 2px;cursor:pointer} .man-pop-x:hover{color:#fff}
+.man-pop-row{display:grid;grid-template-columns:34px 1fr;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.07)}
+.man-pop-code{font-weight:700;color:#f0cf8f;font-size:11.5px;padding-top:1px}
+.man-pop-short{color:#e7e9ee} .man-pop-long{color:#b9c0cc;margin-top:3px;font-size:11.5px;line-height:1.45}
 @media (max-width:1100px){.man-wrap{flex-direction:column}.man-toc{position:static;flex:none;max-height:240px}}
 `;
 
@@ -5358,7 +5404,8 @@ function renderManual() {
 function renderDiag(key) {
   const box = $('man-' + key); if (!box || state.drawn[key]) return;
   const d = key === 'concept' ? DIAG_CONCEPT : DIAG_FADE;
-  box.innerHTML = `<div class="man-diag">${renderDiagram(d)}<p class="note">Diagrama e desenată din declarația <code>${key === 'concept' ? 'DIAG_CONCEPT' : 'DIAG_FADE'}</code> din <code>ui/manual_tab.js</code> — se modifică pas cu pas, odată cu manualul. Săgeata punctată = fluxul între straturi; săgețile galbene = legături punctuale. Hover pe un nod arată sursa (pasul de research).</p></div>`;
+  box.innerHTML = `<div class="man-diag"><div class="man-svghost">${renderDiagram(d)}</div><p class="note">Diagrama e desenată din declarația <code>${key === 'concept' ? 'DIAG_CONCEPT' : 'DIAG_FADE'}</code> din <code>ui/manual_tab.js</code> — se modifică pas cu pas, odată cu manualul. Săgeata punctată = fluxul între straturi; săgețile galbene = legături punctuale. Hover pe un nod arată sursa (pasul de research). <strong>„?"</strong> din colțul stânga-sus al casetelor cu coduri F/I: hover = ce înseamnă fiecare cod, pe scurt; click = explicația în limbaj comun.</p></div>`;
+  buildHelpOverlay(box, d);
   state.drawn[key] = true;
 }
 function render() {
@@ -5376,6 +5423,41 @@ function init(containerId) {
 function setSub(v) { if (['manual', 'concept', 'fade'].includes(v)) { state.sub = v; render(); } }
 function diagramSvg(key) { return renderDiagram(key === 'fade' ? DIAG_FADE : DIAG_CONCEPT); }
 
+// Stratul interactiv de „?": badge-uri HTML poziționate procentual peste SVG (ca să urmeze scalarea), o singură etichetă
+// translucidă per diagramă. Hover = rezumatul (un rând per cod); click = fixează eticheta și o extinde cu explicația pe larg;
+// click pe „×", pe badge din nou sau oriunde în afară = închide.
+function buildHelpOverlay(box, d) {
+  const lay = layoutDiagram(d); const host = box.querySelector('.man-svghost'); if (!host) return;
+  const ov = document.createElement('div'); ov.className = 'man-ov';
+  const pop = document.createElement('div'); pop.className = 'man-pop'; pop.hidden = true;
+  let pinned = null;
+  const px = v => (100 * v / W).toFixed(3) + '%', py = v => (100 * v / lay.height).toFixed(3) + '%';
+  const codeRows = (codes, long) => codes.map(k => { const c = CODES[k]; if (!c) return ''; return `<div class="man-pop-row"><span class="man-pop-code">${esc(k)}</span><div><div class="man-pop-short">${esc(c.short)}</div>${long ? `<div class="man-pop-long">${esc(c.long)}</div>` : ''}</div></div>`; }).join('');
+  function show(n, long) {
+    const c = KIND[n.kind] || KIND.open;
+    pop.innerHTML = `<div class="man-pop-head" style="color:${c.head}"><span>${esc(n.head)}</span>${long ? '<button type="button" class="man-pop-x" title="Închide">×</button>' : '<span class="man-pop-hint">click pentru explicații</span>'}</div>${codeRows(n.codes, long)}`;
+    pop.classList.toggle('man-pop-long-mode', !!long);
+    const right = (n.x + n.w / 2) > W / 2; // sub badge; aliniată la stânga nodului, sau la dreapta lui dacă nodul e în jumătatea dreaptă
+    pop.style.top = py(n.y + 20);
+    if (right) { pop.style.left = 'auto'; pop.style.right = (100 - 100 * (n.x + n.w) / W).toFixed(3) + '%'; } else { pop.style.right = 'auto'; pop.style.left = px(n.x); }
+    pop.hidden = false;
+    const x = pop.querySelector('.man-pop-x'); if (x) x.addEventListener('click', e => { e.stopPropagation(); hide(true); });
+  }
+  function hide(force) { if (pinned && !force) return; pinned = null; pop.hidden = true; }
+  for (const n of Object.values(lay.nodes)) {
+    if (!n.codes || !n.codes.length) continue;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'man-qb'; b.textContent = '?';
+    b.title = n.codes.join(' · '); b.style.left = px(n.x + 2); b.style.top = py(n.y + 2);
+    b.addEventListener('mouseenter', () => { if (!pinned) show(n, false); });
+    b.addEventListener('mouseleave', () => { if (!pinned) hide(); });
+    b.addEventListener('click', e => { e.stopPropagation(); if (pinned === n.id) { hide(true); } else { pinned = n.id; show(n, true); } });
+    ov.appendChild(b);
+  }
+  pop.addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => hide(true));
+  ov.appendChild(pop); host.appendChild(ov);
+}
+
 module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, DIAG_CONCEPT, DIAG_FADE, getManual: () => MANUAL_MD };
 
 });
@@ -5383,7 +5465,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, DI
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.23.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.25.1" };
 })();
 
 </script>
