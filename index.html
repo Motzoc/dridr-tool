@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 12:07 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T12:07 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 13:25 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T13:25 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5239,7 +5239,7 @@ const GRAPH = [
   { lvl: 'L3', id: 'm.brier', name: 'Brier / log-loss', kind: 'method', sum: 'Cât de bine calibrate sunt probabilitățile.', det: 'Singura comparație corectă între granularități diferite (jumătăți / treimi / sferturi) — acuratețea favorizează mecanic mai puține benzi (regula #10).', f: 'Brier = media (p − y)² · 0 = perfect · 0.25 = monedă', src: 'manual regula #10, Pas 35' },
   { lvl: 'L3', id: 'm.rho', name: 'Corelație Spearman ρ', kind: 'method', sum: 'Cât de mult două mărimi urcă și coboară împreună (pe ranguri).', det: 'Folosită pentru familiile de echivalență: compușii cu ρ ≥ 0.9 pe train sunt practic aceeași variabilă (ex. baseline-urile de volatilitate, Pas 74).', f: 'ρ = corelația Pearson a rangurilor', src: 'Pas 74, decizie 25 sep 2026' },
   { lvl: 'L3', id: 'm.seif', name: 'Seiful (validare finală)', kind: 'method', sum: 'Ultima probă, pe date pe care nu le-a văzut nimic.', det: 'Activele noi (acțiuni, indici, petrol futures, sosesc în ~2 săptămâni) + datele viitoare. Nu se folosesc în nicio explorare sau Option. O singură trecere, cu setările înghețate; doar așa o ipoteză ajunge în L9.', in: ['raw.asset'], src: 'decizie 25 sep 2026' },
-  { lvl: 'L3', id: 'm.count', name: 'Contor de încercări', kind: 'method', sum: 'Câte variante din aceeași familie au fost testate.', det: '„A trecut la prima încercare" valorează mai mult decât „a trecut la a 30-a". Se ține pe familie de echivalență, nu pe variantă. Se implementează în Etapa 2.', in: ['m.rho'], src: 'decizie 25 sep 2026' },
+  { lvl: 'L3', id: 'm.count', name: 'Contor de încercări', kind: 'method', sum: 'Câte variante din aceeași familie au fost testate.', det: '„A trecut la prima încercare" valorează mai mult decât „a trecut la a 30-a". Se ține pe familie de echivalență, nu pe variantă. Apare în „?" al fiecărui studiu (L4) și al compușilor din L2.', in: ['m.rho'], src: 'decizie 25 sep 2026' },
 
   // ════════ L4 – L6 — se completează în Etapa 3 ════════
   { lvl: 'L4', id: 'todo.L4', name: 'Studiile Pas 66–76', kind: 'todo', sum: 'Se completează în Etapa 3.', det: 'Fiecare pas va avea: întrebarea, amprenta (date folosite · metodă · praguri · split), legăturile spre L1–L3 și ștampila setării sub care a rulat. Pașii mai vechi vin în loturi, în Etapa 4, marcați „metodă non-standard" unde e cazul.' },
@@ -5263,6 +5263,33 @@ const GRAPH = [
   { lvl: 'L9', id: 'todo.L9', name: 'Strategii validate', kind: 'todo', sum: 'Gol deocamdată.', det: 'Aici intră doar o ipoteză care a trecut toate criteriile L7, inclusiv o singură trecere pe seif.' },
 ];
 
+
+// ───────────────────────────── CORE — regulile obligatorii ale Standardului (25 sep 2026) ─────────────────────────────
+// Cerere utilizator: ce e deja decis (amprenta, contorul, verdictul în RR, split-ul, seiful…) face parte din ORICE Standard și ORICE
+// Option — bifat automat pe TRAIN și pe TEST, blocat (nu se poate debifa), salvat în fișier în secțiunea CORE.
+// Caseta veche „STANDARD METODOLOGIC" devine grupul CORE: regulile noi + metodele-regulă mutate din biblioteca L3.
+const CORE_RULES = [
+  { id: 'core.fisa', name: 'Fișa înainte de rulare', sum: 'Înainte de orice analiză: datele L1–L2 folosite, formula, ipoteza, pragurile și testul, aprobate înainte de a vedea cifrele.', det: 'Salvarea setărilor vine ÎNAINTEA rezultatelor; setările nu se mai modifică după ce s-au văzut cifrele.' },
+  { id: 'core.amp', name: 'Amprenta testului', sum: 'Fiecare test are amprenta: date folosite · metodă · praguri · split.', det: 'Două teste cu aceeași amprentă sunt același test: se arată rezultatul existent și nu se rulează din nou (anti-dublare). Amprenta apare în „?" al fiecărui studiu din L4, cu un cod unic.' },
+  { id: 'core.stdchange', name: 'Schimbarea Standardului', sum: 'Standardul se schimbă doar pe baza train-ului și a argumentelor de metodă.', det: '„Testul e un rezultat, nu o premisă." Fiecare Save Standard cere motivul și creează o versiune nouă; cele vechi rămân, iar rezultatele vechi poartă ștampila versiunii sub care au rulat.' },
+  { id: 'core.news', name: 'News days excluse', sum: 'Fără FOMC, CPI, NFP — din statistică și din trading.', det: 'Se exclud ODR + RDR din ziua D și ADR-urile D−1 / D. Se reintroduc doar la cerere explicită (regula #9).', in: ['c.newsday'] },
+  { id: 'core.days', name: 'Zile Luni → Duminică', sum: 'Weekendul intră ca zile separate.', det: 'Decizie utilizator 23 sep 2026 (Pas 69c).', in: ['raw.dow'] },
+  { id: 'core.n', name: 'n ≥ 30 pe celulă', sum: 'Sub 30 de observații nu tragem concluzii.', det: 'Avertisment automat în tool sub n = 30; la replicare fiecare activ trebuie să aibă n ≥ 30 și pe train, și pe test.' },
+  { id: 'core.nolook', name: 'Fără lookahead', sum: 'Nicio informație care nu era disponibilă la momentul deciziei.', det: 'Statistica condiționată folosită într-o simulare se calculează pe fereastră expandabilă, doar din trecut (regula #2).' },
+  { id: 'core.fill', name: 'Fill strict + ordinea în bară', sum: 'Fill-uri doar pe barele DE DUPĂ bara de confirmare; în bară: SL → contra → TP.', det: 'SL poate lovi pe bara de fill, TP nu. Fade doar la prima atingere (regulile #4–#6).' },
+  { id: 'core.dsd', name: 'Retracement în DSD, geometrie în SD', sum: 'Retragere / excursie / stop față de close-ul box-ului (DSD); linie, extensie, sferturi în SD.', det: 'Regula de vocabular din 22 sep 2026 (regula #12).', in: ['c.DSD', 'c.SD'] },
+];
+const CORE_MOVED = ['m.split', 'm.seif', 'm.count', 'm.rr', 'm.agg', 'm.rand', 'm.brier'];
+(function buildCore() {
+  const std = GRAPH.find(g => g.id === 'm.standard');
+  const moved = CORE_MOVED.map(id => GRAPH.find(g => g.id === id)).filter(Boolean);
+  for (let i = GRAPH.length - 1; i >= 0; i--) if (GRAPH[i].id === 'm.standard' || CORE_MOVED.includes(GRAPH[i].id)) GRAPH.splice(i, 1);
+  const kids = [...CORE_RULES.map(r => ({ ...r, kind: 'method' })), ...moved.map(m => { const c = { ...m }; delete c.lvl; return c; })];
+  for (const k of kids) k.core = true;
+  GRAPH.unshift({ lvl: 'L3', id: 'g.core', name: 'STANDARD METODOLOGIC · CORE (obligatoriu)', kind: 'standard', core: true,
+    sum: 'Regulile deja decise: intră automat în ORICE Standard și ORICE Option, pe train și pe test, și nu se pot debifa.',
+    det: (std && std.det) || '', src: (std && std.src) || 'manual Partea IV + deciziile din 25 sep 2026', children: kids });
+})();
 
 // ───────────────────────────── ETAPA 3 — STUDII, REZULTATE, CONCLUZII (Pas 67–84) ─────────────────────────────
 // Sursa cifrelor: MANUAL_DR_CONCEPT.md (F14–F16, I17–I26, C1) + rapoartele pașilor. Toate au rulat ÎNAINTE de primul Standard salvat
@@ -5484,7 +5511,8 @@ function groupSvg(g, b) {
   let s = `<g class="mg-node mg-group" data-id="${esc(g.id)}"><rect class="mg-box" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="10" fill="${k.fill}" fill-opacity=".55" stroke="${k.stroke}" stroke-width="1.6"/>`;
   s += `<text x="${b.x + 12}" y="${b.y + 20}" class="mg-gname" fill="${k.head}">${esc(g.name)}</text>`;
   s += qSvg(g.id, b.x + b.w - 12, b.y + 14, k.stroke);
-  if ((g.children || []).some(checkable)) s += cbSvg(g.id, b.x + b.w - 64, b.y + 8);
+  if ((g.children || []).some(c => checkable(c) && !c.core)) s += cbSvg(g.id, b.x + b.w - 64, b.y + 8);
+  if (g.core) s += `<text x="${b.x + b.w - 30}" y="${b.y + 19}" text-anchor="end" class="mg-coret">🔒 bifat automat în orice Standard / Option</text>`;
   return s + '</g>';
 }
 // Săgeți ORTOGONALE (doar segmente orizontale și verticale, unghiuri de 90°). Segmentul orizontal stă chiar deasupra casetei-țintă,
@@ -5595,6 +5623,8 @@ const CSS = `
 .mg-cb.imp rect{fill:#4a5060;stroke:#8d95a5} .mg-cb.imp text{fill:#d7dde8}
 .mg-cb.part[data-side="train"] rect{fill:rgba(94,200,224,.35);stroke:#5ec8e0} .mg-cb.part[data-side="test"] rect{fill:rgba(180,140,255,.35);stroke:#b48cff} .mg-cb.part text{fill:#fff}
 .mg-nst{font-size:10px;font-weight:900;fill:#1a1c22;pointer-events:none}
+.mg-cb.lock rect{fill:#f2c94c;stroke:#f2c94c} .mg-cb.lock text{fill:#2e2710} .mg-cb.lock{cursor:not-allowed}
+.mg-coret{fill:#f7de8f;font-size:10.5px;font-weight:600}
 .mg-stdt{font-size:8px;font-weight:900;fill:#2e2710;pointer-events:none}
 .mg-selbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px}
 .mg-selbar button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer}
@@ -5644,7 +5674,7 @@ function markup() {
     <div class="mg-msg" id="mg-msg"></div>
     ${legendHtml()}
     <div class="mg-host" id="mg-host"></div>
-    <p class="mg-note">L4–L8: Pas 67–84 (studiile de după introducerea manualului), fiecare cu amprenta (date · metodă · praguri · split), contorul pe familie, criteriile L7 bifate / picate și ștampila „pre-Standard"; triunghiul portocaliu = metodă non-standard. Bife: <b>Tr</b> = folosit pe TRAIN, <b>Te</b> = folosit pe TEST (L1–L3 și criteriile L7); gri = inclus automat, pentru că o casetă bifată depinde de el; marcajul auriu <b>S</b> = caseta e în Standardul activ. Save Standard / Save Option merg doar în varianta locală (dublu click pe <code>PORNESTE_TOOL_LOCAL.bat</code> din folderul Trading). L4–L6 și L8–L9 se completează în etapele următoare. Hover pe casetă = ramificația (albastru amonte, portocaliu aval) · click = fixează · „?" = rezumat, click pe „?" = detalii · rotița = zoom, tragere = pan · harta se editează în <code>ui/method_graph.js</code> (tabloul GRAPH).</p>
+    <p class="mg-note">L4–L8: Pas 67–84 (studiile de după introducerea manualului), fiecare cu amprenta (date · metodă · praguri · split), contorul pe familie, criteriile L7 bifate / picate și ștampila „pre-Standard"; triunghiul portocaliu = metodă non-standard. Bife: <b>Tr</b> = folosit pe TRAIN, <b>Te</b> = folosit pe TEST (L1–L3 și criteriile L7); gri = inclus automat, pentru că o casetă bifată depinde de el; auriu blocat = CORE (obligatoriu în orice Standard / Option); marcajul auriu <b>S</b> = caseta e în Standardul activ. Save Standard / Save Option merg doar în varianta locală (dublu click pe <code>PORNESTE_TOOL_LOCAL.bat</code> din folderul Trading). L4–L6 și L8–L9 se completează în etapele următoare. Hover pe casetă = ramificația (albastru amonte, portocaliu aval) · click = fixează · „?" = rezumat, click pe „?" = detalii · rotița = zoom, tragere = pan · harta se editează în <code>ui/method_graph.js</code> (tabloul GRAPH).</p>
   </div>`;
 }
 function applyZoom() { if (st.vp) st.vp.setAttribute('transform', `translate(${st.z.x},${st.z.y}) scale(${st.z.k})`); const zl = st.root && st.root.querySelector('#mg-zl'); if (zl) zl.textContent = Math.round(st.z.k * 100) + '%'; }
@@ -5697,6 +5727,7 @@ function popHtml(n, long) {
   if (n.checks) { const sym = v => v === 1 ? '<span style="color:#8fd9ad">✓ trece</span>' : (v === 0 ? '<span style="color:#f0a09c">✗ pică</span>' : '<span style="color:#7d8595">– neevaluat</span>'); h += `<div class="mg-sec"><b>Criteriile L7</b><ul>${GRAPH.filter(g => g.lvl === 'L7').map(k => `<li>${sym(n.checks[k.id])} · <span class="mg-link" data-go="${esc(k.id)}">${esc(k.name)}</span></li>`).join('')}</ul></div>`; }
   if (FAM_OF[n.id]) h += `<div class="mg-sec"><b>Familia de echivalență</b>${FAM_OF[n.id].map(F => `<div><b style="display:inline;text-transform:none">${esc(F.name)}</b> — ${names(F.members)}. ${esc(F.why)} Folosită în ${F.studies.length} studii: ${esc(F.studies.join(', ') || '—')}.</div>`).join('')}</div>`;
   if (n.nonstd) h += `<div class="mg-sec" style="color:#f7bd8c"><b style="color:#f28c38">Metodă non-standard</b>${esc(n.nonstd)}</div>`;
+  if (n.core) h += `<div class="mg-sec" style="color:#f7de8f"><b style="color:#f2c94c">CORE · obligatoriu</b>Intră automat, pe TRAIN și pe TEST, în orice Standard și orice Option; nu se poate debifa.</div>`;
   if (n.stamp) h += `<div class="mg-sec"><b>Ștampila</b>${esc(n.stamp)}</div>`;
   if (STATUS_TXT[n.kind]) h += `<div class="mg-sec"><b>Ce înseamnă statusul</b>${esc(STATUS_TXT[n.kind])}</div>`;
   if (n.src) h += `<div class="mg-sec"><b>Sursa</b>${esc(n.src)}</div>`;
@@ -5721,10 +5752,11 @@ function onPopClick(e) {
 // ───────────────────────────── SELECȚIE TRAIN / TEST + STANDARD / OPTION ─────────────────────────────
 const CHECK_LVLS = new Set(['L1', 'L2', 'L3', 'L7']);
 function checkable(n) { return !!n && CHECK_LVLS.has(n.lvl) && !n.children && n.kind !== 'standard' && n.kind !== 'todo'; }
+const CORE_IDS = () => Object.values(IDX.byId).filter(n => n.core && !n.children).map(n => n.id);
 st.sel = { train: new Set(), test: new Set() }; st.srv = null; st.active = null;
 const upCache = {};
 const upOf = id => upCache[id] || (upCache[id] = chain(id).up);
-function effective(side) { const e = new Set(); for (const id of st.sel[side]) { e.add(id); for (const u of upOf(id)) if (checkable(IDX.byId[u])) e.add(u); } return e; }
+function effective(side) { const e = new Set(); for (const id of [...CORE_IDS(), ...st.sel[side]]) { e.add(id); for (const u of upOf(id)) if (checkable(IDX.byId[u])) e.add(u); } return e; }
 const sameSet = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
 function payload(note) {
   const side = sd => { const eff = effective(sd), ex = st.sel[sd];
@@ -5732,19 +5764,20 @@ function payload(note) {
     return { explicit: [...ex].sort(), effective: [...eff].sort(), byLevel }; };
   const tr = side('train'), te = side('test'), et = new Set(tr.effective), ee = new Set(te.effective);
   const diff = [...[...et].filter(x => !ee.has(x)).map(x => 'doar pe TRAIN: ' + IDX.byId[x].name), ...[...ee].filter(x => !et.has(x)).map(x => 'doar pe TEST: ' + IDX.byId[x].name)];
-  return { note: note || '', testType: sameSet(et, ee) ? 'replicare' : 'robustețe', train: tr, test: te, diff };
+  const core = CORE_IDS().map(id => ({ id, name: IDX.byId[id].name, rule: IDX.byId[id].sum + (IDX.byId[id].det && IDX.byId[id].det !== IDX.byId[id].sum ? ' ' + IDX.byId[id].det : '') }));
+  return { core, note: note || '', testType: sameSet(et, ee) ? 'replicare' : 'robustețe', train: tr, test: te, diff };
 }
 function applyDoc(doc) {
-  for (const sd of ['train', 'test']) st.sel[sd] = new Set(((doc && doc[sd] && doc[sd].explicit) || []).filter(id => checkable(IDX.byId[id])));
+  for (const sd of ['train', 'test']) st.sel[sd] = new Set(((doc && doc[sd] && doc[sd].explicit) || []).filter(id => checkable(IDX.byId[id]) && !IDX.byId[id].core));
   paintSel();
 }
 function paintSel() {
   if (!st.svg) return;
   const eff = { train: effective('train'), test: effective('test') };
   st.svg.querySelectorAll('.mg-cb').forEach(el => {
-    const id = el.dataset.cb, sd = el.dataset.side, n = IDX.byId[id]; el.classList.remove('on', 'imp', 'part');
+    const id = el.dataset.cb, sd = el.dataset.side, n = IDX.byId[id]; el.classList.remove('on', 'imp', 'part', 'lock');
     if (n.children) { const ch = n.children.map(c => c.id).filter(c => checkable(IDX.byId[c])); const k = ch.filter(c => eff[sd].has(c)).length; if (k && k === ch.length) el.classList.add('on'); else if (k) el.classList.add('part'); return; }
-    if (st.sel[sd].has(id)) el.classList.add('on'); else if (eff[sd].has(id)) el.classList.add('imp');
+    if (n.core) el.classList.add('lock'); else if (st.sel[sd].has(id)) el.classList.add('on'); else if (eff[sd].has(id)) el.classList.add('imp');
   });
   // marcajul Standard
   const A = st.active, sTr = new Set(A ? A.train.effective : []), sTe = new Set(A ? A.test.effective : []);
@@ -5768,8 +5801,11 @@ function dialog(html, okLbl, onOk) {
 }
 function toggle(id, sd) {
   const n = IDX.byId[id], set = st.sel[sd], eff = effective(sd), nm = x => IDX.byId[x].name;
+  if (n.core) { msg(`„${n.name}" face parte din CORE — e obligatoriu în orice Standard și Option, nu se poate debifa.`, 'err'); return; }
   const removeWithDeps = ids => {
-    const rm = new Set(ids); const deps = [...set].filter(x => !rm.has(x) && [...rm].some(r => upOf(x).has(r)));
+    const rm = new Set(ids); const coreNeeds = CORE_IDS().filter(c => [...rm].some(r => upOf(c).has(r)));
+    if (coreNeeds.length) { msg(`Nu se poate debifa: e cerut de regula CORE „${nm(coreNeeds[0])}".`, 'err'); return; }
+    const deps = [...set].filter(x => !rm.has(x) && [...rm].some(r => upOf(x).has(r)));
     const doIt = () => { for (const x of [...rm, ...deps]) set.delete(x); paintSel(); };
     if (deps.length) dialog(`Debifezi pe ${sd.toUpperCase()}: <b>${esc([...rm].map(nm).join(', '))}</b>.<br>Din el / ele depind casete bifate care nu se mai pot calcula și cad și ele:<br><b>${esc(deps.map(nm).join(', '))}</b>`, 'Debifează tot', doIt);
     else doIt();
@@ -6349,7 +6385,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.29.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.29.1" };
 })();
 
 </script>
