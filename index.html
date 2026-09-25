@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 17:26 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T17:26 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 17:31 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T17:31 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5793,7 +5793,7 @@ function markup() {
 // Harta are propriul scroll (host = overflow:auto): zoom-ul schimbă mărimea pânzei (W·k × H·k), pan-ul = scrollLeft / scrollTop.
 function applyZoom() { const c = st.host && st.host.querySelector('.mg-canvas'); if (c) { c.style.width = (W * st.z.k) + 'px'; c.style.height = (st.lay.H * st.z.k) + 'px'; } const zl = st.root && st.root.querySelector('#mg-zl'); if (zl) zl.textContent = Math.round(st.z.k * 100) + '%'; }
 // „Potrivește" = lățimea hărții umple exact lățimea ferestrei (stânga–dreapta); sus–jos se parcurge prin scroll.
-function fit() { const sb = st.host.offsetWidth - st.host.clientWidth; const wAvail = st.host.clientWidth - (sb ? 0 : 12); const k = Math.max(0.12, wAvail / W); st.z = { k }; applyZoom(); requestAnimationFrame(() => { const k2 = st.host.clientWidth / W; if (Math.abs(k2 - st.z.k) > 1e-4) { st.z.k = k2; applyZoom(); } }); st.host.scrollLeft = 0; st.host.scrollTop = 0; }
+function fit() { if (!st.host || !st.host.clientWidth) return; st.fitted = true; const sb = st.host.offsetWidth - st.host.clientWidth; const wAvail = st.host.clientWidth - (sb ? 0 : 12); const k = Math.max(0.12, wAvail / W); st.z = { k }; applyZoom(); requestAnimationFrame(() => { const k2 = st.host.clientWidth / W; if (Math.abs(k2 - st.z.k) > 1e-4) { st.z.k = k2; applyZoom(); } }); st.host.scrollLeft = 0; st.host.scrollTop = 0; }
 function zoomAt(f, cx, cy) { const k = Math.max(0.12, Math.min(3, st.z.k * f)); const px = (st.host.scrollLeft + cx) / st.z.k, py = (st.host.scrollTop + cy) / st.z.k; st.z.k = k; applyZoom(); st.host.scrollLeft = px * k - cx; st.host.scrollTop = py * k - cy; }
 function centerOn(id) { const b = st.lay.boxes[id]; if (!b) return; const r = st.host.getBoundingClientRect(); const k = Math.max(st.z.k, 0.9); st.z.k = k; applyZoom(); st.host.scrollLeft = (b.x + b.w / 2) * k - r.width / 2; st.host.scrollTop = (b.y + b.h / 2) * k - r.height / 2; }
 
@@ -6140,7 +6140,7 @@ function bind() {
   const matches = () => { const q = inp.value.trim().toLowerCase(); st.svg.querySelectorAll('.mg-node.match').forEach(x => x.classList.remove('match')); if (!q) return []; const ids = Object.values(IDX.byId).filter(n => st.lay.boxes[n.id] && (n.name.toLowerCase().includes(q) || String(n.sum || '').toLowerCase().includes(q))).map(n => n.id); for (const id of ids) { const el = st.svg.querySelector(`.mg-node[data-id="${CSS_ESC(id)}"]`); if (el) el.classList.add('match'); } return ids; };
   inp.addEventListener('input', matches);
   inp.addEventListener('keydown', e => { if (e.key !== 'Enter') return; const ids = matches(); if (!ids.length) return; const byName = ids.find(id => IDX.byId[id].name.toLowerCase().includes(inp.value.trim().toLowerCase())) || ids[0]; centerOn(byName); st.pinned = byName; setFocus(byName); });
-  window.addEventListener('resize', () => { if (st.host && st.host.offsetParent) fit(); });
+  window.addEventListener('resize', () => { if (st.host && st.host.clientWidth) fit(); });
 }
 function init(containerId) {
   st.root = typeof containerId === 'string' ? document.getElementById(containerId) : containerId; if (!st.root) return;
@@ -6148,7 +6148,8 @@ function init(containerId) {
   draw(); bind(); bindSel(); bindRun(); bindPick(); connect(); st.done = true;
   requestAnimationFrame(fit);
 }
-function render(containerId) { if (!st.done) init(containerId); else if (st.host && st.host.offsetParent) fit(); }
+// La prima afișare a sub-tab-ului (init-ul poate rula cu containerul ascuns ⇒ lățime 0) potrivim o singură dată; apoi zoom-ul utilizatorului rămâne.
+function render(containerId) { if (!st.done) init(containerId); if (st.host && st.host.clientWidth && !st.fitted) fit(); }
 
 module.exports = { init, render, GRAPH, LEVELS, KINDS, STATUS_TXT, chain, layout, index: () => IDX, checkable, _st: st, _payload: payload, _toggle: toggle };
 
@@ -6603,7 +6604,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.3" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.4" };
 })();
 
 </script>
