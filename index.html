@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 17:46 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T17:46 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 17:55 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T17:55 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5381,7 +5381,7 @@ const STUDIES = [
     pr: 'RSI ≤ 30 / ≥ 70 · confirmare ≤ 60 min · intrare la open-ul barei următoare · fără stop · ieșire la invalidare sau 16:00', split: 'istoric 2019 → 10 sep 2026 (verificări) · forward după 10 sep 2026 (criteriul de trecere)', corpus: '20 active, n 1.981',
     nonstd: 'Găsit post-hoc printre cele 486 de celule din Pas 80 — verificările sunt pe aceleași date, deci selecția nu poate fi eliminată. De aceea e CANDIDAT (C), nu fapt: trece doar pe date forward.',
     train: 'Net +0.106 R (IC 95% [+0.057, +0.155]), brut +0.159, True 88.2%; 19 / 20 active > 0; control aleator P < 0.0005.', test: 'Execuție realistă +0.095 R, 18 / 20; weekend −0.033 (predicția ipotezei); 5 / 8 ani pozitivi (punctul slab).', tt: 'robustețe',
-    concl: [] , hyp: { code: 'C1', name: 'C1 · RDR × RSI extrem (pre-înregistrat)', sum: 'Candidat: trece dacă expectanța netă > 0 pe ≥ 150 tranzacții forward, doar pe date de după 10 sep 2026, cu regula neschimbată.', checks: { 'k.assets': 1, 'k.ctrl': 1, 'k.cost': 1, 'k.tries': 0 } } },
+    concl: [] , hyp: { code: 'C1', uses: ['r.F4', 'r.F1', 'r.I24', 'r.F14'], name: 'C1 · RDR × RSI extrem (pre-înregistrat)', sum: 'Candidat: trece dacă expectanța netă > 0 pe ≥ 150 tranzacții forward, doar pe date de după 10 sep 2026, cu regula neschimbată.', checks: { 'k.assets': 1, 'k.ctrl': 1, 'k.cost': 1, 'k.tries': 0 } } },
   { pas: '83', name: 'Piciorul pre-confirmare advers', q: 'O excursie adversă mare înainte de confirmare face False mai probabil, la oră, sfert și mărime fixate?',
     data: ['c.plunge', 'c.DSD', 'c.tconf', 'c.Q', 'c.sizeatr', 'c.tf'], methods: ['m.strat', 'm.split', 'm.assets', 'm.rr'],
     pr: 'benzi < 0.25 / 0.25–1 / 1–2 / 2–4 / 4–7 / ≥ 7 DSD · 27 straturi oră × sfert × terțila sizeATR', split: SPLIT_STD, corpus: '20 active, 91.126 sesiuni',
@@ -5492,13 +5492,22 @@ function fingerprint(st0) { const s = [st0.data.slice().sort().join(','), st0.me
     if (S.test) out.push({ lvl: 'L5b', id: sid + '.te', name: 'Pas ' + S.pas + ' · test' + (S.tt && S.tt !== '—' ? ' (' + S.tt + ')' : ''), kind: 'test', sum: S.test, det: S.test + (S.tt === 'robustețe' ? ' — TEST DE ROBUSTEȚE: altă verificare decât replicarea pe date noi.' : ''), in: [sid], ...common });
     const res = [...(S.train && S.train !== '—' ? [sid + '.tr'] : []), ...(S.test ? [sid + '.te'] : [])];
     for (const C of S.concl) out.push({ lvl: 'L6', id: 'r.' + C.code, name: C.name, kind: C.kind, sum: C.sum, det: C.sum, checks: C.checks, in: res, ...common });
-    if (S.hyp) out.push({ lvl: 'L8', id: 'h.' + S.hyp.code, name: S.hyp.name, kind: 'hyp', sum: S.hyp.sum, det: S.hyp.sum + ' Ce NU ai voie până atunci: să-l combini cu alte filtre ca să-l „îmbunătățești" pe datele istorice sau să-l folosești ca premisă.', checks: S.hyp.checks, in: res, ...common });
+    // ipoteza (L8) depinde de: rezultatele ei, CONCLUZIILE (L6) pe care e clădită și CRITERIILE (L7) prin care a fost trecută — ca lanțul să treacă prin L6 și L7
+    if (S.hyp) out.push({ lvl: 'L8', id: 'h.' + S.hyp.code, name: S.hyp.name, kind: 'hyp', sum: S.hyp.sum, det: S.hyp.sum + ' Ce NU ai voie până atunci: să-l combini cu alte filtre ca să-l „îmbunătățești" pe datele istorice sau să-l folosești ca premisă.', checks: S.hyp.checks, uses: S.hyp.uses || [], in: [...res, ...(S.hyp.uses || []), ...Object.keys(S.hyp.checks || {})], ...common });
   }
   // L8 fără ipoteze proprii în afară de C1: nimic altceva nu trece criteriul „RR net > 0"
   const at = GRAPH.findIndex(g => g.lvl === 'L7'); GRAPH.splice(at, 0, ...out.filter(n => n.lvl !== 'L8'));
   const at9 = GRAPH.findIndex(g => g.lvl === 'L9'); GRAPH.splice(at9, 0, ...out.filter(n => n.lvl === 'L8'));
   // rezultatul Pas 85 intră în ipoteza C1 (L8) — e verificarea ei sub metodologia nouă
-  const c1 = GRAPH.find(g => g.id === 'h.C1'); if (c1) c1.in = [...(c1.in || []), 's.85.tr', 's.85.te'];
+  const c1 = GRAPH.find(g => g.id === 'h.C1'); if (c1) c1.in = [...(c1.in || []), 'r.R85'];
+  // L9: ce lipsește ca ipoteza să devină strategie validată — drumul explicit L8 → L9
+  const l9 = GRAPH.findIndex(g => g.id === 'todo.L9'); if (l9 >= 0) GRAPH.splice(l9, 1);
+  GRAPH.push({ lvl: 'L9', id: 'v.C1', name: 'C1 → strategie validată (în așteptare)', kind: 'todo', sum: 'Ce lipsește ca C1 să intre în L9: (1) ≥ 150 tranzacții forward după 10 sep 2026 cu net > 0 (criteriul pre-înregistrat); (2) o singură trecere pe SEIF (activele noi), cu regula înghețată.',
+    det: ['Pasul 1 — criteriul pre-înregistrat (manual, Partea V): expectanță netă > 0 pe cel puțin 150 de tranzacții forward, doar pe date de după 10 sep 2026, pe cele 20 de active, cu regula exact ca în C1. Stadiu: 0 tranzacții (corpusul se oprește la 10 sep 2026).',
+          'Pasul 2 — seiful: activele noi (acțiuni, indici, petrol futures, ~9–11 oct 2026) rulate O SINGURĂ DATĂ cu regula înghețată; net > 0 și semnul corect pe majoritatea activelor noi.',
+          'Pasul 3 — corectarea pentru încercări: C1 a fost găsit post-hoc (486 de celule, Pas 80) — de aceea pragul de trecere e forward, nu istoric.',
+          'Trece ⇒ C1 devine F și strategie validată (L9). Pică ⇒ devine I. Orice modificare a regulii anulează pre-înregistrarea și repornește contorul.'],
+    in: ['h.C1', 'k.seif', 'k.tries', 'm.seif'], src: 'manual Partea V (C1) + decizia „seif" din 25 sep 2026' });
 })();
 
 // ───────────────────────────── INDEX ─────────────────────────────
@@ -6614,7 +6623,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.6" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.7" };
 })();
 
 </script>
