@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-24 17:11 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-24T17:11 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 10:21 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T10:21 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5051,6 +5051,555 @@ function setSub(v) { if (['dist', 'price', 'retr', 'kpi'].includes(v)) { state.s
 module.exports = { init, setData, addFiles, render, getState, setSub, assetNameFromFile, setNews, updateNews };
 
 });
+__define("/ui/method_graph.js", function (module, exports, require) {
+// dridr-core/ui/method_graph.js — TAB „METODOLOGIE" (sub-tab în MANUAL), Etapa 1 (25 sep 2026).
+// Harta metodologiei pe niveluri: L1 date brute → L2 compuși → L3 metode (+ STANDARD METODOLOGIC) → L4 studii → L5a rezultate train →
+// L5b rezultate test → L6 concluzii → L7 criterii de filtru → L8 ipoteze de testat → L9 strategii validate.
+// Fiecare casetă arată doar numele; „?" din dreapta-sus: hover = rezumat, click = detalii (definiție, formulă, intrări, cine o folosește).
+// Hover pe casetă = glow pe toată ramificația: albastru = AMONTE (de ce depinde), portocaliu = AVAL (ce influențează); restul se estompează.
+// Click pe casetă = fixează focusul; click pe fundal = eliberează. Zoom cu rotița (sau butoanele), pan prin tragere.
+// Harta e DECLARATIVĂ: se editează doar tabloul GRAPH de mai jos (nivel, id, nume, rezumat, detalii, formulă, intrări). Săgețile se generează
+// din câmpul `in` (lista de id-uri de care depinde caseta). Etapa 2 adaugă bifele train/test + Save Standard / Option (server local).
+'use strict';
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ───────────────────────────── NIVELURI ─────────────────────────────
+const LEVELS = [
+  { id: 'L1', label: 'L1 · DATE BRUTE', hint: 'Datele așa cum vin din fișiere: bara de 5 min (preț, volum), timpul, calendarul macro, corpusul de active.' },
+  { id: 'L2', label: 'L2 · COMPUȘI', hint: 'Mărimi calculate din datele brute, grupate după originea lor (preț, volum, timp, calendar, mixt).' },
+  { id: 'L3', label: 'L3 · METODE', hint: 'Biblioteca de metode statistice și de test, refolosite de studii. Include STANDARDUL METODOLOGIC — regulile obligatorii.' },
+  { id: 'L4', label: 'L4 · STUDII (Pas N)', hint: 'Fiecare pas de research: întrebarea, datele din L1–L2 și metodele din L3 folosite.' },
+  { id: 'L5a', label: 'L5a · REZULTATE TRAIN', hint: 'Ce a ieșit pe train (≤ 2024): n, active, perioadă, lot.' },
+  { id: 'L5b', label: 'L5b · REZULTATE TEST', hint: 'Ce a ieșit pe test (2025 →): replicare (aceleași setări) sau robustețe (setări diferite).' },
+  { id: 'L6', label: 'L6 · CONCLUZII', hint: 'Verdictul fiecărui studiu, cu unul din cele 5 statusuri: confirmat / respins / retras / artefact / fără edge net.' },
+  { id: 'L7', label: 'L7 · FILTRU (criterii)', hint: 'Criteriile pe care trebuie să le treacă o concluzie ca să devină ipoteză de strategie. În Etapa 2 devin selectabile.' },
+  { id: 'L8', label: 'L8 · IPOTEZE DE TESTAT', hint: 'Propuneri de strategie (compuse sau nu din concluziile care trec filtrul) — încă netestate ca strategie.' },
+  { id: 'L9', label: 'L9 · STRATEGII VALIDATE', hint: 'Doar ce a trecut o singură dată pe SEIF (active noi), cu setări înghețate. Gol deocamdată.' },
+];
+
+// ───────────────────────────── TIPURI ȘI CULORI ─────────────────────────────
+const KINDS = {
+  raw: { lbl: 'dată brută', stroke: '#7b8aa3', fill: '#1b2230', head: '#c3cee0' },
+  comp: { lbl: 'compus', stroke: '#38c2b0', fill: '#12292a', head: '#9fe6dc' },
+  method: { lbl: 'metodă', stroke: '#3f8cff', fill: '#14233f', head: '#a9c8ff' },
+  standard: { lbl: 'STANDARD metodologic', stroke: '#f2c94c', fill: '#2e2710', head: '#f7de8f' },
+  study: { lbl: 'studiu (Pas N)', stroke: '#a0aec0', fill: '#1e232c', head: '#d3dae5' },
+  train: { lbl: 'rezultat train', stroke: '#5ec8e0', fill: '#10272e', head: '#a6e3f0' },
+  test: { lbl: 'rezultat test', stroke: '#b48cff', fill: '#221a36', head: '#d8c4ff' },
+  ok: { lbl: 'confirmat', stroke: '#2fae6b', fill: '#12291c', head: '#8fd9ad' },
+  rej: { lbl: 'respins', stroke: '#e0554f', fill: '#301819', head: '#f0a09c' },
+  ret: { lbl: 'retras', stroke: '#9aa2b1', fill: '#22252d', head: '#c7cdd8', dash: true },
+  art: { lbl: 'artefact (mecanic)', stroke: '#f28c38', fill: '#33200f', head: '#f7bd8c' },
+  noedge: { lbl: 'fără edge net', stroke: '#e6c229', fill: '#2d2810', head: '#f2e08a' },
+  crit: { lbl: 'criteriu de filtru', stroke: '#c9a0ff', fill: '#241c33', head: '#e2d0ff' },
+  hyp: { lbl: 'ipoteză de testat', stroke: '#e07ab8', fill: '#301a28', head: '#f2b8da' },
+  valid: { lbl: 'strategie validată', stroke: '#22d38a', fill: '#0f2e20', head: '#8ff0c4' },
+  retired: { lbl: 'scos din uz', stroke: '#6b7383', fill: '#1a1c22', head: '#8d95a5', dash: true },
+  todo: { lbl: 'se completează', stroke: '#4a5060', fill: '#16181d', head: '#7d8595', dash: true },
+};
+const LEGEND = [
+  ['Niveluri', ['raw', 'comp', 'method', 'standard', 'study', 'train', 'test', 'crit', 'hyp', 'valid']],
+  ['Statusul concluziilor (L6)', ['ok', 'rej', 'ret', 'art', 'noedge']],
+  ['Altele', ['retired', 'todo']],
+];
+// terminologia statusurilor, în limbaj comun (apare în „?" de pe legendă și în detaliile concluziilor)
+const STATUS_TXT = {
+  ok: 'CONFIRMAT — efectul există, a trecut pe test (aceleași setări) și se repetă pe majoritatea activelor. Nu înseamnă că aduce bani: poate fi un fapt despre piață fără edge după costuri.',
+  rej: 'RESPINS — am testat ideea și nu există: pe test sau pe active efectul e în zgomot, sau nu bate controlul.',
+  ret: 'RETRAS — o concluzie pe care o acceptasem, dar un control ulterior a arătat că se explică prin altceva (ex. „box tare" = de fapt box mare față de volatilitatea zilei, Pas 72).',
+  art: 'ARTEFACT (mecanic) — cifra e reală, dar vine din felul în care am măsurat, nu din piață (ex. „R la numitor": un box mare dă automat o extensie mică în R). Nu e semnal.',
+  noedge: 'FĂRĂ EDGE NET — efectul e real și replicat, dar transformat în tranzacții nu acoperă costurile (RR net ≤ 0). Util pentru înțelegere, nu pentru trading.',
+};
+
+// ───────────────────────────── HARTA (declarativă) ─────────────────────────────
+// Fiecare element: { lvl, id, name, kind, sum (rezumat), det (detalii), f (formula), in: [id-uri de care depinde], src (sursa) }.
+// Un GRUP are `children` (sub-casete); un `in` poate trimite la grup (= toate sub-casetele lui) sau la o sub-casetă.
+const GRAPH = [
+  // ════════ L1 — DATE BRUTE ════════
+  { lvl: 'L1', id: 'g.price', name: 'PREȚ', kind: 'raw', sum: 'Cele patru prețuri ale fiecărei bare de 5 minute.', det: 'Sursa: fișierele OHLCV (cripto, Binance spot) și OLHC (WTI). Toate distanțele din proiect pornesc de aici. Pe WTI (CFD) 35% din bare sunt sintetice (o = h = l = c, forward-fill) și se filtrează înainte de motor.', src: 'OHLCV/, OLHC/',
+    children: [
+      { id: 'raw.open', name: 'Open', sum: 'Prețul la deschiderea barei de 5 min.', det: 'Primul preț tranzacționat în bara de 5 minute.' },
+      { id: 'raw.high', name: 'High', sum: 'Prețul maxim din bară.', det: 'Cel mai mare preț atins în cele 5 minute. Dă DR high, extensia (Long), MFE / MAE.' },
+      { id: 'raw.low', name: 'Low', sum: 'Prețul minim din bară.', det: 'Cel mai mic preț atins în cele 5 minute. Dă DR low, retracementul (Long), MAE.' },
+      { id: 'raw.close', name: 'Close', sum: 'Prețul la închiderea barei.', det: 'Ultimul preț din bară. Pe close se decid confirmarea, invalidarea (True / False), RSI și poziția în box. Fitilul (High / Low) NU confirmă și NU invalidează.' },
+    ] },
+  { lvl: 'L1', id: 'g.vol', name: 'VOLUM', kind: 'raw', sum: 'Volumul tranzacționat pe bară.', det: 'Există doar pe activele OHLCV (cripto). Fișierele OLHC (WTI CFD, BTC vechi) nu au volum.', src: 'OHLCV/',
+    children: [
+      { id: 'raw.volume', name: 'Volum', sum: 'Cantitatea tranzacționată în bara de 5 min.', det: 'În unități din activ (ex. ETH). Se folosește doar relativ (față de propria medie), niciodată absolut între active.' },
+    ] },
+  { lvl: 'L1', id: 'g.time', name: 'TIMP', kind: 'raw', sum: 'Timpul barei și împărțirile lui fixe: sesiuni, box, bucket-uri.', det: 'Ora de referință e ora New York (cu trecerea la ora de vară). Zilele: Luni → Duminică, weekendul ca zile separate (Pas 69c, 23 sep 2026).', src: 'engine.js, manual Partea I §1 și §7',
+    children: [
+      { id: 'raw.ts', name: 'Timestamp (ora NY)', sum: 'Momentul de început al barei, în ora New York.', det: 'Toate ferestrele (sesiuni, box, news) se calculează din el. Dă și split-ul train / test (după dată).' },
+      { id: 'raw.dow', name: 'Ziua săptămânii', sum: 'Luni → Duminică (7 zile).', det: 'Weekendul intră ca zile separate din 23 sep 2026 (cripto e 24/7). Statisticile de dinainte sunt pe Luni–Vineri.', in: ['raw.ts'] },
+      { id: 'raw.ses', name: 'Sesiunea', sum: 'RDR · ODR · ADR.', det: 'RDR = regular (box 09:30–10:30 NY), ODR = overnight (03:00–04:00), ADR = Asia (19:30–20:30).', in: ['raw.ts'] },
+      { id: 'raw.boxwin', name: 'Interval box', sum: 'Fereastra de definire a box-ului (1 oră, 12 bare).', det: 'RDR 09:30–10:30 · ODR 03:00–04:00 · ADR 19:30–20:30 (ora NY). DR high / DR low se iau din barele acestui interval.', in: ['raw.ses'] },
+      { id: 'raw.seswin', name: 'Interval sesiune', sum: 'Fereastra în care se urmărește confirmarea și invalidarea.', det: 'RDR → 16:00 · ODR → 08:30 · ADR → 02:00 (ziua următoare). După acest moment sesiunea se închide (True dacă n-a fost invalidată).', in: ['raw.ses'] },
+      { id: 'raw.elapsed', name: 'Minute de la sfârșitul box-ului', sum: 'Axa de timp unică a proiectului.', det: 'Toate distribuțiile de timp se măsoară în minute scurse de la sfârșitul box-ului, nu de la confirmare (decizie Pas 25).', f: 'elapsed = t_bară − t_sfârșit_box', in: ['raw.ts', 'raw.boxwin'] },
+      { id: 'raw.b15', name: 'Bucket 15 min', sum: 'Felii de 15 minute pe axa de timp.', det: 'Bucket-ul k = [15k, 15k + 15) minute de la sfârșitul box-ului.', f: 'k = floor(elapsed / 15)', in: ['raw.elapsed'] },
+      { id: 'raw.b30', name: 'Bucket 30 min', sum: 'Felii de 30 minute pe axa de timp.', det: 'Criteriul de timp principal al proiectului (price action + timp în intervale de 30 min).', f: 'k = floor(elapsed / 30)', in: ['raw.elapsed'] },
+    ] },
+  { lvl: 'L1', id: 'g.cal', name: 'CALENDAR MACRO', kind: 'raw', sum: 'Zilele cu știri majore din SUA.', det: 'calendar/us_macro.json + news_days.csv — surse primare BLS și Federal Reserve, 2008–2027 (BLS 2027 încă nepublicat).', src: 'calendar/us_macro.json, Pas 15 + 24',
+    children: [
+      { id: 'raw.news', name: 'Zile cu știri (FOMC · CPI · NFP)', sum: 'Datele FOMC, CPI US și NFP.', det: 'PPI nu intră. Regula utilizatorului: fără statistică și fără trading pe aceste zile, decât la cerere explicită.' },
+    ] },
+  { lvl: 'L1', id: 'g.corpus', name: 'CORPUS', kind: 'raw', sum: 'Ce active și ce perioadă avem.', det: '20 de perechi cripto spot USDT (5 min) + WTI. La replicări se folosesc 18 active cripto (GRAM are prea puține sesiuni, XMR se oprește în feb 2024). Activele noi (acțiuni, indici, petrol futures) vor fi SEIFUL.', src: 'OHLCV/, Pas 38',
+    children: [
+      { id: 'raw.asset', name: 'Activul', sum: 'Instrumentul (BTCUSDT, ETHUSDT, …, WTI).', det: 'Cripto = un singur bloc corelat; WTI = control în afara cripto. Selecția de parametri se face pe train AGREGAT pe toate activele (regula #8).' },
+      { id: 'raw.src', name: 'Sursa datelor', sum: 'Binance spot (cripto), feed CFD (WTI).', det: 'Fișierele OLHC de WTI sunt CFD cu forward-fill 24/7 — barele sintetice (o = h = l = c) se elimină înainte de motor.' },
+      { id: 'raw.period', name: 'Perioada disponibilă', sum: 'De la 17 aug 2017 (BTC, ETH) până la ultimele date.', det: 'Activele au istorii de lungimi diferite; la replicare contează ca fiecare să aibă n ≥ 30 și pe train, și pe test.', in: ['raw.ts'] },
+    ] },
+
+  // ════════ L2 — COMPUȘI ════════
+  { lvl: 'L2', id: 'g.cprice', name: 'DIN PREȚ', kind: 'comp', sum: 'Mărimi calculate doar din prețuri (plus fereastra de timp în care se citesc).', det: 'Unitatea comună: R (înălțimea box-ului) și zecimile ei, SD (față de linia DR) și DSD (față de close-ul box-ului).', src: 'engine.js, manual Partea I',
+    children: [
+      { id: 'c.drhigh', name: 'DR high', sum: 'Maximul box-ului.', det: 'Cel mai mare High din barele intervalului box (pe fitil).', f: 'DR high = max(High) pe barele box-ului', in: ['raw.high', 'raw.boxwin'] },
+      { id: 'c.drlow', name: 'DR low', sum: 'Minimul box-ului.', det: 'Cel mai mic Low din barele intervalului box (pe fitil).', f: 'DR low = min(Low) pe barele box-ului', in: ['raw.low', 'raw.boxwin'] },
+      { id: 'c.R', name: 'R (DR range)', sum: 'Înălțimea box-ului — unitatea de măsură.', det: '„0.3 R" = 30% din înălțimea box-ului. Atenție la capcana „R la numitor": orice mărime împărțită la R pare mică atunci când box-ul e mare.', f: 'R = DR high − DR low', in: ['c.drhigh', 'c.drlow'] },
+      { id: 'c.boxopen', name: 'Open box', sum: 'Open-ul primei bare a box-ului.', det: 'Folosit pentru corpul box-ului și pentru vechiul PreBO.', f: 'Open box = Open(prima bară din box)', in: ['raw.open', 'raw.boxwin'] },
+      { id: 'c.boxclose', name: 'Close box', sum: 'Close-ul ultimei bare a box-ului.', det: 'Referința dinamicii: DSD, plonjonul, excursia F12 și stopul F13 se măsoară de aici (regula #12).', f: 'Close box = Close(ultima bară din box)', in: ['raw.close', 'raw.boxwin'] },
+      { id: 'c.SD', name: 'SD', sum: '0.1 R, măsurat față de linia DR.', det: 'Linia DR spartă = 0. Se folosește pentru geometrie: unde e close-ul în box, cât e extensia. Nu e deviația standard statistică.', f: '1 SD = 0.1 × R ; 0 = linia DR', in: ['c.R', 'c.drhigh', 'c.drlow'] },
+      { id: 'c.DSD', name: 'DSD', sum: '0.1 R, măsurat față de close-ul box-ului.', det: 'Aceeași unitate ca SD, altă referință. Tot ce e retracement, excursie, retest, plonjon sau stop se exprimă în DSD (regula #12, din 22 sep 2026).', f: '1 DSD = 0.1 × R ; 0 = Close box', in: ['c.R', 'c.boxclose'] },
+      { id: 'c.pos', name: 'Poziția close în box', sum: 'Unde a închis box-ul, între 0 (jos) și 1 (sus).', det: 'A înlocuit PreBO ca filtru de direcție (Pas 35–37). Dă F2.', f: 'pos = (Close box − DR low) / R  ∈ [0, 1]', in: ['c.boxclose', 'c.drlow', 'c.R'] },
+      { id: 'c.Q', name: 'Sfertul Q1–Q4', sum: 'Poziția în sferturi: Q1 jos … Q4 sus.', det: 'Convenție GEOMETRICĂ, nu relativă la direcția confirmării. Sferturile au cel mai bun Brier dintre granularitățile testate (Pas 35).', f: 'Q1: pos < 0.25 · Q2: < 0.5 · Q3: < 0.75 · Q4: ≥ 0.75', in: ['c.pos'] },
+      { id: 'c.body', name: 'Corpul box-ului', sum: 'Cât de departe e close-ul de open, în R.', det: 'Corp mic (< 0.1 R) ⇒ PreBO devine monedă, poziția nu (F7). Nu adaugă nimic peste sferturi.', f: 'corp = |Close box − Open box| / R', in: ['c.boxopen', 'c.boxclose', 'c.R'] },
+      { id: 'c.conf', name: 'Confirmarea (Long / Short)', sum: 'Prima bară care ÎNCHIDE în afara box-ului.', det: 'Long = close peste DR high, Short = close sub DR low. Fitilul nu confirmă. O singură confirmare pe sesiune (fără whipsaw).', f: 'prima bară după box cu Close > DR high (Long) sau Close < DR low (Short)', in: ['raw.close', 'c.drhigh', 'c.drlow', 'raw.seswin'] },
+      { id: 'c.tf', name: 'True / False', sum: 'Sesiunea rezistă sau e invalidată.', det: 'False = după confirmare apare o bară care ÎNCHIDE dincolo de marginea opusă, până la finalul sesiunii. Fitilul nu invalidează (Pas 21). Rata de bază ≈ 72% True (F1).', f: 'False ⇔ ∃ bară după confirmare cu Close dincolo de marginea opusă (în fereastra sesiunii)', in: ['c.conf', 'raw.close', 'c.drhigh', 'c.drlow', 'raw.seswin'] },
+      { id: 'c.ext', name: 'Extensia', sum: 'Cât a mers prețul în direcția confirmării, în R.', det: 'Distanța maximă de la linia DR spartă, după confirmare. Are și distribuție de timp.', f: 'Long: (max High după conf. − DR high) / R · Short: (DR low − min Low) / R', in: ['c.conf', 'raw.high', 'raw.low', 'c.R'] },
+      { id: 'c.retrpre', name: 'Retracement pre-confirmare', sum: 'Mișcarea contrară dinaintea spargerii.', det: 'Măsurată față de linia de trigger; în raportările noi se exprimă în DSD.', f: 'Long: −max(0, DR high − min Low înainte de confirmare)', in: ['c.conf', 'raw.low', 'raw.high', 'c.drhigh', 'c.drlow'] },
+      { id: 'c.retrpost', name: 'Retracement post-confirmare', sum: 'Retragerea de după confirmare, până la vârful extensiei.', det: 'SEMNAT (poate fi pozitiv), CAP la [−2, +1]. Varianta strictă (ca QuantX) exclude bara de confirmare. Aproape invariant la filtre (F8).', f: 'Long: min Low între confirmare și vârf − DR high, în SD', in: ['c.conf', 'c.ext', 'raw.low', 'raw.high', 'c.SD'] },
+      { id: 'c.retrmax', name: 'Retracement maxim pe sesiune', sum: 'Cea mai adâncă retragere din toată sesiunea.', det: 'Cu distribuție proprie de timp (momentul în care s-a produs).', in: ['c.conf', 'raw.low', 'raw.high', 'c.SD', 'raw.seswin'] },
+      { id: 'c.plunge', name: 'Plonjonul', sum: 'Retragerea de la close-ul box-ului înainte de confirmare, în DSD.', det: 'Separă dinamica (cât a mers prețul contra) de geometrie (unde era close-ul). Mărime introdusă la Pas 63.', f: 'Long: (Close box − min Low până la confirmare) / (0.1 R)', in: ['c.boxclose', 'raw.low', 'raw.high', 'c.DSD', 'c.conf'] },
+      { id: 'c.exc', name: 'Excursia ≥ 2 DSD (semnal F12)', sum: 'Prima deplasare de ≥ 2 DSD de la close-ul box-ului.', det: 'Din mijloc (Q2 / Q3), de acord cu înclinarea sfertului, dă direcția în ~75% (F12). Se citește pe CLOSE-ul barei: dincolo ⇒ ~80%, doar fitilul ⇒ ~69%.', f: 'prima bară după box cu |Close − Close box| ≥ 2 DSD', in: ['raw.close', 'c.boxclose', 'c.DSD', 'c.Q'] },
+      { id: 'c.maemfe', name: 'MAE / MFE', sum: 'Cât a mers prețul contra / în favoarea poziției.', det: 'Pe grile de TP / SL, până la ieșire. MAE arată unde ar fi trebuit să stea stopul.', f: 'MAE = max excursie adversă · MFE = max excursie favorabilă, de la intrare', in: ['raw.high', 'raw.low', 'c.conf'] },
+      { id: 'c.rsi', name: 'RSI(14) la închiderea box-ului', sum: 'RSI Wilder pe close-urile de 5 min.', det: 'Citit pe ultima bară a box-ului. Benzi: ≤ 30 / normal / ≥ 70. RSI extrem = box mare în ATR (F5 reformulat, F14).', f: 'RSI = 100 − 100 / (1 + RS), RS = medie Wilder(câștiguri, 14) / medie Wilder(pierderi, 14)', in: ['raw.close', 'raw.boxwin'] },
+      { id: 'c.tr', name: 'True range (bară)', sum: 'Amplitudinea reală a unei bare, cu gap-ul inclus.', det: 'Baza pentru ATR.', f: 'TR = max(High, Close_ant) − min(Low, Close_ant)', in: ['raw.high', 'raw.low', 'raw.close'] },
+      { id: 'c.atr', name: 'ATR48 (ATR_pre)', sum: 'Volatilitatea celor 4 ore dinaintea box-ului.', det: 'Media true range pe cele 48 de bare de 5 min dinaintea box-ului. Toate baseline-urile de volatilitate testate sunt practic aceeași variabilă (ρ 0.89–1.00, Pas 74) — ATR48 le reprezintă pe toate.', f: 'ATR_pre = media(TR) pe cele 48 bare dinaintea box-ului', in: ['c.tr', 'raw.boxwin'] },
+      { id: 'c.sizeatr', name: 'sizeATR', sum: 'Mărimea box-ului în unități de volatilitate a zilei.', det: 'Cel mai puternic predictor al ratei True (56 → 88% pe quintile, F14) — dar MECANIC: True depinde de mișcarea de după box raportată la R.', f: 'sizeATR = R / ATR_pre', in: ['c.R', 'c.atr'] },
+      { id: 'c.relR', name: 'Mărimea relativă (relR)', sum: 'Box-ul față de box-urile recente.', det: 'Referința veche pentru „box mare". Pas 71–72: controlul corect e față de volatilitatea zilei (sizeATR), nu față de box-urile trecute.', f: 'relR = R / mediana R a ultimelor 20 de sesiuni de același tip', in: ['c.R'] },
+      { id: 'c.cshape', name: 'Forma lumânării', sum: 'Corp / range și umbre, pe bara de 5 min.', det: 'Staționară (corp/range ≈ 0.50 pe ani și active, Pas 74). Nu prezice barele următoare (I22).', f: 'corp/range = |C − O| / (H − L) · umbra dinspre close = distanța close → extremul din partea lui / (H − L)', in: ['raw.open', 'raw.high', 'raw.low', 'raw.close'] },
+      { id: 'c.crange', name: 'Mărimea lumânării (range / ATR48)', sum: 'Cât de mare e bara față de volatilitatea recentă.', det: 'Mărimea e dinamică (pe ani), de aceea are nevoie de numitor; ATR48 ajunge (Pas 74). Nu prezice barele următoare (I22).', f: '(High − Low) / ATR48', in: ['raw.high', 'raw.low', 'c.atr'] },
+      { id: 'c.prebo', name: 'PreBO Red / Green', kind: 'retired', sum: 'Culoarea box-ului — SCOS DIN UZ.', det: 'Înlocuit (15 sep 2026) de poziția close-ului în box: la corp mic PreBO devine monedă (48–52%), poziția ține 62–74% (F7). Păstrat doar pentru research.', f: 'Green ⇔ Close box > Open box', in: ['c.boxopen', 'c.boxclose'] },
+    ] },
+  { lvl: 'L2', id: 'g.cvol', name: 'DIN VOLUM', kind: 'comp', sum: 'Volumul exprimat relativ la propria medie.', det: 'Toate variantele de volum relativ sunt puternic corelate între ele (ρ 0.78–0.89). Concluzia generală: volumul barei nu prezice prețul de după (I20).', src: 'Pas 65, 70, 71, 73',
+    children: [
+      { id: 'c.ma48v', name: 'MA48 volum', sum: 'Media volumului pe ultimele 4 ore.', det: 'Cauzală: doar barele trecute.', f: 'MA48 = media(volum) pe ultimele 48 bare', in: ['raw.volume'] },
+      { id: 'c.rv', name: 'Volum relativ r', sum: 'Volumul barei față de MA48.', det: 'Aceeași variabilă ca z-ul din box (ρ 0.81–0.85).', f: 'r = volum / MA48', in: ['raw.volume', 'c.ma48v'] },
+      { id: 'c.zbox', name: 'z în box (min–max)', sum: 'Volumul barei față de variația de volum din box.', det: 'Pas 70: nu prezice prețul de după pe niciunul din cele trei trasee (I20).', f: 'z = (v − vMin) / (vMax − vMin), pe cele 12 bare ale box-ului', in: ['raw.volume', 'raw.boxwin'] },
+      { id: 'c.qbox', name: 'Volumul box-ului / MA48 („box tare")', sum: 'Cât de „tare" a fost box-ul față de orele dinainte.', det: 'Candidatul „box tare" (True 81% vs 62%) a fost RETRAS la Pas 72: la sizeATR fixat efectul dispare — box-ul tare e doar un box mare față de volatilitatea zilei.', f: 'q = volum mediu în box / MA48 dinainte · tare > 1.5 · liniștit < 0.67', in: ['raw.volume', 'c.ma48v', 'raw.boxwin'] },
+    ] },
+  { lvl: 'L2', id: 'g.ctime', name: 'DIN TIMP', kind: 'comp', sum: 'Momente ale sesiunii, pe axa „minute de la sfârșitul box-ului".', det: 'Timpul e unul din cele două criterii principale ale proiectului (cu price action-ul).', src: 'Pas 25',
+    children: [
+      { id: 'c.tconf', name: 'Ora confirmării (bucket)', sum: 'În ce bucket de 15 / 30 min a venit confirmarea.', det: 'Nivelul 7 din ierarhia de filtre. ~72% din confirmări vin în prima oră (Pas 63).', f: 'bucket(elapsed la bara de confirmare)', in: ['c.conf', 'raw.b15', 'raw.b30'] },
+      { id: 'c.text', name: 'Timpul până la vârful extensiei', sum: 'Când a fost atins maximul (Long).', det: 'Distribuție de timp a extensiei.', in: ['c.ext', 'raw.elapsed'] },
+      { id: 'c.tretr', name: 'Timpul retracementului maxim', sum: 'Când s-a produs cea mai adâncă retragere.', det: 'Distribuție de timp a retracementului maxim pe sesiune.', in: ['c.retrmax', 'raw.elapsed'] },
+    ] },
+  { lvl: 'L2', id: 'g.ccal', name: 'DIN CALENDAR', kind: 'comp', sum: 'Care sesiuni se exclud din cauza știrilor.', det: 'Excluderea e implicită în toată statistica și în trading.', src: 'Pas 24–25',
+    children: [
+      { id: 'c.newsday', name: 'Sesiune exclusă (news)', sum: 'Sesiunile atinse de o zi cu știri.', det: 'Se exclud ODR și RDR din ziua D și cele două ADR care intră (D−1) și ies (D) din ea (isNewsDay).', f: 'exclus ⇔ ziua sesiunii ∈ news days (cu regula ADR D−1 / D)', in: ['raw.news', 'raw.ses', 'raw.ts'] },
+    ] },
+  { lvl: 'L2', id: 'g.cmix', name: 'MIXT (preț × volum)', kind: 'comp', sum: 'Mărimi care combină prețul cu volumul.', det: 'Controlul pe componente a arătat de fiecare dată că efectul vine din PREȚ, nu din volum (Pas 34, 67, 73).', src: 'Pas 34, 65, 67, 73',
+    children: [
+      { id: 'c.vwap', name: 'VWAP box', sum: 'Prețul mediu ponderat cu volumul, pe box.', det: 'close > VWAP(box) = 69–70% direcție, dar la fel ca „close vs media simplă" ⇒ efectul e poziția, nu volumul (F3).', f: 'VWAP = Σ(preț tipic × volum) / Σ volum, pe barele box-ului', in: ['raw.high', 'raw.low', 'raw.close', 'raw.volume', 'raw.boxwin'] },
+      { id: 'c.E', name: 'Elasticitatea E', sum: 'Drumul prețului raportat la volumul relativ.', det: 'Separarea pe terțile de E vine din numărător (drumul prețului), nu din volum (Pas 67).', f: 'E = drum preț (R) / volum relativ', in: ['raw.close', 'c.R', 'c.rv'] },
+      { id: 'c.rpv', name: 'Range / volum', sum: 'Cât se mișcă bara pe unitate de volum.', det: 'După 3 / 6 bare = control peste tot (Pas 73, inclus în I20).', f: 'e = (High − Low) / volum', in: ['raw.high', 'raw.low', 'raw.volume'] },
+    ] },
+
+  // ════════ L3 — METODE ════════
+  { lvl: 'L3', id: 'm.standard', name: 'STANDARD METODOLOGIC', kind: 'standard', wide: true, sum: 'Regulile obligatorii pentru orice analiză nouă (v0 — preluat din manual, înainte de primul Save Standard).', det: [
+    'Split: train = până la 31 dec 2024 · test = 1 ian 2025 → ultimele date. Mereu, dacă nu decidem explicit altfel.',
+    'Seif: activele noi (acțiuni, indici, petrol futures) + datele viitoare — neatinse de nicio explorare; o singură trecere, cu setări înghețate, pentru L9.',
+    'Fișa înainte de rulare: datele L1–L2 folosite, formula, ipoteza, pragurile, testul — aprobate înainte de a vedea cifrele.',
+    'Amprenta fiecărui test: date folosite · metodă · praguri · split. Test identic ⇒ se arată rezultatul existent, nu se rulează din nou.',
+    'Contor de încercări pe familie de echivalență (compuși cu ρ ≥ 0.9 pe train = aceeași familie).',
+    'Standardul se schimbă doar pe baza train-ului și a argumentelor de metodă. Testul e un rezultat, nu o premisă.',
+    'News days excluse (FOMC, CPI, NFP) · zile Luni → Duminică · n ≥ 30 pe celulă.',
+    'Verdictul în RR după costuri (maker 0.02%, taker 0.05%), pe fill-uri reale, fill strict după bara de confirmare, ordinea SL → contra → TP.',
+    'Controale: aleator potrivit (aceleași SL / TP / ieșire), permutat, la mărime fixată (sizeATR), comparația cu traseul T2.2.',
+    'Selecția pe train agregat pe toate activele; replicare pe active pe test; fără lookahead (statistică expanding).',
+    'Retracement / excursie / stop în DSD; geometria (linie, extensie, sferturi) în SD.',
+  ], src: 'manual Partea IV (regulile #0–#12) + deciziile din 25 sep 2026' },
+  { lvl: 'L3', id: 'm.desc', name: 'Distribuție descriptivă', kind: 'method', sum: 'Histogramă + mediană + c70 + bucket modal.', det: 'Descrie cum arată o mărime, fără să testeze ceva. Fără dublă numărare, avertisment sub n = 30.', f: 'mediană = centila 50 · c70 = centila 70 · modal = bucket-ul cu cele mai multe cazuri', src: 'manual Partea I §9' },
+  { lvl: 'L3', id: 'm.cond', name: 'Probabilitate condiționată P(A | B)', kind: 'method', sum: 'Frecvența lui A în sesiunile care au B.', det: 'Pe ierarhia de 9 filtre: activ → news → sesiune → zi → direcție → True/False → ora confirmării → sfert → RSI.', f: 'P(A | B) = n(A și B) / n(B)', in: ['c.newsday'], src: 'manual glosar + Partea I §8' },
+  { lvl: 'L3', id: 'm.quant', name: 'Benzi (quintile / terțile)', kind: 'method', sum: 'Tăierea unei variabile continue în benzi egale ca număr.', det: 'Pragurile se calculează pe TRAIN, pe activ, și se aplică neschimbate pe test. Se verifică monotonia de la banda de jos la cea de sus.', f: 'prag_k = centila(100·k / nr_benzi) pe train', src: 'Pas 72, 75, 76' },
+  { lvl: 'L3', id: 'm.strat', name: 'Control la mărime fixată', kind: 'method', sum: 'Efectul se măsoară în interiorul fiecărei benzi de sizeATR.', det: 'Răspunsul la capcana „R la numitor": dacă efectul dispare la mărime fixată, era doar mărimea box-ului (ex. „box tare", RSI extrem).', f: 'Δ = efect în banda k, pentru fiecare k; se raportează toate benzile', in: ['c.sizeatr'], src: 'Pas 69e, 72' },
+  { lvl: 'L3', id: 'm.perm', name: 'Control permutat', kind: 'method', sum: 'Eticheta testată se amestecă aleator între sesiuni.', det: 'Arată cât „efect" produce pur hazardul cu aceeași structură de date. Efectul real trebuie să iasă clar în afara distribuției permutate.', f: 'efect_real vs distribuția efectului pe etichete permutate', src: 'Pas 69d, 76' },
+  { lvl: 'L3', id: 'm.rand', name: 'Control aleator potrivit', kind: 'method', sum: 'Aceeași execuție, cu direcție sau moment aleator.', det: 'Același SL / TP ȘI aceeași regulă de ieșire ca strategia testată (regula #7) — altfel compari mere cu pere.', src: 'manual regula #7, Pas 31, 67' },
+  { lvl: 'L3', id: 'm.t22', name: 'Comparația cu traseul T2.2', kind: 'method', sum: 'Orice efect pe T1 / T2.1 se compară întâi cu T2.2.', det: 'T1 = box → confirmare, T2.1 = confirmare → spargerea opusă (condiționat de rezultat), T2.2 = confirmare → finalul sesiunii (necondiționat). Efectele mari de pe T1 / T2.1 sunt de obicei condiționarea traseului, nu semnal.', src: 'Pas 70, 75' },
+  { lvl: 'L3', id: 'm.split', name: 'Split train / test', kind: 'method', sum: 'Construiești pe trecut, verifici orb pe date nefolosite.', det: 'Niciun parametru nu se alege pe test.', f: 'train: dată ≤ 31 dec 2024 · test: dată ≥ 1 ian 2025', in: ['raw.ts'], src: 'manual regula #1, Pas 14' },
+  { lvl: 'L3', id: 'm.repl', name: 'Test de replicare', kind: 'method', sum: 'Aceleași setări pe train și pe test.', det: 'Întrebarea: se repetă efectul pe date noi? E testul care confirmă o concluzie.', in: ['m.split'], src: 'decizie 25 sep 2026' },
+  { lvl: 'L3', id: 'm.robust', name: 'Test de robustețe', kind: 'method', sum: 'Setări diferite pe test față de train (ex. SD → DSD / ATR).', det: 'Întrebarea: rezistă efectul când schimbăm unitatea de măsură? Util, dar nu înlocuiește replicarea — se marchează separat.', in: ['m.split'], src: 'decizie 25 sep 2026' },
+  { lvl: 'L3', id: 'm.assets', name: 'Replicare pe active (X / N)', kind: 'method', sum: 'Pe câte active are efectul același semn, pe test.', det: 'Ex. „18/18 active monoton pe test" (F14). Cripto e un bloc corelat, deci WTI contează ca verificare separată.', f: 'X = nr. active cu semnul așteptat pe test · N = active cu n ≥ 30 pe train și pe test', in: ['raw.asset', 'm.split'], src: 'Pas 38, 64, 72' },
+  { lvl: 'L3', id: 'm.agg', name: 'Selecție pe train agregat', kind: 'method', sum: 'Parametrii se aleg o dată, pe toate activele împreună.', det: 'Alegerea per activ înseamnă alegerea zgomotului (regula #8).', in: ['raw.asset', 'm.split'], src: 'manual regula #8' },
+  { lvl: 'L3', id: 'm.wf', name: 'Walk-forward expanding', kind: 'method', sum: 'La fiecare moment se folosește doar trecutul.', det: 'Statistica condiționată folosită într-o simulare se recalculează pe fereastră care crește (regula #2). Protejează de lookahead.', f: 'statistica(t) = f(date < t)', in: ['raw.ts'], src: 'manual regula #2, Pas 28, 69d, 80' },
+  { lvl: 'L3', id: 'm.rr', name: 'Expectanță în RR după costuri', kind: 'method', sum: 'Verdictul final al oricărei reguli de trading.', det: 'Pe fill-uri reale (strict pe barele de după confirmare), costuri incluse, pierderea la SL = exact 1. Rata True sau acuratețea direcției NU sunt verdict.', f: 'E = p · RR_net − (1 − p) · costuri maker 0.02% / taker 0.05% · ordinea în bară SL → contra → TP', in: ['raw.open', 'raw.high', 'raw.low', 'raw.close'], src: 'manual regula #0, Partea VII' },
+  { lvl: 'L3', id: 'm.brier', name: 'Brier / log-loss', kind: 'method', sum: 'Cât de bine calibrate sunt probabilitățile.', det: 'Singura comparație corectă între granularități diferite (jumătăți / treimi / sferturi) — acuratețea favorizează mecanic mai puține benzi (regula #10).', f: 'Brier = media (p − y)² · 0 = perfect · 0.25 = monedă', src: 'manual regula #10, Pas 35' },
+  { lvl: 'L3', id: 'm.rho', name: 'Corelație Spearman ρ', kind: 'method', sum: 'Cât de mult două mărimi urcă și coboară împreună (pe ranguri).', det: 'Folosită pentru familiile de echivalență: compușii cu ρ ≥ 0.9 pe train sunt practic aceeași variabilă (ex. baseline-urile de volatilitate, Pas 74).', f: 'ρ = corelația Pearson a rangurilor', src: 'Pas 74, decizie 25 sep 2026' },
+  { lvl: 'L3', id: 'm.seif', name: 'Seiful (validare finală)', kind: 'method', sum: 'Ultima probă, pe date pe care nu le-a văzut nimic.', det: 'Activele noi (acțiuni, indici, petrol futures, sosesc în ~2 săptămâni) + datele viitoare. Nu se folosesc în nicio explorare sau Option. O singură trecere, cu setările înghețate; doar așa o ipoteză ajunge în L9.', in: ['raw.asset'], src: 'decizie 25 sep 2026' },
+  { lvl: 'L3', id: 'm.count', name: 'Contor de încercări', kind: 'method', sum: 'Câte variante din aceeași familie au fost testate.', det: '„A trecut la prima încercare" valorează mai mult decât „a trecut la a 30-a". Se ține pe familie de echivalență, nu pe variantă. Se implementează în Etapa 2.', in: ['m.rho'], src: 'decizie 25 sep 2026' },
+
+  // ════════ L4 – L6 — se completează în Etapa 3 ════════
+  { lvl: 'L4', id: 'todo.L4', name: 'Studiile Pas 66–76', kind: 'todo', sum: 'Se completează în Etapa 3.', det: 'Fiecare pas va avea: întrebarea, amprenta (date folosite · metodă · praguri · split), legăturile spre L1–L3 și ștampila setării sub care a rulat. Pașii mai vechi vin în loturi, în Etapa 4, marcați „metodă non-standard" unde e cazul.' },
+  { lvl: 'L5a', id: 'todo.L5a', name: 'Rezultatele pe train', kind: 'todo', sum: 'Se completează în Etapa 3.', det: 'Pentru fiecare studiu: n, active, perioadă, lot, cifrele cheie pe train.' },
+  { lvl: 'L5b', id: 'todo.L5b', name: 'Rezultatele pe test', kind: 'todo', sum: 'Se completează în Etapa 3.', det: 'Pentru fiecare studiu: cifrele pe test și tipul testului — replicare (aceleași setări) sau robustețe (setări diferite).' },
+  { lvl: 'L6', id: 'todo.L6', name: 'Concluziile (F / I / C)', kind: 'todo', sum: 'Se completează în Etapa 3.', det: 'Fiecare concluzie primește unul din cele 5 statusuri (vezi legenda): confirmat, respins, retras, artefact, fără edge net.' },
+
+  // ════════ L7 — CRITERII DE FILTRU ════════
+  { lvl: 'L7', id: 'k.test', name: 'Replică pe test', kind: 'crit', sum: 'Efectul se repetă pe test, cu aceleași setări.', det: 'Trecerea doar la robustețe se arată separat — nu e același lucru cu replicarea.', in: ['m.repl'] },
+  { lvl: 'L7', id: 'k.assets', name: 'Semn corect pe ≥ X / N active', kind: 'crit', sum: 'Se repetă pe majoritatea activelor.', det: 'Pragul X se alege în Etapa 2 (implicit propus: ≥ 14 / 18).', in: ['m.assets'] },
+  { lvl: 'L7', id: 'k.n', name: 'n ≥ 30 pe fiecare celulă', kind: 'crit', sum: 'Destule observații în spatele cifrei.', det: 'Sub 30 de sesiuni nu tragem concluzii.', in: ['m.desc'] },
+  { lvl: 'L7', id: 'k.ctrl', name: 'Bate controlul (permutat / aleator)', kind: 'crit', sum: 'Mai mult decât produce hazardul.', det: 'Efectul trebuie să iasă în afara controlului permutat sau a controlului aleator potrivit.', in: ['m.perm', 'm.rand'] },
+  { lvl: 'L7', id: 'k.t22', name: 'Trece comparația cu T2.2', kind: 'crit', sum: 'Nu e doar condiționarea traseului.', det: 'Obligatoriu pentru orice efect măsurat pe T1 sau T2.1.', in: ['m.t22'] },
+  { lvl: 'L7', id: 'k.mech', name: 'Nu e artefact mecanic', kind: 'crit', sum: 'Rezistă la mărime fixată.', det: 'Efectul rămâne când sizeATR e fixat (capcana „R la numitor").', in: ['m.strat'] },
+  { lvl: 'L7', id: 'k.cost', name: 'Trece de costuri (RR net > 0)', kind: 'crit', sum: 'Aduce bani după costuri.', det: 'Criteriul care separă un fapt despre piață de o strategie.', in: ['m.rr'] },
+  { lvl: 'L7', id: 'k.tries', name: 'Corectat pentru nr. de încercări', kind: 'crit', sum: 'Pragul crește cu contorul familiei.', det: 'Cu cât s-au încercat mai multe variante, cu atât rezultatul trebuie să fie mai clar.', in: ['m.count'] },
+  { lvl: 'L7', id: 'k.seif', name: 'Trece pe seif (doar pentru L9)', kind: 'crit', sum: 'Ultima probă, pe active noi.', det: 'O singură trecere, setări înghețate.', in: ['m.seif'] },
+
+  // ════════ L8 – L9 ════════
+  { lvl: 'L8', id: 'todo.L8', name: 'Ipotezele de testat', kind: 'todo', sum: 'Se completează după Etapa 3.', det: 'Propuneri de strategie, filtrabile. Deocamdată nicio concluzie nu trece criteriul „RR net > 0", deci ipotezele vor fi marcate clar ca netestate.' },
+  { lvl: 'L9', id: 'todo.L9', name: 'Strategii validate', kind: 'todo', sum: 'Gol deocamdată.', det: 'Aici intră doar o ipoteză care a trecut toate criteriile L7, inclusiv o singură trecere pe seif.' },
+];
+
+// ───────────────────────────── INDEX ─────────────────────────────
+function buildIndex() {
+  const byId = {}, parentOf = {}, children = {};
+  for (const it of GRAPH) {
+    byId[it.id] = it;
+    if (it.children) { children[it.id] = it.children.map(c => c.id); for (const c of it.children) { c.lvl = it.lvl; c.kind = c.kind || it.kind; byId[c.id] = c; parentOf[c.id] = it.id; } }
+  }
+  // dependențe: id → ce folosește (in) și ce îl folosește (out); un `in` spre grup = toate sub-casetele lui
+  const ins = {}, outs = {};
+  for (const id of Object.keys(byId)) { ins[id] = []; outs[id] = []; }
+  for (const n of Object.values(byId)) for (const src of (n.in || [])) {
+    if (!byId[src]) { if (typeof console !== 'undefined') console.warn('method_graph: intrare necunoscută', src, 'în', n.id); continue; }
+    ins[n.id].push(src); outs[src].push(n.id);
+  }
+  return { byId, parentOf, children, ins, outs };
+}
+const IDX = buildIndex();
+
+// lanțul complet al unei casete: amonte (de ce depinde) și aval (ce influențează), recursiv
+function chain(id) {
+  const I = IDX, up = new Set(), down = new Set();
+  const seeds = [id, ...(I.children[id] || [])];
+  const walk = (start, next, set) => { const st = [...start]; while (st.length) { const x = st.pop(); for (const y of next(x)) if (!set.has(y)) { set.add(y); st.push(y); } } };
+  // amonte: intrările (un `in` spre grup = toate sub-casetele grupului)
+  walk(seeds, x => (I.ins[x] || []).flatMap(y => I.children[y] ? [y, ...I.children[y]] : [y]), up);
+  // aval: cine folosește caseta, sau grupul ei (un `in` spre grup)
+  const downNext = x => { const r = [...(I.outs[x] || [])]; if (I.parentOf[x]) r.push(...(I.outs[I.parentOf[x]] || [])); return r; };
+  walk(seeds, downNext, down);
+  for (const s of seeds) { up.delete(s); down.delete(s); }
+  return { self: new Set(seeds), up, down };
+}
+
+// ───────────────────────────── LAYOUT ─────────────────────────────
+const W = 2400, PAD = 24, LBL_W = 176, GAP = 22, ROW_GAP = 18, BAND_GAP = 30;
+const NODE_W = 196, NODE_H = 46, CH_W = 172, CH_H = 44, CH_GAP = 10, GH_HEAD = 30, CHAR_PX = 6.9;
+function wrap(s, max) { const w = String(s).split(/\s+/), out = []; let cur = ''; for (const x of w) { if ((cur + ' ' + x).trim().length > max && cur) { out.push(cur); cur = x; } else cur = (cur + ' ' + x).trim(); } if (cur) out.push(cur); return out; }
+function layout(hidden) {
+  const innerW = W - 2 * PAD - LBL_W, boxes = {}, bands = [];
+  let y = PAD;
+  for (const L of LEVELS) {
+    if (hidden.has(L.id)) continue;
+    const items = GRAPH.filter(it => it.lvl === L.id);
+    const bandTop = y; let x = PAD + LBL_W, rowY = y + 12, rowH = 0;
+    for (const it of items) {
+      let w, h;
+      if (it.children) {
+        const n = it.children.length, cols = n <= 4 ? n : Math.min(7, Math.ceil(Math.sqrt(n * 2.2)));
+        const rows = Math.ceil(n / cols);
+        w = Math.max(cols * CH_W + (cols - 1) * CH_GAP + 2 * 12, 200); h = GH_HEAD + rows * CH_H + (rows - 1) * CH_GAP + 12;
+        if (x + w > PAD + LBL_W + innerW && x > PAD + LBL_W) { x = PAD + LBL_W; rowY += rowH + ROW_GAP; rowH = 0; }
+        boxes[it.id] = { x, y: rowY, w, h, group: true };
+        it.children.forEach((c, i) => { const cx = x + 12 + (i % cols) * (CH_W + CH_GAP), cy = rowY + GH_HEAD + Math.floor(i / cols) * (CH_H + CH_GAP); boxes[c.id] = { x: cx, y: cy, w: CH_W, h: CH_H, child: true }; });
+      } else {
+        w = it.wide ? 380 : NODE_W; h = it.wide ? NODE_H + 10 : NODE_H;
+        if (x + w > PAD + LBL_W + innerW && x > PAD + LBL_W) { x = PAD + LBL_W; rowY += rowH + ROW_GAP; rowH = 0; }
+        boxes[it.id] = { x, y: rowY, w, h };
+      }
+      rowH = Math.max(rowH, h); x += w + GAP;
+    }
+    const bandH = Math.max(rowY + rowH + 12 - bandTop, items.length && items.every(it => it.kind === 'todo') ? 92 : 112); // loc pentru eticheta + explicația nivelului
+    bands.push({ L, y: bandTop, h: bandH }); y = bandTop + bandH + BAND_GAP;
+  }
+  return { boxes, bands, H: y - BAND_GAP + PAD };
+}
+
+// ───────────────────────────── RANDARE SVG ─────────────────────────────
+function nodeSvg(n, b) {
+  const k = KINDS[n.kind] || KINDS.todo, isStd = n.kind === 'standard';
+  const maxC = Math.floor((b.w - 34) / CHAR_PX), lines = wrap(n.name, maxC).slice(0, 2);
+  const fs = b.child ? 12 : (isStd ? 14 : 12.5), lh = fs + 3;
+  const ty = b.y + b.h / 2 - (lines.length - 1) * lh / 2 + fs * 0.35;
+  const dash = k.dash ? ' stroke-dasharray="5 4"' : '';
+  let s = `<g class="mg-node${b.child ? ' mg-child' : ''}" data-id="${esc(n.id)}"><rect class="mg-box" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="8" fill="${k.fill}" stroke="${k.stroke}" stroke-width="${isStd ? 2.4 : 1.4}"${dash}/>`;
+  if (isStd) s += `<rect x="${b.x + 3}" y="${b.y + 3}" width="${b.w - 6}" height="${b.h - 6}" rx="6" fill="none" stroke="${k.stroke}" stroke-opacity=".45"/>`;
+  lines.forEach((ln, i) => { s += `<text x="${b.x + 12}" y="${ty + i * lh}" class="mg-name" style="font-size:${fs}px" fill="${k.head}">${esc(ln)}</text>`; });
+  s += qSvg(n.id, b.x + b.w - 11, b.y + 11, k.stroke);
+  return s + '</g>';
+}
+function qSvg(id, cx, cy, stroke) { return `<g class="mg-q" data-q="${esc(id)}"><circle cx="${cx}" cy="${cy}" r="7" fill="#0f1115" stroke="${stroke}" stroke-width="1"/><text x="${cx}" y="${cy + 3.4}" text-anchor="middle" class="mg-qt">?</text></g>`; }
+function groupSvg(g, b) {
+  const k = KINDS[g.kind] || KINDS.raw;
+  let s = `<g class="mg-node mg-group" data-id="${esc(g.id)}"><rect class="mg-box" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="10" fill="${k.fill}" fill-opacity=".55" stroke="${k.stroke}" stroke-width="1.6"/>`;
+  s += `<text x="${b.x + 12}" y="${b.y + 20}" class="mg-gname" fill="${k.head}">${esc(g.name)}</text>`;
+  s += qSvg(g.id, b.x + b.w - 12, b.y + 14, k.stroke) + '</g>';
+  return s;
+}
+// Săgeți ORTOGONALE (doar segmente orizontale și verticale, unghiuri de 90°). Segmentul orizontal stă chiar deasupra casetei-țintă,
+// pe o „bandă" deplasată după sursă (lane), ca săgețile care intră în aceeași casetă să nu se suprapună complet.
+function lane(id) { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 4; }
+function edgePath(a, b, srcId) {
+  const L = lane(srcId), x1 = Math.round(a.x + a.w * (0.35 + 0.1 * L)), x2 = Math.round(b.x + b.w * (0.35 + 0.1 * L));
+  const y1 = a.y + a.h, y2 = b.y;
+  if (y2 > y1 + 8) { const hy = Math.max(y1 + 4, y2 - 6 - L * 2); return `M${x1},${y1} V${hy} H${x2} V${y2}`; }
+  // aceeași bandă sau țintă mai sus: iese pe sus, trece pe deasupra, intră pe sus
+  const t1 = a.y, top = Math.min(a.y, b.y) - 6 - L * 2;
+  return `M${x1},${t1} V${top} H${x2} V${y2}`;
+}
+function renderSvg(lay) {
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" class="mg-svg" width="100%" height="100%">`,
+    `<defs><marker id="mg-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8d95a5"/></marker>
+     <marker id="mg-arr-up" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5fb0ff"/></marker>
+     <marker id="mg-arr-dn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ffb347"/></marker>
+     <filter id="mg-glow-up" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#5fb0ff" flood-opacity=".95"/></filter>
+     <filter id="mg-glow-dn" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#ffb347" flood-opacity=".95"/></filter>
+     <filter id="mg-glow-self" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#ffffff" flood-opacity=".85"/></filter></defs>`,
+    `<g class="mg-vp">`, `<rect class="mg-bg" x="-5000" y="-5000" width="${W + 10000}" height="${lay.H + 10000}" fill="#0f1115"/>`];
+  for (const bd of lay.bands) {
+    out.push(`<rect x="${PAD - 6}" y="${bd.y}" width="${W - 2 * PAD + 12}" height="${bd.h}" rx="12" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.06)"/>`);
+    wrap(bd.L.label, 20).forEach((ln, i) => out.push(`<text x="${PAD + 6}" y="${bd.y + 24 + i * 15}" class="mg-lbl">${esc(ln)}</text>`));
+    wrap(bd.L.hint, 30).slice(0, 4).forEach((ln, i) => out.push(`<text x="${PAD + 6}" y="${bd.y + 50 + i * 13}" class="mg-lblh">${esc(ln)}</text>`));
+  }
+  // săgețile (sub casete)
+  out.push('<g class="mg-edges">');
+  for (const n of Object.values(IDX.byId)) for (const src of (IDX.ins[n.id] || [])) {
+    const a = lay.boxes[src], b = lay.boxes[n.id]; if (!a || !b) continue;
+    const same = !(b.y > a.y + a.h + 4);
+    out.push(`<path class="mg-edge${same ? ' mg-same' : ''}" data-from="${esc(src)}" data-to="${esc(n.id)}" d="${edgePath(a, b, src)}" marker-end="url(#mg-arr)"/>`);
+  }
+  out.push('</g>');
+  for (const it of GRAPH) {
+    const b = lay.boxes[it.id]; if (!b) continue;
+    if (it.children) { out.push(groupSvg(it, b)); for (const c of it.children) out.push(nodeSvg(c, lay.boxes[c.id])); }
+    else out.push(nodeSvg(it, b));
+  }
+  out.push('</g></svg>');
+  return out.join('\n');
+}
+
+// ───────────────────────────── CSS ─────────────────────────────
+const CSS = `
+.mg-wrap{display:flex;flex-direction:column;gap:8px}
+.mg-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.mg-bar button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer}
+.mg-bar button:hover{border-color:var(--accent)}
+.mg-bar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;width:200px}
+.mg-sep{width:1px;height:20px;background:var(--border);margin:0 4px}
+.mg-chip{font-size:11px !important;padding:3px 7px !important}
+.mg-chip.off{opacity:.4;text-decoration:line-through}
+.mg-zl{font-size:11px;color:var(--text3);min-width:42px;text-align:right}
+.mg-leg{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:11px;color:var(--text2);padding:2px 4px}
+.mg-leg b{color:var(--text3);font-weight:600;margin-right:2px}
+.mg-li{display:inline-flex;align-items:center;gap:5px;cursor:default}
+.mg-li i{display:inline-block;width:13px;height:11px;border-radius:3px;border:1.5px solid}
+.mg-li.st{cursor:help;border-bottom:1px dotted var(--text3)}
+.mg-glowk{display:inline-block;width:22px;height:4px;border-radius:2px}
+.mg-leg.focus .mg-li[data-k]{opacity:.35}
+.mg-leg.focus .mg-li.on{opacity:1;color:#fff}
+.mg-leg.focus .mg-li.on i{box-shadow:0 0 0 2px rgba(255,255,255,.12),0 0 10px 2px var(--kc)}
+.mg-host{position:relative;height:calc(100vh - 230px);min-height:520px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#0f1115;touch-action:none;cursor:grab}
+.mg-host.drag{cursor:grabbing}
+.mg-svg{display:block;user-select:none;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.mg-lbl{fill:#8d95a5;font-size:12px;font-weight:700;letter-spacing:.05em}
+.mg-lblh{fill:#5f6675;font-size:10.5px}
+.mg-name{font-weight:600}
+.mg-gname{font-size:13px;font-weight:800;letter-spacing:.06em}
+.mg-qt{fill:#c7cdd8;font-size:10px;font-weight:700;pointer-events:none}
+.mg-q{cursor:help}
+.mg-q:hover circle{fill:#3f8cff;stroke:#3f8cff}
+.mg-q:hover .mg-qt{fill:#fff}
+.mg-node{cursor:pointer}
+.mg-node .mg-box{transition:opacity .12s}
+.mg-edge{fill:none;stroke:#8d95a5;stroke-width:1.1;opacity:.13;stroke-linejoin:miter}
+.mg-edge.mg-same{opacity:0}
+.mg-svg.focus .mg-node{opacity:.18}
+.mg-svg.focus .mg-node.hl-self,.mg-svg.focus .mg-node.hl-up,.mg-svg.focus .mg-node.hl-down,.mg-svg.focus .mg-node.hl-par{opacity:1}
+.mg-svg.focus .mg-node.hl-par>.mg-box{opacity:.6}
+.mg-svg.focus .mg-node.hl-up>.mg-box{filter:url(#mg-glow-up)}
+.mg-svg.focus .mg-node.hl-down>.mg-box{filter:url(#mg-glow-dn)}
+.mg-svg.focus .mg-node.hl-self>.mg-box{filter:url(#mg-glow-self)}
+.mg-svg.focus .mg-edge{opacity:.03}
+.mg-svg.focus .mg-edge.hl-up{opacity:.95;stroke:#5fb0ff;stroke-width:2;marker-end:url(#mg-arr-up)}
+.mg-svg.focus .mg-edge.hl-down{opacity:.95;stroke:#ffb347;stroke-width:2;marker-end:url(#mg-arr-dn)}
+.mg-svg .mg-node.match>.mg-box{stroke:#fff;stroke-width:2.6}
+.mg-pop{position:absolute;z-index:6;min-width:260px;max-width:420px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(20,23,30,.9);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);box-shadow:0 10px 30px rgba(0,0,0,.5);color:#e7e9ee;font-size:12px;line-height:1.45;pointer-events:auto}
+.mg-pop.long{max-width:560px;max-height:70%;overflow:auto}
+.mg-pop h5{margin:0 0 4px;font-size:13px;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.mg-pop .mg-tag{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:4px;border:1px solid;white-space:nowrap}
+.mg-pop .mg-hint{font-size:10.5px;color:var(--text3);font-weight:400}
+.mg-pop .mg-sec{margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)}
+.mg-pop .mg-sec b{display:block;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.mg-pop code{display:block;background:#0c0e12;border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:#f0cf8f;font-size:11.5px;white-space:pre-wrap}
+.mg-pop ul{margin:2px 0;padding-left:18px} .mg-pop li{margin:2px 0}
+.mg-pop .mg-x{background:transparent;border:none;color:var(--text2);font-size:16px;cursor:pointer;padding:0 2px} .mg-pop .mg-x:hover{color:#fff}
+.mg-pop .mg-link{color:#a9c8ff;cursor:pointer;text-decoration:underline dotted}
+.mg-note{font-size:11px;color:var(--text3);margin:0 4px}
+`;
+
+// ───────────────────────────── UI ─────────────────────────────
+const st = { root: null, host: null, svg: null, vp: null, lay: null, hidden: new Set(), z: { k: 1, x: 0, y: 0 }, pinned: null, popPinned: null, done: false };
+
+function legendHtml() {
+  const parts = LEGEND.map(([title, keys]) => `<span><b>${esc(title)}:</b></span>` + keys.map(k => { const c = KINDS[k]; const isSt = !!STATUS_TXT[k]; return `<span class="mg-li${isSt ? ' st' : ''}" data-k="${k}"${isSt ? ` title="${esc(STATUS_TXT[k])}"` : ''}><i style="--kc:${c.stroke};background:${c.fill};border-color:${c.stroke};${c.dash ? 'border-style:dashed' : ''}"></i>${esc(c.lbl)}</span>`; }).join(''));
+  parts.push(`<span><b>Glow:</b></span><span class="mg-li"><span class="mg-glowk" style="background:#5fb0ff"></span>amonte (de ce depinde)</span><span class="mg-li"><span class="mg-glowk" style="background:#ffb347"></span>aval (ce influențează)</span>`);
+  return `<div class="mg-leg">${parts.join('')}</div>`;
+}
+function markup() {
+  return `<style>${CSS}</style><div class="mg-wrap">
+    <div class="mg-bar">
+      <button type="button" data-a="out" title="Micșorează">−</button><button type="button" data-a="in" title="Mărește">+</button>
+      <button type="button" data-a="fit" title="Toată harta în ecran">Potrivește</button><button type="button" data-a="one" title="Mărime reală">100%</button>
+      <span class="mg-zl" id="mg-zl">100%</span><span class="mg-sep"></span>
+      <input type="search" id="mg-search" placeholder="Caută (ex. DSD, sizeATR, split)…" autocomplete="off">
+      <span class="mg-sep"></span>${LEVELS.map(L => `<button type="button" class="mg-chip" data-lvl="${L.id}" title="${esc(L.hint)}">${L.id}</button>`).join('')}
+    </div>
+    ${legendHtml()}
+    <div class="mg-host" id="mg-host"></div>
+    <p class="mg-note">Etapa 1: L1–L3 complete + Standardul metodologic + criteriile L7; L4–L6 și L8–L9 se completează în etapele următoare. Hover pe casetă = ramificația (albastru amonte, portocaliu aval) · click = fixează · „?" = rezumat, click pe „?" = detalii · rotița = zoom, tragere = pan · harta se editează în <code>ui/method_graph.js</code> (tabloul GRAPH).</p>
+  </div>`;
+}
+function applyZoom() { if (st.vp) st.vp.setAttribute('transform', `translate(${st.z.x},${st.z.y}) scale(${st.z.k})`); const zl = st.root && st.root.querySelector('#mg-zl'); if (zl) zl.textContent = Math.round(st.z.k * 100) + '%'; }
+function fit() { const r = st.host.getBoundingClientRect(); const k = Math.min(r.width / W, r.height / st.lay.H) * 0.98; st.z = { k, x: (r.width - W * k) / 2, y: 6 }; applyZoom(); }
+function zoomAt(f, cx, cy) { const k = Math.max(0.12, Math.min(3, st.z.k * f)); const g = k / st.z.k; st.z.x = cx - (cx - st.z.x) * g; st.z.y = cy - (cy - st.z.y) * g; st.z.k = k; applyZoom(); }
+function centerOn(id) { const b = st.lay.boxes[id]; if (!b) return; const r = st.host.getBoundingClientRect(); const k = Math.max(st.z.k, 0.9); st.z = { k, x: r.width / 2 - (b.x + b.w / 2) * k, y: r.height / 2 - (b.y + b.h / 2) * k }; applyZoom(); }
+
+// glow pe intrările din legendă ale tipurilor care apar în ramificația selectată (la click)
+function legendFocus(id) {
+  const leg = st.root && st.root.querySelector('.mg-leg'); if (!leg) return;
+  leg.querySelectorAll('.mg-li.on').forEach(e => e.classList.remove('on'));
+  if (!id) { leg.classList.remove('focus'); return; }
+  const c = chain(id), kinds = new Set();
+  for (const x of [...c.self, ...c.up, ...c.down]) { const n = IDX.byId[x]; if (n) kinds.add(n.kind); }
+  leg.classList.add('focus');
+  for (const k of kinds) { const el = leg.querySelector(`.mg-li[data-k="${k}"]`); if (el) el.classList.add('on'); }
+}
+function setFocus(id) {
+  const svg = st.svg; if (!svg) return;
+  legendFocus(st.pinned);
+  svg.querySelectorAll('.hl-self,.hl-up,.hl-down,.hl-par').forEach(e => e.classList.remove('hl-self', 'hl-up', 'hl-down', 'hl-par'));
+  if (!id) { svg.classList.remove('focus'); return; }
+  const c = chain(id); svg.classList.add('focus');
+  const mark = (ids, cls) => { for (const x of ids) { const el = svg.querySelector(`.mg-node[data-id="${CSS_ESC(x)}"]`); if (el) el.classList.add(cls); const p = IDX.parentOf[x]; if (p) { const pe = svg.querySelector(`.mg-node[data-id="${CSS_ESC(p)}"]`); if (pe && !pe.classList.contains('hl-self')) pe.classList.add('hl-par'); } } };
+  mark(c.self, 'hl-self'); mark(c.up, 'hl-up'); mark(c.down, 'hl-down');
+  svg.querySelectorAll('.mg-edge').forEach(e => {
+    const f = e.dataset.from, t = e.dataset.to;
+    if (c.up.has(f) && (c.up.has(t) || c.self.has(t))) e.classList.add('hl-up');
+    else if ((c.self.has(f) || c.down.has(f)) && c.down.has(t)) e.classList.add('hl-down');
+  });
+}
+const CSS_ESC = s => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/"/g, '\\"');
+
+function names(ids) { return ids.map(i => IDX.byId[i]).filter(Boolean).map(n => `<span class="mg-link" data-go="${esc(n.id)}">${esc(n.name)}</span>`).join(', '); }
+function popHtml(n, long) {
+  const k = KINDS[n.kind] || KINDS.todo, L = LEVELS.find(l => l.id === n.lvl);
+  let h = `<h5><span style="color:${k.head}">${esc(n.name)}</span>${long ? '<button type="button" class="mg-x" title="Închide">×</button>' : '<span class="mg-hint">click pe „?" = detalii</span>'}</h5>`;
+  h += `<div><span class="mg-tag" style="color:${k.head};border-color:${k.stroke}">${esc(k.lbl)}</span> <span class="mg-hint">${esc(L ? L.label : '')}${IDX.parentOf[n.id] ? ' · grupul ' + esc(IDX.byId[IDX.parentOf[n.id]].name) : ''}</span></div>`;
+  h += `<div style="margin-top:6px">${esc(n.sum || '')}</div>`;
+  if (!long) return h;
+  if (n.det) h += `<div class="mg-sec"><b>${n.kind === 'standard' ? 'Regulile' : 'Definiție / ce conține'}</b>${Array.isArray(n.det) ? '<ul>' + n.det.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : esc(n.det)}</div>`;
+  if (n.children) h += `<div class="mg-sec"><b>Conține</b>${names(n.children.map(c => c.id))}</div>`;
+  if (n.f) h += `<div class="mg-sec"><b>Formula</b><code>${esc(n.f)}</code></div>`;
+  const ins = IDX.ins[n.id] || [], outs = [...(IDX.outs[n.id] || []), ...((IDX.parentOf[n.id] && IDX.outs[IDX.parentOf[n.id]]) || [])];
+  if (ins.length) h += `<div class="mg-sec"><b>Depinde de (amonte)</b>${names(ins)}</div>`;
+  if (outs.length) h += `<div class="mg-sec"><b>Folosit de (aval)</b>${names([...new Set(outs)])}</div>`;
+  if (STATUS_TXT[n.kind]) h += `<div class="mg-sec"><b>Ce înseamnă statusul</b>${esc(STATUS_TXT[n.kind])}</div>`;
+  if (n.src) h += `<div class="mg-sec"><b>Sursa</b>${esc(n.src)}</div>`;
+  return h;
+}
+function showPop(id, anchorEl, long) {
+  const n = IDX.byId[id]; if (!n) return;
+  let pop = st.host.querySelector('.mg-pop'); if (!pop) { pop = document.createElement('div'); pop.className = 'mg-pop'; st.host.appendChild(pop); pop.addEventListener('pointerdown', e => e.stopPropagation()); pop.addEventListener('wheel', e => e.stopPropagation(), { passive: true }); pop.addEventListener('click', onPopClick); }
+  pop.innerHTML = popHtml(n, long); pop.classList.toggle('long', !!long); pop.hidden = false;
+  const hr = st.host.getBoundingClientRect(), ar = anchorEl.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let left = ar.right - hr.left + 8, top = ar.top - hr.top - 4;
+  if (left + pw > hr.width - 6) left = ar.left - hr.left - pw - 8;
+  if (left < 6) left = 6; if (top + ph > hr.height - 6) top = Math.max(6, hr.height - ph - 6);
+  pop.style.left = left + 'px'; pop.style.top = top + 'px';
+}
+function hidePop(force) { if (st.popPinned && !force) return; st.popPinned = null; const p = st.host && st.host.querySelector('.mg-pop'); if (p) p.hidden = true; }
+function onPopClick(e) {
+  if (e.target.closest('.mg-x')) { hidePop(true); return; }
+  const go = e.target.closest('[data-go]'); if (go) { const id = go.dataset.go; centerOn(id); st.pinned = id; setFocus(id); const q = st.svg.querySelector(`.mg-q[data-q="${CSS_ESC(id)}"]`); if (q) { st.popPinned = id; showPop(id, q, true); } }
+}
+
+function draw() {
+  st.lay = layout(st.hidden);
+  st.host.innerHTML = renderSvg(st.lay);
+  st.svg = st.host.querySelector('svg'); st.vp = st.svg.querySelector('.mg-vp');
+  applyZoom();
+  if (st.pinned && st.lay.boxes[st.pinned]) setFocus(st.pinned); else st.pinned = null;
+}
+function bind() {
+  const host = st.host;
+  // zoom cu rotița, în jurul cursorului
+  host.addEventListener('wheel', e => { e.preventDefault(); const r = host.getBoundingClientRect(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  // pan prin tragere; un click fără mișcare = selecție
+  let drag = null;
+  host.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, zx: st.z.x, zy: st.z.y, moved: false }; host.setPointerCapture(e.pointerId); });
+  host.addEventListener('pointermove', e => {
+    if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; host.classList.add('drag'); } if (drag.moved) { st.z.x = drag.zx + dx; st.z.y = drag.zy + dy; applyZoom(); } return; }
+  });
+  host.addEventListener('pointerup', e => {
+    const d = drag; drag = null; host.classList.remove('drag'); try { host.releasePointerCapture(e.pointerId); } catch (x) { void x; }
+    if (!d || d.moved) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const q = el && el.closest && el.closest('.mg-q');
+    if (q) { const id = q.dataset.q; if (st.popPinned === id) hidePop(true); else { st.popPinned = id; showPop(id, q, true); } return; }
+    const nd = el && el.closest && el.closest('.mg-node');
+    if (nd) { const id = nd.dataset.id; st.pinned = st.pinned === id ? null : id; setFocus(st.pinned || id); return; }
+    st.pinned = null; setFocus(null); hidePop(true);
+  });
+  // hover: glow pe ramificație + rezumat pe „?"
+  host.addEventListener('pointerover', e => {
+    if (drag && drag.moved) return;
+    const q = e.target.closest && e.target.closest('.mg-q');
+    if (q && !st.popPinned) showPop(q.dataset.q, q, false);
+    const nd = e.target.closest && e.target.closest('.mg-node');
+    if (nd && !st.pinned) setFocus(nd.dataset.id);
+  });
+  host.addEventListener('pointerout', e => {
+    const q = e.target.closest && e.target.closest('.mg-q'); if (q && !(e.relatedTarget && q.contains(e.relatedTarget))) hidePop(false);
+    const nd = e.target.closest && e.target.closest('.mg-node');
+    if (nd && !st.pinned && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.mg-node'))) setFocus(null);
+  });
+  // bara de unelte
+  st.root.querySelector('.mg-bar').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const r = host.getBoundingClientRect();
+    if (b.dataset.a === 'in') zoomAt(1.25, r.width / 2, r.height / 2);
+    else if (b.dataset.a === 'out') zoomAt(0.8, r.width / 2, r.height / 2);
+    else if (b.dataset.a === 'fit') fit();
+    else if (b.dataset.a === 'one') { st.z.k = 1; applyZoom(); }
+    else if (b.dataset.lvl) { const L = b.dataset.lvl; if (st.hidden.has(L)) st.hidden.delete(L); else st.hidden.add(L); b.classList.toggle('off', st.hidden.has(L)); hidePop(true); draw(); fit(); }
+  });
+  const inp = st.root.querySelector('#mg-search');
+  const matches = () => { const q = inp.value.trim().toLowerCase(); st.svg.querySelectorAll('.mg-node.match').forEach(x => x.classList.remove('match')); if (!q) return []; const ids = Object.values(IDX.byId).filter(n => st.lay.boxes[n.id] && (n.name.toLowerCase().includes(q) || String(n.sum || '').toLowerCase().includes(q))).map(n => n.id); for (const id of ids) { const el = st.svg.querySelector(`.mg-node[data-id="${CSS_ESC(id)}"]`); if (el) el.classList.add('match'); } return ids; };
+  inp.addEventListener('input', matches);
+  inp.addEventListener('keydown', e => { if (e.key !== 'Enter') return; const ids = matches(); if (!ids.length) return; const byName = ids.find(id => IDX.byId[id].name.toLowerCase().includes(inp.value.trim().toLowerCase())) || ids[0]; centerOn(byName); st.pinned = byName; setFocus(byName); });
+  window.addEventListener('resize', () => { if (st.host && st.host.offsetParent) fit(); });
+}
+function init(containerId) {
+  st.root = typeof containerId === 'string' ? document.getElementById(containerId) : containerId; if (!st.root) return;
+  st.root.innerHTML = markup(); st.host = st.root.querySelector('#mg-host');
+  draw(); bind(); st.done = true;
+  requestAnimationFrame(fit);
+}
+function render(containerId) { if (!st.done) init(containerId); else if (st.host && st.host.offsetParent) fit(); }
+
+module.exports = { init, render, GRAPH, LEVELS, KINDS, STATUS_TXT, chain, layout, index: () => IDX };
+
+});
 __define("/ui/manual_tab.js", function (module, exports, require) {
 // dridr-core/ui/manual_tab.js — Pas 68 (23 sep 2026): TAB-ul „MANUAL" — manualul DR Concept (Trading/MANUAL_DR_CONCEPT.md, inlinat la build
 // de cli/build_core_bundle.js) + două diagrame ale structurii logice, desenate ca SVG din declarații (straturi de noduri + săgeți):
@@ -5066,6 +5615,7 @@ catch (e) { try { MANUAL_MD = require('fs').readFileSync(require('path').join(__
 if (typeof MANUAL_MD !== 'string') MANUAL_MD = String(MANUAL_MD || '');
 
 const $ = id => document.getElementById(id);
+const METHOD = require('./method_graph.js'); // sub-tab-ul METODOLOGIE (harta L1–L9), 25 sep 2026
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const state = { root: null, sub: 'manual', drawn: {} };
 
@@ -5402,10 +5952,12 @@ function markup() {
     <button type="button" class="subtabbtn active" data-v="manual">MANUAL</button>
     <button type="button" class="subtabbtn" data-v="concept">DIAGRAMĂ · DR CONCEPT</button>
     <button type="button" class="subtabbtn" data-v="fade">DIAGRAMĂ · FADE LA MARGINE</button>
+    <button type="button" class="subtabbtn" data-v="method">METODOLOGIE</button>
   </div>
   <div id="man-manual" class="subtab-content active"></div>
   <div id="man-concept" class="subtab-content"></div>
-  <div id="man-fade" class="subtab-content"></div>`;
+  <div id="man-fade" class="subtab-content"></div>
+  <div id="man-method" class="subtab-content"></div>`;
 }
 function manualHeader() {
   const m = /^v(\d+\.\d+)\s*—\s*([^·\n]+)/m.exec(MANUAL_MD); const ver = m ? `v${m[1]} · ${m[2].trim()}` : '—';
@@ -5432,8 +5984,8 @@ function renderDiag(key) {
 function render() {
   if (!state.root) return;
   document.querySelectorAll('#manualSub .subtabbtn').forEach(b => b.classList.toggle('active', b.dataset.v === state.sub));
-  for (const k of ['manual', 'concept', 'fade']) { const el = $('man-' + k); if (el) el.classList.toggle('active', k === state.sub); }
-  if (state.sub === 'manual') renderManual(); else renderDiag(state.sub);
+  for (const k of ['manual', 'concept', 'fade', 'method']) { const el = $('man-' + k); if (el) el.classList.toggle('active', k === state.sub); }
+  if (state.sub === 'manual') renderManual(); else if (state.sub === 'method') METHOD.render('man-method'); else renderDiag(state.sub);
 }
 function init(containerId) {
   state.root = $(containerId); if (!state.root) return;
@@ -5441,7 +5993,7 @@ function init(containerId) {
   $('manualSub').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { state.sub = b.dataset.v; render(); } });
   render();
 }
-function setSub(v) { if (['manual', 'concept', 'fade'].includes(v)) { state.sub = v; render(); } }
+function setSub(v) { if (['manual', 'concept', 'fade', 'method'].includes(v)) { state.sub = v; render(); } }
 function diagramSvg(key) { return renderDiagram(key === 'fade' ? DIAG_FADE : DIAG_CONCEPT); }
 
 // Stratul interactiv de „?": badge-uri HTML poziționate procentual peste SVG (ca să urmeze scalarea), o singură etichetă
@@ -5498,7 +6050,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.26.9" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.27.0" };
 })();
 
 </script>
