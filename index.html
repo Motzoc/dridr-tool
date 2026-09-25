@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 17:55 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T17:55 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 18:22 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T18:22 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5381,7 +5381,7 @@ const STUDIES = [
     pr: 'RSI ≤ 30 / ≥ 70 · confirmare ≤ 60 min · intrare la open-ul barei următoare · fără stop · ieșire la invalidare sau 16:00', split: 'istoric 2019 → 10 sep 2026 (verificări) · forward după 10 sep 2026 (criteriul de trecere)', corpus: '20 active, n 1.981',
     nonstd: 'Găsit post-hoc printre cele 486 de celule din Pas 80 — verificările sunt pe aceleași date, deci selecția nu poate fi eliminată. De aceea e CANDIDAT (C), nu fapt: trece doar pe date forward.',
     train: 'Net +0.106 R (IC 95% [+0.057, +0.155]), brut +0.159, True 88.2%; 19 / 20 active > 0; control aleator P < 0.0005.', test: 'Execuție realistă +0.095 R, 18 / 20; weekend −0.033 (predicția ipotezei); 5 / 8 ani pozitivi (punctul slab).', tt: 'robustețe',
-    concl: [] , hyp: { code: 'C1', uses: ['r.F4', 'r.F1', 'r.I24', 'r.F14'], name: 'C1 · RDR × RSI extrem (pre-înregistrat)', sum: 'Candidat: trece dacă expectanța netă > 0 pe ≥ 150 tranzacții forward, doar pe date de după 10 sep 2026, cu regula neschimbată.', checks: { 'k.assets': 1, 'k.ctrl': 1, 'k.cost': 1, 'k.tries': 0 } } },
+    concl: [] , hyp: { code: 'C1', uses: ['r.F4', 'r.F1', 'r.I24', 'r.F14'], name: 'C1 · RDR × RSI extrem (pre-înregistrat)', sum: 'Candidat: trece dacă expectanța netă > 0 pe ≥ 150 tranzacții forward, doar pe date de după 10 sep 2026, cu regula neschimbată.', checks: { 'k.n': 1, 'k.test': 1, 'k.assets': 1, 'k.ctrl': 1, 'k.cost': 1, 'k.tries': 0, 'k.t22': undefined } } }, // k.n / k.test evaluate la Pas 85 (split Standard); k.t22 e în Option, dar nu se aplică modelului (nu e un efect pe traseu) ⇒ neevaluat
   { pas: '83', name: 'Piciorul pre-confirmare advers', q: 'O excursie adversă mare înainte de confirmare face False mai probabil, la oră, sfert și mărime fixate?',
     data: ['c.plunge', 'c.DSD', 'c.tconf', 'c.Q', 'c.sizeatr', 'c.tf'], methods: ['m.strat', 'm.split', 'm.assets', 'm.rr'],
     pr: 'benzi < 0.25 / 0.25–1 / 1–2 / 2–4 / 4–7 / ≥ 7 DSD · 27 straturi oră × sfert × terțila sizeATR', split: SPLIT_STD, corpus: '20 active, 91.126 sesiuni',
@@ -5470,7 +5470,7 @@ STUDIES.push({ pas: '85', name: 'Rularea Option-ului C1 sub metodologia nouă', 
   pr: 'RDR · Luni–Vineri · RSI ≤ 30 / ≥ 70 · confirmare ≤ 60 min · intrare la open-ul barei următoare · fără stop · ieșire la invalidare / 16:00 NY · costuri Partea VII · n ≥ 20 pe activ · 500 permutări', split: 'train ≤ 31 dec 2024 · test ≥ 1 ian 2025 (date până la 10 sep 2026)', corpus: '20 active, 1.981 sesiuni RDR × RSI extrem Lu–Vi (train 1.403 / test 578)',
   stampOverride: 'Option: „Option L9 - C1 - RDR x RSI etrem (preinregistrat)" peste Standard v1 — Trading/runs/2026-09-25-17-38-58_option_C1.md',
   train: 'Net +0.066 R [+0.014, +0.118] (n 1.403), brut +0.118, True 86.9%; referința RDR × RSI normal −0.026.', test: 'Net +0.164 R [+0.089, +0.239] (n 578), brut +0.218, True 91.3%; 16 / 19 active > 0 (17 / 19 peste referința proprie); p permutat 0.000 (500); 2025 +0.202, 2026 +0.114.', tt: 'replicare',
-  concl: [{ code: 'R85', kind: 'hyp', name: 'C1 rămâne candidat (0 tranzacții forward)', sum: 'Trece toate criteriile L7 evaluate, dar NU cel de încercări (post-hoc, 486 celule) și nu poate fi evaluat criteriul pre-înregistrat: corpusul se oprește la 10 sep 2026 ⇒ 0 tranzacții forward din cele ≥ 150 cerute. Nu devine F, nu devine I.', checks: { 'k.n': 1, 'k.test': 1, 'k.assets': 1, 'k.ctrl': 1, 'k.cost': 1, 'k.tries': 0 } }] });
+  concl: [{ code: 'R85', kind: 'hyp', name: 'C1 rămâne candidat (0 tranzacții forward)', sum: 'Trece toate criteriile L7 evaluate, dar NU cel de încercări (post-hoc, 486 celule) și nu poate fi evaluat criteriul pre-înregistrat: corpusul se oprește la 10 sep 2026 ⇒ 0 tranzacții forward din cele ≥ 150 cerute. Nu devine F, nu devine I.', checks: { 'k.n': 1, 'k.test': 1, 'k.assets': 1, 'k.ctrl': 1, 'k.cost': 1, 'k.tries': 0, 'k.t22': undefined } }] });
 
 // Familii de echivalență: compuși care sunt practic aceeași variabilă (ρ sau control la mărime fixată). Contorul = câte studii au folosit familia.
 const FAMILIES = [
@@ -6623,7 +6623,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.7" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.8" };
 })();
 
 </script>
