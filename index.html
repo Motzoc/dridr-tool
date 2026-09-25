@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 16:11 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T16:11 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 16:31 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T16:31 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5710,6 +5710,14 @@ const CSS = `
 .mg-pill{padding:2px 8px;border-radius:10px;border:1px solid var(--border);color:var(--text2);white-space:nowrap}
 .mg-pill.std{border-color:#f2c94c;color:#f7de8f} .mg-pill.mod{border-color:#f28c38;color:#f7bd8c} .mg-pill.rob{border-color:#b48cff;color:#d8c4ff} .mg-pill.rep{border-color:#5ec8e0;color:#a6e3f0}
 .mg-msg{font-size:11.5px;color:var(--text2);min-height:16px;padding:0 4px} .mg-msg.err{color:#f0a09c} .mg-msg.ok{color:#8fd9ad}
+.mg-runbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid #3f8cff55;border-radius:10px;padding:8px 10px;font-size:12px}
+.mg-runbar b{color:#a9c8ff;font-size:11px;letter-spacing:.05em}
+.mg-runbar select,.mg-runbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;max-width:300px} .mg-runbar input{width:64px}
+.mg-runbar button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer} .mg-runbar button:hover:not(:disabled){border-color:var(--accent)} .mg-runbar button:disabled{opacity:.4;cursor:not-allowed}
+.mg-runbar button[data-r="run"]{border-color:#3f8cff;color:#a9c8ff;font-weight:600}
+.mg-rlog{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--text2);background:#0c0e12;border:1px solid var(--border);border-radius:8px;padding:6px 10px;max-height:120px;overflow:auto;white-space:pre-wrap}
+.mg-report{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:13px;line-height:1.5;max-height:520px;overflow:auto}
+.mg-report h1{font-size:17px;margin:4px 0 8px} .mg-report h2{font-size:14px;margin:16px 0 6px;color:#cfe0ff} .mg-report table{border-collapse:collapse;font-size:12px;margin:6px 0} .mg-report th,.mg-report td{border:1px solid var(--border);padding:4px 8px} .mg-report th{background:var(--panel2)} .mg-report code{color:#f0cf8f} .mg-report blockquote{border-left:3px solid #f28c38;margin:8px 0;padding:4px 10px;color:#f7bd8c}
 .mg-dlg{position:absolute;z-index:8;left:50%;top:18px;transform:translateX(-50%);max-width:560px;padding:12px 14px;border-radius:10px;border:1px solid #f28c38;background:rgba(20,23,30,.97);box-shadow:0 10px 30px rgba(0,0,0,.6);color:#e7e9ee;font-size:12.5px;line-height:1.45}
 .mg-dlg .b{display:flex;gap:8px;justify-content:flex-end;margin-top:10px} .mg-dlg button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer} .mg-dlg button.warn{border-color:#f28c38;color:#f7bd8c}
 `;
@@ -5746,9 +5754,22 @@ function markup() {
       <input class="note" id="mg-note" placeholder="motivul schimbării (obligatoriu pentru Standard)"><button type="button" class="gold" data-s="savestd" title="Salvează selecția ca Standard nou (versiune nouă, cea veche rămâne)">Save Standard</button>
     </div>
     <div class="mg-msg" id="mg-msg"></div>
+    <div class="mg-runbar" id="mg-runbar">
+      <b>ANALIZĂ STANDARD (rulabilă):</b>
+      <select id="mg-rx" disabled><option value="">X — variabila…</option></select>
+      <span>→</span>
+      <select id="mg-ry" disabled><option value="">Y — ținta…</option></select>
+      <label>permutări <input id="mg-rperm" type="number" min="50" max="2000" value="200" disabled></label>
+      <button type="button" data-r="run" disabled>Rulează pe corpus</button>
+      <button type="button" data-r="prepare" disabled title="Construiește o singură dată cache-ul sesiunilor pentru toate activele">Pregătește cache-ul</button>
+      <span class="mg-pill" id="mg-rcache">cache: —</span>
+      <select id="mg-runs" disabled><option value="">rapoarte rulate…</option></select><button type="button" data-r="show" disabled>Vezi</button>
+    </div>
+    <div class="mg-rlog" id="mg-rlog" hidden></div>
+    <div class="mg-report" id="mg-report" hidden></div>
     ${legendHtml()}
     <div class="mg-host" id="mg-host"></div>
-    <p class="mg-note">L4–L8: Pas 6–84 (pașii vechi, pe puține active, poartă triunghiul „metodă non-standard"), fiecare cu amprenta (date · metodă · praguri · split), contorul pe familie, criteriile L7 bifate / picate și ștampila „pre-Standard"; triunghiul portocaliu = metodă non-standard. Bife: <b>Tr</b> = folosit pe TRAIN, <b>Te</b> = folosit pe TEST (L1–L3 și criteriile L7); gri = inclus automat, pentru că o casetă bifată depinde de el; auriu blocat = CORE (obligatoriu în orice Standard / Option); marcajul auriu <b>S</b> = caseta e în Standardul activ. Save Standard / Save Option merg doar în varianta locală (dublu click pe <code>PORNESTE_TOOL_LOCAL.bat</code> din folderul Trading). L4–L6 și L8–L9 se completează în etapele următoare. Hover pe casetă = ramificația (albastru amonte, portocaliu aval) · click = fixează · „?" = rezumat, click pe „?" = detalii · rotița = zoom, tragere = pan · harta se editează în <code>ui/method_graph.js</code> (tabloul GRAPH).</p>
+    <p class="mg-note">L4–L8: Pas 6–84 (pașii vechi, pe puține active, poartă triunghiul „metodă non-standard"), fiecare cu amprenta (date · metodă · praguri · split), contorul pe familie, criteriile L7 bifate / picate și ștampila „pre-Standard"; triunghiul portocaliu = metodă non-standard. Bife: <b>Tr</b> = folosit pe TRAIN, <b>Te</b> = folosit pe TEST (L1–L3 și criteriile L7); gri = inclus automat, pentru că o casetă bifată depinde de el; auriu blocat = CORE (obligatoriu în orice Standard / Option); marcajul auriu <b>S</b> = caseta e în Standardul activ. Analiza standard rulabilă (X → Y pe tot corpusul, cu praguri pe train, replicare pe active, control permutat și control la mărime fixată; raportul intră în <code>Trading/runs/</code> cu amprentă și ștampilă) și Save Standard / Save Option merg doar în varianta locală (dublu click pe <code>PORNESTE_TOOL_LOCAL.bat</code> din folderul Trading). L4–L6 și L8–L9 se completează în etapele următoare. Hover pe casetă = ramificația (albastru amonte, portocaliu aval) · click = fixează · „?" = rezumat, click pe „?" = detalii · rotița = zoom, tragere = pan · harta se editează în <code>ui/method_graph.js</code> (tabloul GRAPH).</p>
   </div>`;
 }
 function applyZoom() { if (st.vp) st.vp.setAttribute('transform', `translate(${st.z.x},${st.z.y}) scale(${st.z.k})`); const zl = st.root && st.root.querySelector('#mg-zl'); if (zl) zl.textContent = Math.round(st.z.k * 100) + '%'; }
@@ -5906,7 +5927,7 @@ async function connect() {
     const { active } = await api('/api/standard'); st.active = active || null;
     stdv.textContent = active ? `Standard v${active.version} · ${String(active.savedAt).slice(0, 10)}` : 'Standard: niciunul salvat';
     if (active) applyDoc(active); else paintSel();
-    refreshOptions();
+    refreshOptions(); loadRunMeta();
   } catch (e) {
     st.srv = null; srvEl.classList.remove('on'); srvEl.querySelector('span').textContent = 'offline — Save merge doar local (PORNESTE_TOOL_LOCAL.bat)';
     setBtns(false);
@@ -5915,6 +5936,46 @@ async function connect() {
     if (B) { st.active = B; stdv.textContent = `Standard v${B.version} · ${String(B.savedAt).slice(0, 10)} (inclus la build, doar citire)`; const lb = st.root.querySelector('[data-s="loadstd"]'); if (lb) lb.disabled = false; applyDoc(B); }
     else { stdv.textContent = 'Standard: vizibil doar local'; paintSel(); }
   }
+}
+// ───────────────────────────── ANALIZA STANDARD rulabilă (Etapa 4b) ─────────────────────────────
+let pollT = null;
+function runEls() { const q = id => st.root.querySelector(id); return { rx: q('#mg-rx'), ry: q('#mg-ry'), perm: q('#mg-rperm'), cache: q('#mg-rcache'), runs: q('#mg-runs'), log: q('#mg-rlog'), rep: q('#mg-report'), btns: [...st.root.querySelectorAll('#mg-runbar button')] }; }
+async function loadRunMeta() {
+  const E = runEls();
+  try {
+    const { meta, cache, busy } = await api('/api/std/meta'); if (!meta) throw new Error('std_analysis.js indisponibil');
+    E.rx.innerHTML = '<option value="">X — variabila…</option>' + Object.entries(meta.vars).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('');
+    E.ry.innerHTML = '<option value="">Y — ținta…</option>' + Object.entries(meta.targets).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('');
+    const nc = cache.filter(c => c.cached).length; E.cache.textContent = `cache: ${nc} / ${cache.length} active` + (nc < cache.length ? ' (prima rulare îl construiește, ~2–3 min)' : '');
+    [E.rx, E.ry, E.perm, E.runs, ...E.btns].forEach(b => { b.disabled = busy; });
+    await loadRuns();
+  } catch (e) { E.cache.textContent = 'analiza rulabilă: ' + e.message; }
+}
+async function loadRuns() {
+  const E = runEls(); try { const { runs } = await api('/api/runs'); E.runs.innerHTML = '<option value="">rapoarte rulate…</option>' + runs.map(r => `<option value="${esc(r.id)}">${esc(r.x)} → ${esc(r.y)} · ${esc(String(r.verdict).split(' ')[0])} · ${esc(r.stamp)} · ${esc(String(r.at).slice(0, 16).replace('T', ' '))}</option>`).join(''); } catch (e) { void e; }
+}
+async function showRun(id) {
+  const E = runEls(); if (!id) return;
+  try { const r = await fetch('/api/runs/' + encodeURIComponent(id) + '.md', { cache: 'no-store' }); const md = await r.text(); let html; try { html = require('./manual_tab.js').mdToHtml(md).html; } catch (e) { html = '<pre>' + esc(md) + '</pre>'; } E.rep.innerHTML = html; E.rep.hidden = false; E.rep.scrollTop = 0; } catch (e) { msg('Nu pot citi raportul: ' + e.message, 'err'); }
+}
+function pollJob(id) {
+  const E = runEls(); clearInterval(pollT);
+  pollT = setInterval(async () => {
+    try { const j = await api('/api/jobs/' + id); E.log.hidden = false; E.log.textContent = j.log.slice(-12).join('\n'); E.log.scrollTop = E.log.scrollHeight;
+      if (j.status !== 'running') { clearInterval(pollT); [E.rx, E.ry, E.perm, E.runs, ...E.btns].forEach(b => { b.disabled = false; }); await loadRunMeta(); if (j.result) { E.runs.value = j.result.id; showRun(j.result.id); msg(`Analiza s-a terminat: ${j.result.verdict}. Raportul e în Trading/runs/${j.result.id}.md — spune-mi să-l citesc și îl trec pe hartă.`, j.status === 'done' ? 'ok' : 'err'); } else if (j.status === 'error') msg('Eroare: ' + j.error, 'err'); }
+    } catch (e) { clearInterval(pollT); msg('Am pierdut legătura cu jobul: ' + e.message, 'err'); }
+  }, 1500);
+}
+function bindRun() {
+  st.root.querySelector('#mg-runbar').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-r]'); if (!b || b.disabled) return; const E = runEls();
+    try {
+      if (b.dataset.r === 'show') return showRun(E.runs.value);
+      if (b.dataset.r === 'run') { const x = E.rx.value, y = E.ry.value; if (!x || !y) return msg('Alege X și Y.', 'err'); const sel = payload(''); const missing = sel.train.effective.length ? [] : ['Standard']; void missing;
+        const { job } = await api('/api/std/run', { x, y, perm: +E.perm.value || 200 }); [E.rx, E.ry, E.perm, E.runs, ...E.btns].forEach(el => { el.disabled = true; }); msg('Analiza rulează pe calculatorul tău (vezi jurnalul).'); pollJob(job); }
+      if (b.dataset.r === 'prepare') { const { job } = await api('/api/std/prepare'); [E.rx, E.ry, E.perm, E.runs, ...E.btns].forEach(el => { el.disabled = true; }); msg('Construiesc cache-ul pe toate activele…'); pollJob(job); }
+    } catch (err) { msg('Eroare: ' + err.message, 'err'); }
+  });
 }
 function bindSel() {
   st.root.querySelector('#mg-selbar').addEventListener('click', async e => {
@@ -6005,7 +6066,7 @@ function bind() {
 function init(containerId) {
   st.root = typeof containerId === 'string' ? document.getElementById(containerId) : containerId; if (!st.root) return;
   st.root.innerHTML = markup(); st.host = st.root.querySelector('#mg-host');
-  draw(); bind(); bindSel(); connect(); st.done = true;
+  draw(); bind(); bindSel(); bindRun(); connect(); st.done = true;
   requestAnimationFrame(fit);
 }
 function render(containerId) { if (!st.done) init(containerId); else if (st.host && st.host.offsetParent) fit(); }
@@ -6463,7 +6524,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.30.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.0" };
 })();
 
 </script>
