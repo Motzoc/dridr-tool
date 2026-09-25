@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 18:22 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T18:22 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 18:25 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T18:25 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5471,6 +5471,13 @@ STUDIES.push({ pas: '85', name: 'Rularea Option-ului C1 sub metodologia nouă', 
   stampOverride: 'Option: „Option L9 - C1 - RDR x RSI etrem (preinregistrat)" peste Standard v1 — Trading/runs/2026-09-25-17-38-58_option_C1.md',
   train: 'Net +0.066 R [+0.014, +0.118] (n 1.403), brut +0.118, True 86.9%; referința RDR × RSI normal −0.026.', test: 'Net +0.164 R [+0.089, +0.239] (n 578), brut +0.218, True 91.3%; 16 / 19 active > 0 (17 / 19 peste referința proprie); p permutat 0.000 (500); 2025 +0.202, 2026 +0.114.', tt: 'replicare',
   concl: [{ code: 'R85', kind: 'hyp', name: 'C1 rămâne candidat (0 tranzacții forward)', sum: 'Trece toate criteriile L7 evaluate, dar NU cel de încercări (post-hoc, 486 celule) și nu poate fi evaluat criteriul pre-înregistrat: corpusul se oprește la 10 sep 2026 ⇒ 0 tranzacții forward din cele ≥ 150 cerute. Nu devine F, nu devine I.', checks: { 'k.n': 1, 'k.test': 1, 'k.assets': 1, 'k.ctrl': 1, 'k.cost': 1, 'k.tries': 0, 'k.t22': undefined } }] });
+STUDIES.push({ pas: '86', name: 'Selecția lui C1 refăcută DOAR pe train', q: 'Dacă am fi căutat celula „sesiune × tip de zi × banda RSI" doar pe datele ≤ 2024, ar fi ieșit C1? Și ce dă pe test celula aleasă orb?',
+  data: ['raw.ses', 'raw.dow', 'c.rsi', 'c.conf', 'raw.open', 'raw.close', 'c.drhigh', 'c.drlow', 'c.newsday'], methods: ['m.agg', 'm.split', 'm.repl', 'm.rr', 'm.perm', 'm.assets'],
+  pr: '30 celule = sesiune (3) × tip de zi (2) × banda RSI (5: ≤ 30 / 30–40 / 40–60 / 60–70 / ≥ 70) · selecție pe TRAIN: n ≥ 100, net > 0, ordonate după net · celula #1 verificată orb pe TEST · 500 permutări', split: 'train ≤ 31 dec 2024 · test ≥ 1 ian 2025 (date până la 10 sep 2026)', corpus: '20 active, toate sesiunile confirmate din rr_v2 (Pas 81–82)',
+  stampOverride: 'Standard v1 + Option C1 — Trading/runs/2026-09-25-18-25-11_C1_selectie_train.md',
+  train: 'Selecția oarbă (n ≥ 100, net > 0) reține 4 celule din 30: #1 ADR · weekend · RSI ≥ 70 (+0.157, n 306), #2 RDR · Lu–Vi · RSI ≥ 70 (+0.083, n 638), #3 RDR · Lu–Vi · RSI ≤ 30 (+0.051, n 765), #4 RDR · Lu–Vi · RSI 60–70 (+0.003). Cele două celule ale lui C1 sunt #2 și #3.',
+  test: 'Celula #1 (aleasă orb) PICĂ: −0.121 R (n 113), p permutat 0.42, 0 active cu n ≥ 10. Celulele lui C1 sunt singurele din selecție care trec: +0.243 (n 254) și +0.103 (n 324); reuniunea +0.164, p = 0.000. #4 −0.005.', tt: 'replicare',
+  concl: [{ code: 'R86', kind: 'hyp', name: 'Selecție oarbă pe train: C1 e în set (#2–#3), nu #1', sum: 'O căutare făcută corect, doar pe train, NU ar fi ales C1 pe primul loc, ci ADR · weekend · RSI ≥ 70 — care pică pe test. C1 e în setul selectat (n ≥ 100, net > 0) și e singurul din set care trece testul. Rămâne candidat: 1 din 4 celule alese orb a picat, deci familia are rată de fals-pozitiv vizibilă; verdictul rămâne testul forward.', checks: { 'k.n': 1, 'k.test': 1, 'k.ctrl': 1, 'k.tries': 0, 'k.assets': undefined } }] });
 
 // Familii de echivalență: compuși care sunt practic aceeași variabilă (ρ sau control la mărime fixată). Contorul = câte studii au folosit familia.
 const FAMILIES = [
@@ -5499,7 +5506,7 @@ function fingerprint(st0) { const s = [st0.data.slice().sort().join(','), st0.me
   const at = GRAPH.findIndex(g => g.lvl === 'L7'); GRAPH.splice(at, 0, ...out.filter(n => n.lvl !== 'L8'));
   const at9 = GRAPH.findIndex(g => g.lvl === 'L9'); GRAPH.splice(at9, 0, ...out.filter(n => n.lvl === 'L8'));
   // rezultatul Pas 85 intră în ipoteza C1 (L8) — e verificarea ei sub metodologia nouă
-  const c1 = GRAPH.find(g => g.id === 'h.C1'); if (c1) c1.in = [...(c1.in || []), 'r.R85'];
+  const c1 = GRAPH.find(g => g.id === 'h.C1'); if (c1) c1.in = [...(c1.in || []), 'r.R85', 'r.R86'];
   // L9: ce lipsește ca ipoteza să devină strategie validată — drumul explicit L8 → L9
   const l9 = GRAPH.findIndex(g => g.id === 'todo.L9'); if (l9 >= 0) GRAPH.splice(l9, 1);
   GRAPH.push({ lvl: 'L9', id: 'v.C1', name: 'C1 → strategie validată (în așteptare)', kind: 'todo', sum: 'Ce lipsește ca C1 să intre în L9: (1) ≥ 150 tranzacții forward după 10 sep 2026 cu net > 0 (criteriul pre-înregistrat); (2) o singură trecere pe SEIF (activele noi), cu regula înghețată.',
@@ -6623,7 +6630,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.8" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.9" };
 })();
 
 </script>
