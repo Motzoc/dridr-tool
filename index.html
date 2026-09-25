@@ -601,8 +601,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 16:31 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
-// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T16:31 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
+// === dridr-core/dist/dridr-core.browser.js INLINED de cli/build_online.js la 2026-09-25 16:58 UTC. NU edita aici — editează sursele din dridr-core/ și rebuild. ===
+// dridr-core.browser.js — GENERAT de cli/build_core_bundle.js la 2026-09-25T16:58 UTC. NU edita: editează sursele din dridr-core/ și rebuild.
 (function () {
   'use strict';
   const __defs = {}, __cache = {};
@@ -5648,6 +5648,8 @@ const CSS = `
 .mg-li i{display:inline-block;width:13px;height:11px;border-radius:3px;border:1.5px solid}
 .mg-li.st{cursor:help;border-bottom:1px dotted var(--text3)}
 .mg-glowk{display:inline-block;width:22px;height:4px;border-radius:2px}
+.mg-li[data-k]{cursor:pointer;user-select:none} .mg-li[data-k]:hover{color:#fff}
+.mg-li.off{opacity:.35;text-decoration:line-through}
 .mg-leg.focus .mg-li[data-k]{opacity:.35}
 .mg-leg.focus .mg-li.on{opacity:1;color:#fff}
 .mg-leg.focus .mg-li.on i{box-shadow:0 0 0 2px rgba(255,255,255,.12),0 0 10px 2px var(--kc)}
@@ -5666,6 +5668,7 @@ const CSS = `
 .mg-node .mg-box{transition:opacity .12s}
 .mg-edge{fill:none;stroke:#8d95a5;stroke-width:1.1;opacity:.13;stroke-linejoin:miter}
 .mg-edge.mg-same{opacity:0}
+.mg-node.unsel{opacity:.45} .mg-node.unsel .mg-name{font-weight:500}
 .mg-svg.focus .mg-node{opacity:.18}
 .mg-svg.focus .mg-node.hl-self,.mg-svg.focus .mg-node.hl-up,.mg-svg.focus .mg-node.hl-down,.mg-svg.focus .mg-node.hl-par{opacity:1}
 .mg-svg.focus .mg-node.hl-par>.mg-box{opacity:.6}
@@ -5710,6 +5713,14 @@ const CSS = `
 .mg-pill{padding:2px 8px;border-radius:10px;border:1px solid var(--border);color:var(--text2);white-space:nowrap}
 .mg-pill.std{border-color:#f2c94c;color:#f7de8f} .mg-pill.mod{border-color:#f28c38;color:#f7bd8c} .mg-pill.rob{border-color:#b48cff;color:#d8c4ff} .mg-pill.rep{border-color:#5ec8e0;color:#a6e3f0}
 .mg-msg{font-size:11.5px;color:var(--text2);min-height:16px;padding:0 4px} .mg-msg.err{color:#f0a09c} .mg-msg.ok{color:#8fd9ad}
+.mg-pick{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:12px}
+.mg-pick summary{cursor:pointer;color:var(--text2);font-weight:600;font-size:11.5px;letter-spacing:.03em}
+.mg-pickrow{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;padding:8px 0 2px}
+.mg-pickrow label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3);font-weight:700}
+.mg-pickrow select{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px;font-size:11.5px;min-width:190px;max-width:260px}
+.mg-pickrow select option:checked{background:#3f8cff55;color:#fff}
+.mg-pickbtns{display:flex;flex-direction:column;gap:6px;align-self:center;font-size:11px;color:var(--text3)}
+.mg-pickbtns button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer} .mg-pickbtns button:hover{border-color:var(--accent)}
 .mg-runbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid #3f8cff55;border-radius:10px;padding:8px 10px;font-size:12px}
 .mg-runbar b{color:#a9c8ff;font-size:11px;letter-spacing:.05em}
 .mg-runbar select,.mg-runbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;max-width:300px} .mg-runbar input{width:64px}
@@ -5728,6 +5739,7 @@ const st = { root: null, host: null, svg: null, vp: null, lay: null, hidden: new
 function legendHtml() {
   const parts = LEGEND.map(([title, keys]) => `<span><b>${esc(title)}:</b></span>` + keys.map(k => { const c = KINDS[k]; const isSt = !!STATUS_TXT[k]; return `<span class="mg-li${isSt ? ' st' : ''}" data-k="${k}"${isSt ? ` title="${esc(STATUS_TXT[k])}"` : ''}><i style="--kc:${c.stroke};background:${c.fill};border-color:${c.stroke};${c.dash ? 'border-style:dashed' : ''}"></i>${esc(c.lbl)}</span>`; }).join(''));
   parts.push(`<span><b>Glow:</b></span><span class="mg-li"><span class="mg-glowk" style="background:#5fb0ff"></span>amonte (de ce depinde)</span><span class="mg-li"><span class="mg-glowk" style="background:#ffb347"></span>aval (ce influențează)</span>`);
+  parts.push(`<span class="mg-hint" style="font-size:10.5px;color:var(--text3)">click pe un tip = ascunde-l (și ramura lui, dacă nu ține de ceva rămas vizibil)</span>`);
   return `<div class="mg-leg">${parts.join('')}</div>`;
 }
 function markup() {
@@ -5737,7 +5749,8 @@ function markup() {
       <button type="button" data-a="fit" title="Toată harta în ecran">Potrivește</button><button type="button" data-a="one" title="Mărime reală">100%</button>
       <span class="mg-zl" id="mg-zl">100%</span><span class="mg-sep"></span>
       <input type="search" id="mg-search" placeholder="Caută (ex. DSD, sizeATR, split)…" autocomplete="off">
-      <span class="mg-sep"></span>${LEVELS.map(L => `<button type="button" class="mg-chip" data-lvl="${L.id}" title="${esc(L.hint)}">${L.id}</button>`).join('')}
+      <span class="mg-sep"></span>${LEVELS.map(L => `<button type="button" class="mg-chip" data-lvl="${L.id}" title="${esc(L.hint)} — click = ascunde / arată tot nivelul">${L.id}</button>`).join('')}
+      <button type="button" data-a="showall" title="Arată din nou tot ce a fost ascuns din legendă sau din niveluri">Arată tot</button>
     </div>
     <div class="mg-selbar" id="mg-selbar">
       <span class="mg-srv" id="mg-srv"><i></i><span>verific serverul local…</span></span><span class="mg-sep"></span>
@@ -5754,6 +5767,10 @@ function markup() {
       <input class="note" id="mg-note" placeholder="motivul schimbării (obligatoriu pentru Standard)"><button type="button" class="gold" data-s="savestd" title="Salvează selecția ca Standard nou (versiune nouă, cea veche rămâne)">Save Standard</button>
     </div>
     <div class="mg-msg" id="mg-msg"></div>
+    <details class="mg-pick" id="mg-pick"><summary>MODEL DE TESTARE — alege din liste (selecție multiplă, Ctrl + click), apoi „Aplică"; bifele se pun pe hartă și se pot salva ca Option / Standard</summary>
+      <div class="mg-pickrow">${['L1', 'L2', 'L3', 'L7', 'L8', 'L9'].map(L => `<label><span>${L}</span><select multiple size="6" data-pick="${L}"></select></label>`).join('')}
+      <div class="mg-pickbtns"><span>aplică pe:</span><button type="button" data-p="train">Train</button><button type="button" data-p="test">Test</button><button type="button" data-p="both">Ambele</button><button type="button" data-p="reset" title="Listele revin la ce e bifat acum pe hartă">Reia din hartă</button></div></div>
+    </details>
     <div class="mg-runbar" id="mg-runbar">
       <b>ANALIZĂ STANDARD (rulabilă):</b>
       <select id="mg-rx" disabled><option value="">X — variabila…</option></select>
@@ -5763,13 +5780,13 @@ function markup() {
       <button type="button" data-r="run" disabled>Rulează pe corpus</button>
       <button type="button" data-r="prepare" disabled title="Construiește o singură dată cache-ul sesiunilor pentru toate activele">Pregătește cache-ul</button>
       <span class="mg-pill" id="mg-rcache">cache: —</span>
-      <select id="mg-runs" disabled><option value="">rapoarte rulate…</option></select><button type="button" data-r="show" disabled>Vezi</button>
+      <select id="mg-runs" disabled><option value="">rapoarte rulate…</option></select><button type="button" data-r="show" disabled>Vezi</button><button type="button" data-r="close" title="Închide raportul">×</button>
     </div>
     <div class="mg-rlog" id="mg-rlog" hidden></div>
     <div class="mg-report" id="mg-report" hidden></div>
     ${legendHtml()}
     <div class="mg-host" id="mg-host"></div>
-    <p class="mg-note">L4–L8: Pas 6–84 (pașii vechi, pe puține active, poartă triunghiul „metodă non-standard"), fiecare cu amprenta (date · metodă · praguri · split), contorul pe familie, criteriile L7 bifate / picate și ștampila „pre-Standard"; triunghiul portocaliu = metodă non-standard. Bife: <b>Tr</b> = folosit pe TRAIN, <b>Te</b> = folosit pe TEST (L1–L3 și criteriile L7); gri = inclus automat, pentru că o casetă bifată depinde de el; auriu blocat = CORE (obligatoriu în orice Standard / Option); marcajul auriu <b>S</b> = caseta e în Standardul activ. Analiza standard rulabilă (X → Y pe tot corpusul, cu praguri pe train, replicare pe active, control permutat și control la mărime fixată; raportul intră în <code>Trading/runs/</code> cu amprentă și ștampilă) și Save Standard / Save Option merg doar în varianta locală (dublu click pe <code>PORNESTE_TOOL_LOCAL.bat</code> din folderul Trading). L4–L6 și L8–L9 se completează în etapele următoare. Hover pe casetă = ramificația (albastru amonte, portocaliu aval) · click = fixează · „?" = rezumat, click pe „?" = detalii · rotița = zoom, tragere = pan · harta se editează în <code>ui/method_graph.js</code> (tabloul GRAPH).</p>
+    <p class="mg-note">L4–L8: Pas 6–84 (pașii vechi, pe puține active, poartă triunghiul „metodă non-standard"), fiecare cu amprenta (date · metodă · praguri · split), contorul pe familie, criteriile L7 bifate / picate și ștampila „pre-Standard"; triunghiul portocaliu = metodă non-standard. Bife: <b>Tr</b> = folosit pe TRAIN, <b>Te</b> = folosit pe TEST (L1–L3 și criteriile L7); gri = inclus automat, pentru că o casetă bifată depinde de el; auriu blocat = CORE (obligatoriu în orice Standard / Option); marcajul auriu <b>S</b> = caseta e în Standardul activ. Analiza standard rulabilă (X → Y pe tot corpusul, cu praguri pe train, replicare pe active, control permutat și control la mărime fixată; raportul intră în <code>Trading/runs/</code> cu amprentă și ștampilă) și Save Standard / Save Option merg doar în varianta locală (dublu click pe <code>PORNESTE_TOOL_LOCAL.bat</code> din folderul Trading). L4–L6 și L8–L9 se completează în etapele următoare. Hover pe casetă = ramificația (albastru amonte, portocaliu aval) · click = fixează · „?" = rezumat, click pe „?" = detalii · Ctrl + rotiță = zoom, tragere = pan, rotița simplă = scroll · harta se editează în <code>ui/method_graph.js</code> (tabloul GRAPH).</p>
   </div>`;
 }
 function applyZoom() { if (st.vp) st.vp.setAttribute('transform', `translate(${st.z.x},${st.z.y}) scale(${st.z.k})`); const zl = st.root && st.root.querySelector('#mg-zl'); if (zl) zl.textContent = Math.round(st.z.k * 100) + '%'; }
@@ -5844,8 +5861,32 @@ function onPopClick(e) {
   const go = e.target.closest('[data-go]'); if (go) { const id = go.dataset.go; centerOn(id); st.pinned = id; setFocus(id); const q = st.svg.querySelector(`.mg-q[data-q="${CSS_ESC(id)}"]`); if (q) { st.popPinned = id; showPop(id, q, true); } }
 }
 
+// ───────────────────────────── ASCUNDERE DIN LEGENDĂ (tipuri off) ─────────────────────────────
+st.offKinds = new Set();
+// O casetă e ascunsă dacă tipul ei e off, SAU dacă toate casetele de care e legată (amonte + aval) sunt ascunse — adică ramura
+// dispare doar când nu mai ține de nimic rămas vizibil. Grupul se ascunde când toate sub-casetele lui sunt ascunse.
+function hiddenSet() {
+  const H = new Set();
+  const all = Object.values(IDX.byId).filter(n => !n.children);
+  for (const n of all) if (st.offKinds.has(n.kind)) H.add(n.id);
+  let changed = true;
+  while (changed) { changed = false;
+    for (const n of all) { if (H.has(n.id) || st.offKinds.size === 0) continue;
+      const nb = [...(IDX.ins[n.id] || []), ...(IDX.outs[n.id] || []), ...((IDX.parentOf[n.id] && IDX.outs[IDX.parentOf[n.id]]) || [])].flatMap(x => IDX.children[x] ? IDX.children[x] : [x]).filter(x => x !== n.id);
+      const inH = nb.filter(x => H.has(x)).length;
+      if (nb.length && inH === nb.length && nb.some(x => st.offKinds.has(IDX.byId[x].kind) || H.has(x))) { H.add(n.id); changed = true; } }
+  }
+  for (const g of GRAPH) if (g.children && g.children.every(c => H.has(c.id))) H.add(g.id);
+  return H;
+}
+function applyHidden() {
+  if (!st.svg) return; const H = hiddenSet();
+  st.svg.querySelectorAll('.mg-node').forEach(el => { el.style.display = H.has(el.dataset.id) ? 'none' : ''; });
+  st.svg.querySelectorAll('.mg-edge').forEach(e => { e.style.display = (H.has(e.dataset.from) || H.has(e.dataset.to)) ? 'none' : ''; });
+  const leg = st.root.querySelector('.mg-leg'); if (leg) leg.querySelectorAll('.mg-li[data-k]').forEach(li => li.classList.toggle('off', st.offKinds.has(li.dataset.k)));
+}
 // ───────────────────────────── SELECȚIE TRAIN / TEST + STANDARD / OPTION ─────────────────────────────
-const CHECK_LVLS = new Set(['L1', 'L2', 'L3', 'L7']);
+const CHECK_LVLS = new Set(['L1', 'L2', 'L3', 'L7', 'L8', 'L9']);
 function checkable(n) { return !!n && CHECK_LVLS.has(n.lvl) && !n.children && n.kind !== 'standard' && n.kind !== 'todo'; }
 const CORE_IDS = () => Object.values(IDX.byId).filter(n => n.core && !n.children).map(n => n.id);
 st.sel = { train: new Set(), test: new Set() }; st.srv = null; st.active = null;
@@ -5874,6 +5915,12 @@ function paintSel() {
     if (n.children) { const ch = n.children.map(c => c.id).filter(c => checkable(IDX.byId[c])); const k = ch.filter(c => eff[sd].has(c)).length; if (k && k === ch.length) el.classList.add('on'); else if (k) el.classList.add('part'); return; }
     if (n.core) el.classList.add('lock'); else if (st.sel[sd].has(id)) el.classList.add('on'); else if (eff[sd].has(id)) el.classList.add('imp');
   });
+  // 9) ce e bifat (train sau test) rămâne luminos; ce nu e bifat se estompează
+  st.svg.querySelectorAll('.mg-node').forEach(el => { const n = IDX.byId[el.dataset.id]; if (!n) return; let dim = false;
+    if (n.children) { const ch = n.children.map(c => c.id).filter(c => checkable(IDX.byId[c])); dim = ch.length > 0 && !ch.some(c => eff.train.has(c) || eff.test.has(c)); }
+    else if (checkable(n)) dim = !(eff.train.has(n.id) || eff.test.has(n.id));
+    el.classList.toggle('unsel', dim); });
+  syncPick(eff);
   // marcajul Standard
   const A = st.active, sTr = new Set(A ? A.train.effective : []), sTe = new Set(A ? A.test.effective : []);
   st.svg.querySelectorAll('.mg-std').forEach(g => { const id = g.dataset.std, inT = sTr.has(id), inE = sTe.has(id); g.style.display = (inT || inE) ? '' : 'none'; const t = g.querySelector('title'); if (t && A) t.textContent = `în Standard v${A.version} — ${inT && inE ? 'train și test' : (inT ? 'doar train' : 'doar test')}`; });
@@ -5956,7 +6003,7 @@ async function loadRuns() {
 }
 async function showRun(id) {
   const E = runEls(); if (!id) return;
-  try { const r = await fetch('/api/runs/' + encodeURIComponent(id) + '.md', { cache: 'no-store' }); const md = await r.text(); let html; try { html = require('./manual_tab.js').mdToHtml(md).html; } catch (e) { html = '<pre>' + esc(md) + '</pre>'; } E.rep.innerHTML = html; E.rep.hidden = false; E.rep.scrollTop = 0; } catch (e) { msg('Nu pot citi raportul: ' + e.message, 'err'); }
+  try { const r = await fetch('/api/runs/' + encodeURIComponent(id) + '.md', { cache: 'no-store' }); const md = await r.text(); let html; try { html = require('./manual_tab.js').mdToHtml(md).html; } catch (e) { html = '<pre>' + esc(md) + '</pre>'; } E.rep.innerHTML = html; E.rep.hidden = false; E.rep.dataset.id = id; E.rep.scrollTop = 0; const sb = st.root.querySelector('[data-r="show"]'); if (sb) sb.textContent = 'Ascunde'; } catch (e) { msg('Nu pot citi raportul: ' + e.message, 'err'); }
 }
 function pollJob(id) {
   const E = runEls(); clearInterval(pollT);
@@ -5966,11 +6013,32 @@ function pollJob(id) {
     } catch (e) { clearInterval(pollT); msg('Am pierdut legătura cu jobul: ' + e.message, 'err'); }
   }, 1500);
 }
+// 10) listele „model de testare" — o listă per nivel, sincronizată cu bifele de pe hartă
+function fillPick() {
+  st.root.querySelectorAll('select[data-pick]').forEach(sel => { const L = sel.dataset.pick;
+    const items = Object.values(IDX.byId).filter(n => n.lvl === L && checkable(n) && !n.core);
+    sel.innerHTML = items.map(n => `<option value="${esc(n.id)}">${esc((IDX.parentOf[n.id] ? IDX.byId[IDX.parentOf[n.id]].name + ' › ' : '') + n.name)}</option>`).join('');
+    sel.title = 'Ctrl + click = mai multe; Shift + click = interval'; });
+}
+let pickSyncing = false;
+function syncPick(eff) { if (pickSyncing) return; st.root.querySelectorAll('select[data-pick]').forEach(sel => { for (const o of sel.options) o.selected = st.sel.train.has(o.value) || st.sel.test.has(o.value) || (eff && (eff.train.has(o.value) || eff.test.has(o.value)) && IDX.byId[o.value].core); }); }
+function applyPick(which) {
+  const sides = which === 'both' ? ['train', 'test'] : [which];
+  st.root.querySelectorAll('select[data-pick]').forEach(sel => { const L = sel.dataset.pick, chosen = new Set([...sel.selectedOptions].map(o => o.value));
+    for (const o of sel.options) { const id = o.value; if (IDX.byId[id].core) continue; for (const sd of sides) { if (chosen.has(id)) st.sel[sd].add(id); else st.sel[sd].delete(id); } } void L; });
+  pickSyncing = true; paintSel(); pickSyncing = false;
+  msg(`Listele au fost aplicate pe ${which === 'both' ? 'TRAIN și TEST' : which.toUpperCase()}. Salvează ca Option (sau Standard) ca să devină model de testare.`, 'ok');
+}
+function bindPick() {
+  fillPick();
+  st.root.querySelector('#mg-pick').addEventListener('click', e => { const b = e.target.closest('button[data-p]'); if (!b) return; if (b.dataset.p === 'reset') { syncPick({ train: effective('train'), test: effective('test') }); msg('Listele reflectă bifele de pe hartă.'); } else applyPick(b.dataset.p); });
+}
 function bindRun() {
   st.root.querySelector('#mg-runbar').addEventListener('click', async e => {
     const b = e.target.closest('button[data-r]'); if (!b || b.disabled) return; const E = runEls();
     try {
-      if (b.dataset.r === 'show') return showRun(E.runs.value);
+      if (b.dataset.r === 'show') { if (!E.rep.hidden && E.rep.dataset.id === E.runs.value) { E.rep.hidden = true; b.textContent = 'Vezi'; return; } await showRun(E.runs.value); b.textContent = 'Ascunde'; return; }
+      if (b.dataset.r === 'close') { E.rep.hidden = true; const sb = st.root.querySelector('[data-r="show"]'); if (sb) sb.textContent = 'Vezi'; return; }
       if (b.dataset.r === 'run') { const x = E.rx.value, y = E.ry.value; if (!x || !y) return msg('Alege X și Y.', 'err'); const sel = payload(''); const missing = sel.train.effective.length ? [] : ['Standard']; void missing;
         const { job } = await api('/api/std/run', { x, y, perm: +E.perm.value || 200 }); [E.rx, E.ry, E.perm, E.runs, ...E.btns].forEach(el => { el.disabled = true; }); msg('Analiza rulează pe calculatorul tău (vezi jurnalul).'); pollJob(job); }
       if (b.dataset.r === 'prepare') { const { job } = await api('/api/std/prepare'); [E.rx, E.ry, E.perm, E.runs, ...E.btns].forEach(el => { el.disabled = true; }); msg('Construiesc cache-ul pe toate activele…'); pollJob(job); }
@@ -6011,11 +6079,13 @@ function draw() {
   applyZoom();
   if (st.pinned && st.lay.boxes[st.pinned]) setFocus(st.pinned); else st.pinned = null;
   if (st.root.querySelector('#mg-cnt')) paintSel();
+  applyHidden();
 }
 function bind() {
   const host = st.host;
   // zoom cu rotița, în jurul cursorului
-  host.addEventListener('wheel', e => { e.preventDefault(); const r = host.getBoundingClientRect(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  // Ctrl + rotiță (sau pinch pe trackpad) = zoom; rotița simplă rămâne scroll-ul paginii
+  host.addEventListener('wheel', e => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); const r = host.getBoundingClientRect(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
   // pan prin tragere; un click fără mișcare = selecție
   let drag = null;
   host.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, zx: st.z.x, zy: st.z.y, moved: false }; host.setPointerCapture(e.pointerId); });
@@ -6055,8 +6125,10 @@ function bind() {
     else if (b.dataset.a === 'out') zoomAt(0.8, r.width / 2, r.height / 2);
     else if (b.dataset.a === 'fit') fit();
     else if (b.dataset.a === 'one') { st.z.k = 1; applyZoom(); }
+    else if (b.dataset.a === 'showall') { st.offKinds.clear(); st.hidden.clear(); st.root.querySelectorAll('.mg-chip.off').forEach(c => c.classList.remove('off')); hidePop(true); draw(); fit(); }
     else if (b.dataset.lvl) { const L = b.dataset.lvl; if (st.hidden.has(L)) st.hidden.delete(L); else st.hidden.add(L); b.classList.toggle('off', st.hidden.has(L)); hidePop(true); draw(); fit(); }
   });
+  st.root.querySelector('.mg-leg').addEventListener('click', e => { const li = e.target.closest('.mg-li[data-k]'); if (!li) return; const k = li.dataset.k; if (st.offKinds.has(k)) st.offKinds.delete(k); else st.offKinds.add(k); applyHidden(); });
   const inp = st.root.querySelector('#mg-search');
   const matches = () => { const q = inp.value.trim().toLowerCase(); st.svg.querySelectorAll('.mg-node.match').forEach(x => x.classList.remove('match')); if (!q) return []; const ids = Object.values(IDX.byId).filter(n => st.lay.boxes[n.id] && (n.name.toLowerCase().includes(q) || String(n.sum || '').toLowerCase().includes(q))).map(n => n.id); for (const id of ids) { const el = st.svg.querySelector(`.mg-node[data-id="${CSS_ESC(id)}"]`); if (el) el.classList.add('match'); } return ids; };
   inp.addEventListener('input', matches);
@@ -6066,7 +6138,7 @@ function bind() {
 function init(containerId) {
   st.root = typeof containerId === 'string' ? document.getElementById(containerId) : containerId; if (!st.root) return;
   st.root.innerHTML = markup(); st.host = st.root.querySelector('#mg-host');
-  draw(); bind(); bindSel(); bindRun(); connect(); st.done = true;
+  draw(); bind(); bindSel(); bindRun(); bindPick(); connect(); st.done = true;
   requestAnimationFrame(fit);
 }
 function render(containerId) { if (!st.done) init(containerId); else if (st.host && st.host.offsetParent) fit(); }
@@ -6524,7 +6596,7 @@ module.exports = { init, render, setSub, mdToHtml, renderDiagram, diagramSvg, no
   const E = req('./engine.js'), F = req('./features/index.js'), T = req('./targets/index.js'), S = req('./stats/index.js'), PB = req('./playbook/index.js'), ui = req('./ui/modules_tab.js'), G = req('./ui/glossary.js'), correl = req('./ui/correl_tab.js'), sim = req('./ui/sim_tab.js'), dist = req('./ui/dist_tab.js'), manual = req('./ui/manual_tab.js'), DIST = req('./stats/dist.js');
   // globalele motorului, pentru codul HTML existent
   Object.assign(window, E);
-  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.0" };
+  window.DRIDR = { E, F, T, S, PB, MODULES: __MODULES, ui, correl, sim, dist, manual, DIST, glossary: G, version: "0.31.1" };
 })();
 
 </script>
